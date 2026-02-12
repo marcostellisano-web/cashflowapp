@@ -37,4 +37,5 @@ class ProductionParameters(BaseModel):
     shooting_blocks: list[ShootingBlock]
     episode_deliveries: list[EpisodeDelivery]
     final_delivery_date: date
+    first_payroll_week: date | None = None  # Monday of the first payroll week
     hiatus_periods: list[tuple[date, date]] = []

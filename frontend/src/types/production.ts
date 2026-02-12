@@ -26,5 +26,6 @@ export interface ProductionParameters {
   shooting_blocks: ShootingBlock[];
   episode_deliveries: EpisodeDelivery[];
   final_delivery_date: string;
+  first_payroll_week?: string; // Monday of first payroll week
   hiatus_periods: [string, string][];
 }

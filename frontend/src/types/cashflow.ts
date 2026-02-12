@@ -32,6 +32,7 @@ export interface WeekColumn {
   phase_label: string;
   is_hiatus: boolean;
   shoot_days: number;
+  is_payroll_week: boolean | null; // null if no payroll cycle set
 }
 
 export interface CashflowRow {

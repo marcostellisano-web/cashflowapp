@@ -18,6 +18,7 @@ export default function ProductionForm({ episodeCount, initialParams, onSubmit, 
   const [ppEnd, setPpEnd] = useState(initialParams?.pp_end ?? '');
   const [editStart, setEditStart] = useState(initialParams?.edit_start ?? '');
   const [finalDelivery, setFinalDelivery] = useState(initialParams?.final_delivery_date ?? '');
+  const [firstPayrollWeek, setFirstPayrollWeek] = useState(initialParams?.first_payroll_week ?? '');
   const [blocks, setBlocks] = useState<ShootingBlock[]>(initialParams?.shooting_blocks ?? []);
   const [deliveries, setDeliveries] = useState<EpisodeDelivery[]>(initialParams?.episode_deliveries ?? []);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +51,7 @@ export default function ProductionForm({ episodeCount, initialParams, onSubmit, 
       shooting_blocks: blocks,
       episode_deliveries: deliveries,
       final_delivery_date: finalDelivery,
+      first_payroll_week: firstPayrollWeek || undefined,
       hiatus_periods: [],
     });
   };
@@ -187,6 +189,25 @@ export default function ProductionForm({ episodeCount, initialParams, onSubmit, 
               onChange={(e) => setFinalDelivery(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pt-2 border-t border-gray-100">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              First Payroll Week
+            </label>
+            <input
+              type="date"
+              value={firstPayrollWeek}
+              onChange={(e) => setFirstPayrollWeek(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div className="sm:col-span-2 lg:col-span-4 flex items-end">
+            <p className="text-xs text-gray-400 pb-2">
+              Payroll runs every 2 weeks from this date. Other payables fall on the
+              alternating weeks.
+            </p>
           </div>
         </div>
       </div>

@@ -76,6 +76,20 @@ def _determine_phase_label(
     return "PRE-PROD"
 
 
+def _is_payroll_week(monday: date, first_payroll_week: date | None) -> bool | None:
+    """Determine if a week is a payroll week based on a 2-week cycle.
+
+    Returns True for payroll weeks, False for AP (other payables) weeks,
+    or None if no payroll cycle is configured.
+    """
+    if first_payroll_week is None:
+        return None
+    # Number of weeks between this monday and the first payroll week
+    delta_days = (monday - first_payroll_week).days
+    weeks_diff = delta_days // 7
+    return weeks_diff % 2 == 0
+
+
 def build_timeline(params: ProductionParameters) -> list[WeekColumn]:
     """Build the full production timeline as a list of WeekColumns.
 
@@ -89,6 +103,7 @@ def build_timeline(params: ProductionParameters) -> list[WeekColumn]:
         is_hiatus = is_date_in_ranges(monday, params.hiatus_periods)
         shoot_days = 0 if is_hiatus else _compute_shoot_days(monday, params.shooting_blocks)
         phase_label = _determine_phase_label(monday, params)
+        payroll = _is_payroll_week(monday, params.first_payroll_week)
 
         weeks.append(
             WeekColumn(
@@ -97,6 +112,7 @@ def build_timeline(params: ProductionParameters) -> list[WeekColumn]:
                 phase_label=phase_label,
                 is_hiatus=is_hiatus,
                 shoot_days=shoot_days,
+                is_payroll_week=payroll,
             )
         )
 

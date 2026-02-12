@@ -15,6 +15,7 @@ class WeekColumn(BaseModel):
     phase_label: str
     is_hiatus: bool = False
     shoot_days: int = 0
+    is_payroll_week: bool | None = None  # None if no payroll cycle set
 
 
 class CashflowRow(BaseModel):

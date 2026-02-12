@@ -67,6 +67,26 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     meta = " | ".join(filter(None, [series_text, ep_text]))
     ws.cell(row=2, column=1, value=meta).font = SUBTITLE_FONT
 
+    # Row 3: Payroll / AP indicator (only if payroll cycle is configured)
+    has_payroll = any(w.is_payroll_week is not None for w in output.weeks)
+    if has_payroll:
+        ws.cell(row=3, column=DESC_COL, value="Pay Cycle").font = Font(bold=True, size=8, color="666666")
+        payroll_fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
+        ap_fill = PatternFill(start_color="FFF3E0", end_color="FFF3E0", fill_type="solid")
+        for i, week in enumerate(output.weeks):
+            col = FIRST_WEEK_COL + i
+            if week.is_payroll_week is True:
+                cell = ws.cell(row=3, column=col, value="Payroll")
+                cell.fill = payroll_fill
+            elif week.is_payroll_week is False:
+                cell = ws.cell(row=3, column=col, value="AP")
+                cell.fill = ap_fill
+            else:
+                cell = ws.cell(row=3, column=col)
+            cell.font = Font(bold=True, size=7)
+            cell.alignment = Alignment(horizontal="center")
+            cell.border = THIN_BORDER
+
     # Row 4: Phase labels
     for i, week in enumerate(output.weeks):
         col = FIRST_WEEK_COL + i
@@ -261,6 +281,7 @@ def _write_parameters_sheet(wb: Workbook, params: ProductionParameters):
         ("PP End", params.pp_end.isoformat()),
         ("Edit Start", params.edit_start.isoformat()),
         ("Final Delivery", params.final_delivery_date.isoformat()),
+        ("First Payroll Week", params.first_payroll_week.isoformat() if params.first_payroll_week else "N/A"),
     ]
 
     for label, value in fields:
