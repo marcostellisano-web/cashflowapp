@@ -9,15 +9,21 @@ from openpyxl.worksheet.worksheet import Worksheet
 from app.models.budget import BudgetCategory, BudgetLineItem, ParsedBudget
 
 # Keywords used to detect header rows (case-insensitive)
-CODE_HEADERS = {"code", "account", "acct", "account no", "acct no", "account number", "no", "no."}
-DESC_HEADERS = {"description", "desc", "detail", "category", "account name", "name"}
+CODE_HEADERS = {
+    "code", "account", "acct", "account no", "acct no", "account number",
+    "no", "no.", "account #", "acct #", "#",
+}
+DESC_HEADERS = {
+    "description", "desc", "detail", "category", "account name", "name",
+    "categories",
+}
 TOTAL_HEADERS = {"total", "budget", "amount", "budgeted", "estimate", "total budget"}
 
 # Keywords that indicate a subtotal/total row to skip
 SKIP_KEYWORDS = {"total", "subtotal", "sub-total", "sub total", "grand total"}
 
 # Sheet names to look for (in order of priority)
-PREFERRED_SHEETS = ["top sheet", "budget summary", "budget", "summary"]
+PREFERRED_SHEETS = ["categories", "top sheet", "budget summary", "budget", "summary"]
 
 
 def _find_budget_sheet(wb: openpyxl.Workbook) -> Worksheet:
@@ -26,6 +32,10 @@ def _find_budget_sheet(wb: openpyxl.Workbook) -> Worksheet:
     for preferred in PREFERRED_SHEETS:
         if preferred in sheet_names_lower:
             return wb[sheet_names_lower[preferred]]
+    # Fallback: partial match (e.g. "Categories (Detail)" or "Budget Categories")
+    for sheet_lower, sheet_real in sheet_names_lower.items():
+        if "categories" in sheet_lower:
+            return wb[sheet_real]
     # Fallback to the first sheet
     return wb.active or wb.worksheets[0]
 
@@ -57,10 +67,50 @@ def _detect_headers(ws: Worksheet, max_scan_rows: int = 25) -> tuple[int, dict[s
         if code_col and desc_col and total_col:
             return row_idx, {"code": code_col, "description": desc_col, "total": total_col}
 
+    # Fallback: try the Movie Magic "Categories" tab fixed layout.
+    # Account # in column A (1), Description in column B (2), Total in column E (5).
+    # Detect header row by looking for a numeric-looking value in column A.
+    col_map = {"code": 1, "description": 2, "total": 5}
+    header_row = _detect_categories_header_row(ws, col_map, max_scan_rows)
+    if header_row is not None:
+        return header_row, col_map
+
     raise ValueError(
         "Could not find header row with Code, Description, and Total columns. "
-        "Please ensure your budget file has columns labeled with recognizable headers."
+        "Please ensure your budget file has columns labeled with recognizable headers "
+        "(e.g. 'Account #', 'Description', 'Total') or uses the Movie Magic Categories layout."
     )
+
+
+def _detect_categories_header_row(
+    ws: Worksheet, col_map: dict[str, int], max_scan_rows: int
+) -> int | None:
+    """Detect the header row for the Movie Magic Categories fixed layout.
+
+    Looks for the first row where column A contains a budget-code-like value
+    (numeric string like '1001') and column E contains a parseable amount.
+    Returns the row *before* that as the header row, or 0 if data starts at row 1.
+    """
+    for row_idx in range(1, min(max_scan_rows + 1, (ws.max_row or 0) + 1)):
+        code_val = ws.cell(row=row_idx, column=col_map["code"]).value
+        total_val = ws.cell(row=row_idx, column=col_map["total"]).value
+
+        if code_val is None:
+            continue
+
+        code_str = str(code_val).strip()
+
+        # Check if it looks like a header row itself (text like "Account #")
+        code_lower = code_str.lower()
+        if code_lower in CODE_HEADERS or any(kw in code_lower for kw in ("account", "acct", "code")):
+            return row_idx
+
+        # Check if it looks like a budget code (numeric, 2-6 digits)
+        if code_str.isdigit() and 2 <= len(code_str) <= 6 and _parse_amount(total_val) is not None:
+            # Data starts here; header row is the row before, or 0 if row 1
+            return max(row_idx - 1, 0)
+
+    return None
 
 
 def _classify_category(code: str) -> BudgetCategory:

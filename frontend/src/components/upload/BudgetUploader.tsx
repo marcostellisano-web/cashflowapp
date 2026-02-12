@@ -48,8 +48,9 @@ export default function BudgetUploader({ onParsed }: BudgetUploaderProps) {
           Upload Budget File
         </h2>
         <p className="text-sm text-gray-500 mt-1">
-          Upload a Movie Magic Budgeting export (.xlsx) with budget codes,
-          descriptions, and totals.
+          Upload a Movie Magic Budgeting Excel export (.xlsx). Supports the
+          Categories tab layout (Account # / Description / Total) and standard
+          budget summary sheets.
         </p>
       </div>
 
