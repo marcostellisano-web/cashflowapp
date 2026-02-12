@@ -13,8 +13,9 @@ export default function ProductionForm({ episodeCount, onSubmit, onBack }: Produ
   const [seriesNumber, setSeriesNumber] = useState<number | undefined>();
   const [epCount, setEpCount] = useState(episodeCount || 6);
   const [prepStart, setPrepStart] = useState('');
-  const [prepEnd, setPrepEnd] = useState('');
-  const [wrapDate, setWrapDate] = useState('');
+  const [ppStart, setPpStart] = useState('');
+  const [ppEnd, setPpEnd] = useState('');
+  const [editStart, setEditStart] = useState('');
   const [finalDelivery, setFinalDelivery] = useState('');
   const [blocks, setBlocks] = useState<ShootingBlock[]>([]);
   const [deliveries, setDeliveries] = useState<EpisodeDelivery[]>([]);
@@ -24,7 +25,7 @@ export default function ProductionForm({ episodeCount, onSubmit, onBack }: Produ
     e.preventDefault();
     setError(null);
 
-    if (!title || !prepStart || !prepEnd || !wrapDate || !finalDelivery) {
+    if (!title || !prepStart || !ppStart || !ppEnd || !editStart || !finalDelivery) {
       setError('Please fill in all required fields.');
       return;
     }
@@ -42,8 +43,9 @@ export default function ProductionForm({ episodeCount, onSubmit, onBack }: Produ
       series_number: seriesNumber,
       episode_count: epCount,
       prep_start: prepStart,
-      prep_end: prepEnd,
-      wrap_date: wrapDate,
+      pp_start: ppStart,
+      pp_end: ppEnd,
+      edit_start: editStart,
       shooting_blocks: blocks,
       episode_deliveries: deliveries,
       final_delivery_date: finalDelivery,
@@ -129,7 +131,7 @@ export default function ProductionForm({ episodeCount, onSubmit, onBack }: Produ
       {/* Key dates */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
         <h3 className="font-medium text-gray-900">Key Dates</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Prep Start *
@@ -143,23 +145,34 @@ export default function ProductionForm({ episodeCount, onSubmit, onBack }: Produ
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Prep End *
+              PP Start *
             </label>
             <input
               type="date"
-              value={prepEnd}
-              onChange={(e) => setPrepEnd(e.target.value)}
+              value={ppStart}
+              onChange={(e) => setPpStart(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Wrap Date *
+              PP End *
             </label>
             <input
               type="date"
-              value={wrapDate}
-              onChange={(e) => setWrapDate(e.target.value)}
+              value={ppEnd}
+              onChange={(e) => setPpEnd(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Edit Start *
+            </label>
+            <input
+              type="date"
+              value={editStart}
+              onChange={(e) => setEditStart(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>

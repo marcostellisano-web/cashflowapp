@@ -257,8 +257,9 @@ def _write_parameters_sheet(wb: Workbook, params: ProductionParameters):
         ("Series Number", params.series_number or "N/A"),
         ("Episode Count", params.episode_count),
         ("Prep Start", params.prep_start.isoformat()),
-        ("Prep End", params.prep_end.isoformat()),
-        ("Wrap Date", params.wrap_date.isoformat()),
+        ("PP Start", params.pp_start.isoformat()),
+        ("PP End", params.pp_end.isoformat()),
+        ("Edit Start", params.edit_start.isoformat()),
         ("Final Delivery", params.final_delivery_date.isoformat()),
     ]
 
@@ -272,34 +273,35 @@ def _write_parameters_sheet(wb: Workbook, params: ProductionParameters):
     ws.cell(row=row, column=1, value="Shooting Blocks").font = HEADER_FONT
     row += 1
     ws.cell(row=row, column=1, value="Block").font = Font(bold=True)
-    ws.cell(row=row, column=2, value="Episodes").font = Font(bold=True)
-    ws.cell(row=row, column=3, value="Start").font = Font(bold=True)
-    ws.cell(row=row, column=4, value="End").font = Font(bold=True)
+    ws.cell(row=row, column=2, value="Type").font = Font(bold=True)
+    ws.cell(row=row, column=3, value="Episodes").font = Font(bold=True)
+    ws.cell(row=row, column=4, value="Start").font = Font(bold=True)
+    ws.cell(row=row, column=5, value="End").font = Font(bold=True)
     row += 1
 
     for block in params.shooting_blocks:
         ws.cell(row=row, column=1, value=block.block_number)
-        ws.cell(row=row, column=2, value=", ".join(str(e) for e in block.episode_numbers))
-        ws.cell(row=row, column=3, value=block.shoot_start.isoformat())
-        ws.cell(row=row, column=4, value=block.shoot_end.isoformat())
+        ws.cell(row=row, column=2, value=block.block_type or "Shoot")
+        ws.cell(row=row, column=3, value=", ".join(str(e) for e in block.episode_numbers))
+        ws.cell(row=row, column=4, value=block.shoot_start.isoformat())
+        ws.cell(row=row, column=5, value=block.shoot_end.isoformat())
         row += 1
 
     # Episode deliveries
     row += 1
     ws.cell(row=row, column=1, value="Episode Deliveries").font = HEADER_FONT
     row += 1
-    headers = ["Episode", "Rough Cut", "Fine Cut", "Picture Lock", "Online", "Delivery"]
+    headers = ["Episode", "Picture Lock", "Online", "Mix", "Delivery"]
     for i, h in enumerate(headers):
         ws.cell(row=row, column=i + 1, value=h).font = Font(bold=True)
     row += 1
 
     for ep in params.episode_deliveries:
         ws.cell(row=row, column=1, value=ep.episode_number)
-        ws.cell(row=row, column=2, value=ep.rough_cut_date.isoformat() if ep.rough_cut_date else "")
-        ws.cell(row=row, column=3, value=ep.fine_cut_date.isoformat() if ep.fine_cut_date else "")
-        ws.cell(row=row, column=4, value=ep.picture_lock_date.isoformat() if ep.picture_lock_date else "")
-        ws.cell(row=row, column=5, value=ep.online_date.isoformat() if ep.online_date else "")
-        ws.cell(row=row, column=6, value=ep.delivery_date.isoformat())
+        ws.cell(row=row, column=2, value=ep.picture_lock_date.isoformat() if ep.picture_lock_date else "")
+        ws.cell(row=row, column=3, value=ep.online_date.isoformat() if ep.online_date else "")
+        ws.cell(row=row, column=4, value=ep.mix_date.isoformat() if ep.mix_date else "")
+        ws.cell(row=row, column=5, value=ep.delivery_date.isoformat())
         row += 1
 
     ws.column_dimensions["A"].width = 18

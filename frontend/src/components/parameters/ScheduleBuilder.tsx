@@ -1,6 +1,8 @@
 import { Plus, Trash2 } from 'lucide-react';
 import type { ShootingBlock, EpisodeDelivery } from '../../types/production';
 
+const BLOCK_TYPES = ['Shoot', 'Doc Shoot', 'Recre Shoot'];
+
 interface ScheduleBuilderProps {
   episodeCount: number;
   blocks: ShootingBlock[];
@@ -22,6 +24,7 @@ export default function ScheduleBuilder({
       ...blocks,
       {
         block_number: nextNum,
+        block_type: 'Shoot',
         episode_numbers: [],
         shoot_start: '',
         shoot_end: '',
@@ -89,7 +92,7 @@ export default function ScheduleBuilder({
             {blocks.map((block, idx) => (
               <div
                 key={idx}
-                className="grid grid-cols-[80px_1fr_1fr_1fr_40px] gap-3 items-end"
+                className="grid grid-cols-[80px_120px_1fr_1fr_1fr_40px] gap-3 items-end"
               >
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">
@@ -98,6 +101,24 @@ export default function ScheduleBuilder({
                   <div className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-center">
                     {block.block_number}
                   </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Type
+                  </label>
+                  <select
+                    value={block.block_type || 'Shoot'}
+                    onChange={(e) =>
+                      updateBlock(idx, 'block_type', e.target.value)
+                    }
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {BLOCK_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">
@@ -177,10 +198,9 @@ export default function ScheduleBuilder({
               <thead>
                 <tr className="text-left text-xs font-medium text-gray-500">
                   <th className="px-2 py-1">Episode</th>
-                  <th className="px-2 py-1">Rough Cut</th>
-                  <th className="px-2 py-1">Fine Cut</th>
                   <th className="px-2 py-1">Picture Lock</th>
                   <th className="px-2 py-1">Online</th>
+                  <th className="px-2 py-1">Mix</th>
                   <th className="px-2 py-1">Delivery *</th>
                 </tr>
               </thead>
@@ -190,7 +210,7 @@ export default function ScheduleBuilder({
                     <td className="px-2 py-1 font-medium text-gray-700">
                       Ep {del_.episode_number}
                     </td>
-                    {(['rough_cut_date', 'fine_cut_date', 'picture_lock_date', 'online_date', 'delivery_date'] as const).map(
+                    {(['picture_lock_date', 'online_date', 'mix_date', 'delivery_date'] as const).map(
                       (field) => (
                         <td key={field} className="px-2 py-1">
                           <input

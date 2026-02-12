@@ -7,6 +7,7 @@ class ShootingBlock(BaseModel):
     """A block of episodes shot together."""
 
     block_number: int
+    block_type: str | None = None  # e.g. "Doc Shoot", "Recre Shoot"
     episode_numbers: list[int]
     shoot_start: date
     shoot_end: date
@@ -17,10 +18,9 @@ class EpisodeDelivery(BaseModel):
     """Post-production milestones for a single episode."""
 
     episode_number: int
-    rough_cut_date: date | None = None
-    fine_cut_date: date | None = None
     picture_lock_date: date | None = None
     online_date: date | None = None
+    mix_date: date | None = None
     delivery_date: date
 
 
@@ -31,10 +31,10 @@ class ProductionParameters(BaseModel):
     series_number: int | None = None
     episode_count: int
     prep_start: date
-    prep_end: date
-    wrap_date: date
+    pp_start: date  # Principal Photography start
+    pp_end: date  # Principal Photography end
+    edit_start: date  # Edit / post-production start
     shooting_blocks: list[ShootingBlock]
     episode_deliveries: list[EpisodeDelivery]
-    post_start: date | None = None
     final_delivery_date: date
     hiatus_periods: list[tuple[date, date]] = []

@@ -36,27 +36,28 @@ def _determine_phase_label(
     if is_date_in_ranges(monday, params.hiatus_periods):
         return "HIATUS"
 
-    # Check if in prep period
-    in_prep = params.prep_start <= week_end and params.prep_end >= monday
+    # Check if in prep period (prep_start through day before pp_start)
+    prep_end = params.pp_start - timedelta(days=1)
+    in_prep = params.prep_start <= week_end and prep_end >= monday
 
     # Check shooting blocks
     active_block = _find_active_block(monday, params.shooting_blocks)
 
-    # Check post-production
-    post_start = params.post_start or (params.wrap_date + timedelta(days=1))
-    in_post = post_start <= week_end and params.final_delivery_date >= monday
+    # Check post-production (edit_start through final_delivery_date)
+    in_post = params.edit_start <= week_end and params.final_delivery_date >= monday
 
-    # Check wrap (week containing wrap_date, after last shoot day)
+    # Check wrap (between pp_end and edit_start)
     in_wrap = False
     if params.shooting_blocks:
         last_shoot = max(b.shoot_end for b in params.shooting_blocks)
-        if last_shoot <= week_end and params.wrap_date >= monday:
+        if last_shoot <= week_end and params.pp_end >= monday:
             in_wrap = True
 
     # Priority: shooting > wrap > post > prep
     if active_block:
         eps = ", ".join(str(e) for e in active_block.episode_numbers)
-        return f"SHOOT BLK {active_block.block_number} (Ep {eps})"
+        block_label = active_block.block_type.upper() if active_block.block_type else "SHOOT"
+        return f"{block_label} BLK {active_block.block_number} (Ep {eps})"
 
     if in_wrap and not in_post:
         return "WRAP"
@@ -64,8 +65,8 @@ def _determine_phase_label(
     if in_post:
         # Try to label with specific episode post milestone
         for ep_del in params.episode_deliveries:
-            if ep_del.rough_cut_date and ep_del.delivery_date:
-                if ep_del.rough_cut_date <= week_end and ep_del.delivery_date >= monday:
+            if ep_del.picture_lock_date and ep_del.delivery_date:
+                if ep_del.picture_lock_date <= week_end and ep_del.delivery_date >= monday:
                     return f"POST EP {ep_del.episode_number}"
         return "POST"
 
