@@ -30,22 +30,28 @@ const CURVES: { value: CurveType; label: string }[] = [
 
 interface CurveAssignerProps {
   budget: ParsedBudget;
+  savedDistributions?: LineItemDistribution[];
   onSubmit: (distributions: LineItemDistribution[]) => void;
   onBack: () => void;
 }
 
 export default function CurveAssigner({
   budget,
+  savedDistributions,
   onSubmit,
   onBack,
 }: CurveAssignerProps) {
   const [distributions, setDistributions] = useState<LineItemDistribution[]>(
-    [],
+    savedDistributions && savedDistributions.length > 0 ? savedDistributions : [],
   );
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(
+    !savedDistributions || savedDistributions.length === 0,
+  );
 
-  // Load defaults on mount
+  // Load defaults on mount (skip if we already have saved distributions)
   useEffect(() => {
+    if (savedDistributions && savedDistributions.length > 0) return;
+
     const codes = budget.line_items.map((li) => li.code);
     getDefaultDistributions(codes)
       .then((defaults) => {
@@ -63,7 +69,7 @@ export default function CurveAssigner({
         );
       })
       .finally(() => setLoading(false));
-  }, [budget]);
+  }, [budget, savedDistributions]);
 
   const updateDist = (
     idx: number,

@@ -66,6 +66,7 @@ export default function App() {
       {/* Step 1: Production Parameters */}
       {step === 1 && (
         <ProductionForm
+          initialParams={params}
           onSubmit={handleParamsSubmit}
           onBack={() => setStep(0)}
         />
@@ -75,6 +76,7 @@ export default function App() {
       {step === 2 && budget && (
         <CurveAssigner
           budget={budget}
+          savedDistributions={distributions}
           onSubmit={handleDistributionsSubmit}
           onBack={() => setStep(1)}
         />

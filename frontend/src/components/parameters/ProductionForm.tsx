@@ -4,21 +4,22 @@ import ScheduleBuilder from './ScheduleBuilder';
 
 interface ProductionFormProps {
   episodeCount?: number;
+  initialParams?: ProductionParameters | null;
   onSubmit: (params: ProductionParameters) => void;
   onBack: () => void;
 }
 
-export default function ProductionForm({ episodeCount, onSubmit, onBack }: ProductionFormProps) {
-  const [title, setTitle] = useState('');
-  const [seriesNumber, setSeriesNumber] = useState<number | undefined>();
-  const [epCount, setEpCount] = useState(episodeCount || 6);
-  const [prepStart, setPrepStart] = useState('');
-  const [ppStart, setPpStart] = useState('');
-  const [ppEnd, setPpEnd] = useState('');
-  const [editStart, setEditStart] = useState('');
-  const [finalDelivery, setFinalDelivery] = useState('');
-  const [blocks, setBlocks] = useState<ShootingBlock[]>([]);
-  const [deliveries, setDeliveries] = useState<EpisodeDelivery[]>([]);
+export default function ProductionForm({ episodeCount, initialParams, onSubmit, onBack }: ProductionFormProps) {
+  const [title, setTitle] = useState(initialParams?.title ?? '');
+  const [seriesNumber, setSeriesNumber] = useState<number | undefined>(initialParams?.series_number ?? undefined);
+  const [epCount, setEpCount] = useState(initialParams?.episode_count ?? episodeCount ?? 6);
+  const [prepStart, setPrepStart] = useState(initialParams?.prep_start ?? '');
+  const [ppStart, setPpStart] = useState(initialParams?.pp_start ?? '');
+  const [ppEnd, setPpEnd] = useState(initialParams?.pp_end ?? '');
+  const [editStart, setEditStart] = useState(initialParams?.edit_start ?? '');
+  const [finalDelivery, setFinalDelivery] = useState(initialParams?.final_delivery_date ?? '');
+  const [blocks, setBlocks] = useState<ShootingBlock[]>(initialParams?.shooting_blocks ?? []);
+  const [deliveries, setDeliveries] = useState<EpisodeDelivery[]>(initialParams?.episode_deliveries ?? []);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
