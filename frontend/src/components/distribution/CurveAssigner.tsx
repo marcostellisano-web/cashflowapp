@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
+import type { BibleEntry } from '../../types/bible';
 import type { ParsedBudget } from '../../types/budget';
 import type {
   LineItemDistribution,
   PhaseAssignment,
   CurveType,
 } from '../../types/cashflow';
-import { getDefaultDistributions } from '../../lib/api';
+import { getDefaultDistributions, getTimingBible } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 
 const PHASES: { value: PhaseAssignment; label: string }[] = [
@@ -44,12 +45,22 @@ export default function CurveAssigner({
   const [distributions, setDistributions] = useState<LineItemDistribution[]>(
     savedDistributions && savedDistributions.length > 0 ? savedDistributions : [],
   );
+  const [bibleMap, setBibleMap] = useState<Record<string, BibleEntry>>({});
   const [loading, setLoading] = useState(
     !savedDistributions || savedDistributions.length === 0,
   );
 
-  // Load defaults on mount (skip if we already have saved distributions)
+  // Load bible + defaults on mount
   useEffect(() => {
+    // Always load bible for display purposes
+    getTimingBible()
+      .then((bible) => {
+        const map: Record<string, BibleEntry> = {};
+        bible.entries.forEach((e) => { map[e.account_code] = e; });
+        setBibleMap(map);
+      })
+      .catch(() => {}); // Bible is optional for display
+
     if (savedDistributions && savedDistributions.length > 0) return;
 
     const codes = budget.line_items.map((li) => li.code);
@@ -87,6 +98,7 @@ export default function CurveAssigner({
 
   const autoCount = distributions.filter((d) => d.auto_assigned).length;
   const manualCount = distributions.length - autoCount;
+  const bibleCount = budget.line_items.filter((li) => bibleMap[li.code]).length;
 
   if (loading) {
     return (
@@ -105,6 +117,14 @@ export default function CurveAssigner({
           </h2>
           <p className="text-sm text-gray-500">
             Assign spend phases and curves to each budget line.{' '}
+            {bibleCount > 0 && (
+              <>
+                <span className="text-blue-600 font-medium">
+                  {bibleCount} bible-driven
+                </span>
+                {', '}
+              </>
+            )}
             <span className="font-medium">{manualCount} manual</span>,{' '}
             <span className="text-amber-600 font-medium">
               {autoCount} auto-assigned
@@ -143,10 +163,10 @@ export default function CurveAssigner({
                   Total
                 </th>
                 <th className="text-left px-3 py-2 font-medium text-gray-600">
-                  Phase
+                  Timing
                 </th>
                 <th className="text-left px-3 py-2 font-medium text-gray-600">
-                  Curve
+                  Phase / Curve
                 </th>
                 <th className="text-center px-3 py-2 font-medium text-gray-600">
                   Status
@@ -157,13 +177,16 @@ export default function CurveAssigner({
               {budget.line_items.map((item, idx) => {
                 const dist = distributions[idx];
                 if (!dist) return null;
+                const bible = bibleMap[item.code];
                 return (
                   <tr
                     key={idx}
                     className={
-                      dist.auto_assigned
-                        ? 'bg-amber-50/50'
-                        : 'hover:bg-gray-50'
+                      bible
+                        ? 'bg-blue-50/50'
+                        : dist.auto_assigned
+                          ? 'bg-amber-50/50'
+                          : 'hover:bg-gray-50'
                     }
                   >
                     <td className="px-3 py-1.5 font-mono text-gray-600 text-xs">
@@ -176,37 +199,63 @@ export default function CurveAssigner({
                       {formatCurrency(item.total)}
                     </td>
                     <td className="px-3 py-1.5">
-                      <select
-                        value={dist.phase}
-                        onChange={(e) =>
-                          updateDist(idx, 'phase', e.target.value)
-                        }
-                        className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
-                      >
-                        {PHASES.map((p) => (
-                          <option key={p.value} value={p.value}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
+                      {bible ? (
+                        <div>
+                          <span className="text-xs font-medium text-blue-700">
+                            {bible.timing_title}
+                          </span>
+                          <p className="text-[10px] text-gray-400 leading-tight mt-0.5 max-w-56 truncate" title={bible.timing_details}>
+                            {bible.timing_details}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">
+                          No bible rule
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-1.5">
-                      <select
-                        value={dist.curve}
-                        onChange={(e) =>
-                          updateDist(idx, 'curve', e.target.value)
-                        }
-                        className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
-                      >
-                        {CURVES.map((c) => (
-                          <option key={c.value} value={c.value}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </select>
+                      {bible ? (
+                        <span className="text-[10px] text-gray-400 italic">
+                          Bible-driven
+                        </span>
+                      ) : (
+                        <div className="flex gap-1">
+                          <select
+                            value={dist.phase}
+                            onChange={(e) =>
+                              updateDist(idx, 'phase', e.target.value)
+                            }
+                            className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
+                          >
+                            {PHASES.map((p) => (
+                              <option key={p.value} value={p.value}>
+                                {p.label}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={dist.curve}
+                            onChange={(e) =>
+                              updateDist(idx, 'curve', e.target.value)
+                            }
+                            className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
+                          >
+                            {CURVES.map((c) => (
+                              <option key={c.value} value={c.value}>
+                                {c.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-1.5 text-center">
-                      {dist.auto_assigned ? (
+                      {bible ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                          Bible
+                        </span>
+                      ) : dist.auto_assigned ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
                           Auto
                         </span>

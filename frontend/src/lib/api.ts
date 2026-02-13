@@ -1,3 +1,4 @@
+import type { TimingBible } from '../types/bible';
 import type { ParsedBudget } from '../types/budget';
 import type { CashflowOutput, LineItemDistribution } from '../types/cashflow';
 import type { ProductionParameters } from '../types/production';
@@ -57,4 +58,10 @@ export async function generateCashflowExcel(
     throw new Error(err.detail || 'Generation failed');
   }
   return res.blob();
+}
+
+export async function getTimingBible(): Promise<TimingBible> {
+  const res = await fetch(`${BASE}/bible`);
+  if (!res.ok) throw new Error('Failed to get timing bible');
+  return res.json();
 }

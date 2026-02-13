@@ -2,16 +2,23 @@
 
 Orchestrates timeline building, distribution assignment, and budget spreading
 to produce a complete weekly cashflow output.
+
+When a Timing Bible is available, budget codes matching bible entries use the
+bible-driven distributor for accurate TV production cashflow timing. Codes
+not in the bible fall back to the generic phase/curve system.
 """
 
 from datetime import date
 
 import numpy as np
 
+from app.domain.timing_bible_data import DEFAULT_BIBLE
 from app.models.budget import ParsedBudget
 from app.models.cashflow import CashflowOutput, CashflowRow, WeekColumn
 from app.models.distribution import CurveType, LineItemDistribution, PhaseAssignment
 from app.models.production import ProductionParameters
+from app.models.timing_bible import TimingBible
+from app.services.bible_distributor import distribute_bible_entry
 from app.services.distribution import (
     generate_milestone_weights,
     generate_shoot_proportional_weights,
@@ -101,6 +108,7 @@ def generate_cashflow(
     budget: ParsedBudget,
     parameters: ProductionParameters,
     distributions: list[LineItemDistribution],
+    bible: TimingBible | None = None,
 ) -> CashflowOutput:
     """Generate a complete cashflow from budget, parameters, and distributions.
 
@@ -108,15 +116,22 @@ def generate_cashflow(
         budget: Parsed budget with line items.
         parameters: Production scheduling parameters.
         distributions: User and/or auto-assigned distribution configs per budget line.
+        bible: Optional Timing Bible. If provided (or defaults loaded), codes
+               matching bible entries use bible-driven distribution. Others
+               fall back to the phase/curve system.
 
     Returns:
         CashflowOutput with all rows, weekly/cumulative totals.
     """
+    # Use default bible if none provided
+    if bible is None:
+        bible = DEFAULT_BIBLE
+
     # Build timeline
     weeks = build_timeline(parameters)
     num_weeks = len(weeks)
 
-    # Merge user distributions with auto-assigned defaults
+    # Merge user distributions with auto-assigned defaults (fallback for non-bible codes)
     all_codes = [item.code for item in budget.line_items]
     merged_dists = merge_distributions(all_codes, distributions)
     dist_map = {d.budget_code: d for d in merged_dists}
@@ -126,18 +141,29 @@ def generate_cashflow(
     weekly_totals = np.zeros(num_weeks)
 
     for item in budget.line_items:
-        dist = dist_map.get(item.code)
-        if dist is None:
-            # Shouldn't happen after merge, but handle gracefully
-            weekly_amounts = np.zeros(num_weeks)
-        else:
-            weekly_amounts = _distribute_line_item(
+        # Check bible first
+        bible_entry = bible.get_entry(item.code)
+
+        if bible_entry is not None:
+            weekly_amounts = distribute_bible_entry(
                 total=item.total,
-                dist=dist,
+                entry=bible_entry,
                 weeks=weeks,
                 params=parameters,
-                num_weeks=num_weeks,
             )
+        else:
+            # Fall back to curve-based distribution
+            dist = dist_map.get(item.code)
+            if dist is None:
+                weekly_amounts = np.zeros(num_weeks)
+            else:
+                weekly_amounts = _distribute_line_item(
+                    total=item.total,
+                    dist=dist,
+                    weeks=weeks,
+                    params=parameters,
+                    num_weeks=num_weeks,
+                )
 
         weekly_totals += weekly_amounts
 
