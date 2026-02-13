@@ -76,6 +76,15 @@ class TimingPattern(str, Enum):
     GRAPHICS = "graphics"
     """3-4 weeks after edit start to final online, bi-weekly, AP weeks."""
 
+    INSURANCE = "insurance"
+    """Lump sum 2-3 weeks after prep start, AP week."""
+
+    FULL_AP = "full_ap"
+    """Evenly over the course of production on AP weeks."""
+
+    FINANCING = "financing"
+    """Paid at fiscal year-end (October), pro-rated by spend in each fiscal year."""
+
 
 class BibleEntry(BaseModel):
     """A single entry in the Cashflow Timing Bible."""

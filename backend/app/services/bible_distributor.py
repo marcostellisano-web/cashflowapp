@@ -76,6 +76,12 @@ def distribute_bible_entry(
             return _after_delivery(total, weeks, params)
         case TimingPattern.GRAPHICS:
             return _graphics(total, weeks, params)
+        case TimingPattern.INSURANCE:
+            return _insurance(total, weeks, params)
+        case TimingPattern.FULL_AP:
+            return _full_ap(total, weeks, params)
+        case TimingPattern.FINANCING:
+            return _financing(total, weeks, params)
 
     # Fallback: flat across all weeks
     return _spread_flat(total, list(range(len(weeks))), len(weeks))
@@ -664,3 +670,95 @@ def _graphics(total: float, weeks: list[WeekColumn], params: ProductionParameter
         ap = _filter_by_week_type(weeks, candidate, want_payroll=False)
 
     return _spread_flat(total, ap, n)
+
+
+def _insurance(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Lump sum 2-3 weeks after prep start, on AP week."""
+    n = len(weeks)
+    prep_idx = _week_index_for_date(weeks, params.prep_start)
+    if prep_idx is None:
+        prep_idx = 0
+    target = _offset_weeks(prep_idx, 2, n)
+    target = _find_nearest_week_type(weeks, target, want_payroll=False)
+    return _spread_at_indices(total, [target], n)
+
+
+def _full_ap(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Evenly over the course of production on AP weeks."""
+    all_weeks = _get_all_non_hiatus(weeks)
+    ap_weeks = _filter_by_week_type(weeks, all_weeks, want_payroll=False)
+    return _spread_flat(total, ap_weeks, len(weeks))
+
+
+def _financing(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Paid at fiscal year-end (October), pro-rated by spend in each fiscal year.
+
+    Finds each October 31 that falls within the production timeline. The total
+    is split proportionally by how many production weeks fall in each fiscal
+    year (Nov 1 - Oct 31). Each chunk lands on the AP week nearest Oct 31.
+    """
+    n = len(weeks)
+    if n == 0:
+        return np.zeros(n)
+
+    first_monday = weeks[0].week_commencing
+    last_monday = weeks[-1].week_commencing
+
+    # Find all Oct 31 dates within (or near) the timeline
+    oct_dates = []
+    year = first_monday.year
+    while True:
+        oct31 = date(year, 10, 31)
+        # Back up to last weekday if it falls on a weekend
+        while oct31.weekday() > 4:
+            oct31 -= timedelta(days=1)
+        if oct31 > last_monday + timedelta(days=60):
+            break
+        if oct31 >= first_monday - timedelta(days=30):
+            oct_dates.append(oct31)
+        year += 1
+
+    if not oct_dates:
+        # No fiscal year-end in timeline — put it on the last AP week
+        all_weeks = _get_all_non_hiatus(weeks)
+        ap = _filter_by_week_type(weeks, all_weeks, want_payroll=False)
+        return _spread_at_indices(total, [ap[-1]] if ap else [n - 1], n)
+
+    # Count production weeks in each fiscal year segment
+    all_non_hiatus = _get_all_non_hiatus(weeks)
+    segment_counts = []
+    boundaries = [first_monday] + [date(d.year, 11, 1) for d in oct_dates]
+
+    for seg_idx in range(len(oct_dates)):
+        seg_start = boundaries[seg_idx]
+        seg_end = oct_dates[seg_idx] + timedelta(days=6)
+        count = sum(
+            1 for i in all_non_hiatus
+            if seg_start <= weeks[i].week_commencing <= seg_end
+        )
+        segment_counts.append(count)
+
+    # Handle weeks after the last October
+    if boundaries[-1] <= last_monday:
+        remaining = sum(
+            1 for i in all_non_hiatus
+            if weeks[i].week_commencing >= boundaries[-1]
+        )
+        if remaining > 0 and len(oct_dates) > 0:
+            segment_counts[-1] += remaining
+
+    total_counted = sum(segment_counts)
+    if total_counted == 0:
+        total_counted = 1
+
+    result = np.zeros(n)
+    for seg_idx, oct_d in enumerate(oct_dates):
+        proportion = segment_counts[seg_idx] / total_counted
+        amount = total * proportion
+        idx = _week_index_for_date(weeks, oct_d)
+        if idx is None:
+            idx = _closest_week_index(weeks, oct_d)
+        target = _find_nearest_week_type(weeks, idx, want_payroll=False)
+        result[target] += amount
+
+    return result

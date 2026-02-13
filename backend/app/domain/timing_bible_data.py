@@ -650,6 +650,94 @@ _ENTRIES = [
         timing_details="Split by picture locks, paid 2-3 weeks after each picture lock - AP weeks",
         timing_title="Pick Lock",
     ),
+
+    # --- Publicity ---
+    BibleEntry(
+        account_code="7001",
+        description="UNIT PUBLICIST",
+        timing_pattern=TimingPattern.EDIT_INTERNALS,
+        timing_details="Monthly - mid month over the course of the edit",
+        timing_title="Edit Internals",
+    ),
+    BibleEntry(
+        account_code="7025",
+        description="STILLS/PRINTING/PROCESSING",
+        timing_pattern=TimingPattern.STILL_PHOTO,
+        timing_details="2-3 weeks after each block on payroll weeks",
+        timing_title="Still Photo",
+    ),
+    BibleEntry(
+        account_code="7050",
+        description="PUBLIC RELATIONS",
+        timing_pattern=TimingPattern.EDIT_INTERNALS,
+        timing_details="Monthly - mid month over the course of the edit",
+        timing_title="Edit Internals",
+    ),
+
+    # --- Insurance / Legal / Finance ---
+    BibleEntry(
+        account_code="7101",
+        description="INSURANCE - PACKAGE, ADDITIONAL COVERAGE",
+        timing_pattern=TimingPattern.INSURANCE,
+        timing_details="Lump sum 2-3 weeks after prep start, AP week",
+        timing_title="Insurance",
+    ),
+    BibleEntry(
+        account_code="7110",
+        description="LEGAL FEES",
+        timing_pattern=TimingPattern.LEGAL,
+        timing_details="Paid in 4 even chunks over the course of production - starting a few weeks after prep ending a few weeks after delivery - AP weeks",
+        timing_title="Legal",
+    ),
+    BibleEntry(
+        account_code="7120",
+        description="POST PRODUCTION ACCOUNTING",
+        timing_pattern=TimingPattern.AFTER_DELIVERY,
+        timing_details="Paid one month after delivery - AP week",
+        timing_title="After Delivery",
+    ),
+    BibleEntry(
+        account_code="7125",
+        description="AUDIT FEE",
+        timing_pattern=TimingPattern.AFTER_DELIVERY,
+        timing_details="Paid one month after delivery - AP week",
+        timing_title="After Delivery",
+    ),
+    BibleEntry(
+        account_code="7130",
+        description="BANK CHARGES",
+        timing_pattern=TimingPattern.FULL_AP,
+        timing_details="Evenly over the course of production on AP weeks",
+        timing_title="Full AP",
+    ),
+    BibleEntry(
+        account_code="7201",
+        description="CORPORATE OVERHEAD",
+        timing_pattern=TimingPattern.INTERNALS,
+        timing_details="Monthly - mid month from prep to delivery, on AP weeks",
+        timing_title="Internals",
+    ),
+    BibleEntry(
+        account_code="7210",
+        description="TAX CREDIT ADMINISTRATION FEE",
+        timing_pattern=TimingPattern.AFTER_DELIVERY,
+        timing_details="Paid one month after delivery - AP week",
+        timing_title="After Delivery",
+    ),
+    BibleEntry(
+        account_code="7220",
+        description="INTERIM FINANCING",
+        timing_pattern=TimingPattern.FINANCING,
+        timing_details="Paid at the end of fiscal year ends. October (pro-rated by the amount of spend in each fiscal year) - some projects span 2 fiscal years",
+        timing_title="Financing",
+    ),
+    BibleEntry(
+        account_code="7295",
+        description="OTHER",
+        timing_pattern=TimingPattern.AFTER_DELIVERY,
+        timing_details="Paid one month after delivery - AP week",
+        timing_title="After Delivery",
+    ),
 ]
 
 DEFAULT_BIBLE = TimingBible(entries=_ENTRIES)
