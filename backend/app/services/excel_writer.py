@@ -303,9 +303,8 @@ def _write_parameters_sheet(wb: Workbook, params: ProductionParameters):
     for block in params.shooting_blocks:
         ws.cell(row=row, column=1, value=block.block_number)
         ws.cell(row=row, column=2, value=block.block_type or "Shoot")
-        ws.cell(row=row, column=3, value=", ".join(str(e) for e in block.episode_numbers))
-        ws.cell(row=row, column=4, value=block.shoot_start.isoformat())
-        ws.cell(row=row, column=5, value=block.shoot_end.isoformat())
+        ws.cell(row=row, column=3, value=block.shoot_start.isoformat())
+        ws.cell(row=row, column=4, value=block.shoot_end.isoformat())
         row += 1
 
     # Episode deliveries

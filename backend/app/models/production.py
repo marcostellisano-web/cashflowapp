@@ -4,11 +4,11 @@ from pydantic import BaseModel
 
 
 class ShootingBlock(BaseModel):
-    """A block of episodes shot together."""
+    """A block of shooting days."""
 
     block_number: int
     block_type: str | None = None  # e.g. "Doc Shoot", "Recre Shoot"
-    episode_numbers: list[int]
+    episode_numbers: list[int] = []
     shoot_start: date
     shoot_end: date
     location: str | None = None

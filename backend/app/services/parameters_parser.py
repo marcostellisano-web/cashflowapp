@@ -144,7 +144,6 @@ def parse_parameters_excel(file: BinaryIO) -> ProductionParameters:
                 ShootingBlock(
                     block_number=int(block_num),
                     block_type=str(_bcol(row_vals, "type") or "Shoot"),
-                    episode_numbers=_parse_episodes(_bcol(row_vals, "episode")),
                     shoot_start=_require_date(_bcol(row_vals, "start"), f"Block {block_num} Shoot Start"),
                     shoot_end=_require_date(_bcol(row_vals, "end"), f"Block {block_num} Shoot End"),
                 )
@@ -215,9 +214,9 @@ def generate_parameters_template() -> BytesIO:
 
     # Sheet 2: Shooting Blocks
     ws_blocks = wb.create_sheet("Shooting Blocks")
-    ws_blocks.append(["Block", "Type", "Episodes", "Shoot Start", "Shoot End"])
-    ws_blocks.append([1, "Shoot", "1, 2", "", ""])
-    for col in range(1, 6):
+    ws_blocks.append(["Block", "Type", "Shoot Start", "Shoot End"])
+    ws_blocks.append([1, "Shoot", "", ""])
+    for col in range(1, 5):
         ws_blocks.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 18
 
     # Sheet 3: Episode Deliveries

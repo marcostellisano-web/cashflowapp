@@ -25,7 +25,6 @@ export default function ScheduleBuilder({
       {
         block_number: nextNum,
         block_type: 'Shoot',
-        episode_numbers: [],
         shoot_start: '',
         shoot_end: '',
       },
@@ -38,18 +37,7 @@ export default function ScheduleBuilder({
 
   const updateBlock = (idx: number, field: string, value: any) => {
     const updated = [...blocks];
-    if (field === 'episode_numbers') {
-      // Parse comma-separated episode numbers
-      updated[idx] = {
-        ...updated[idx],
-        episode_numbers: value
-          .split(',')
-          .map((s: string) => parseInt(s.trim(), 10))
-          .filter((n: number) => !isNaN(n)),
-      };
-    } else {
-      updated[idx] = { ...updated[idx], [field]: value };
-    }
+    updated[idx] = { ...updated[idx], [field]: value };
     onBlocksChange(updated);
   };
 
@@ -92,7 +80,7 @@ export default function ScheduleBuilder({
             {blocks.map((block, idx) => (
               <div
                 key={idx}
-                className="grid grid-cols-[80px_120px_1fr_1fr_1fr_40px] gap-3 items-end"
+                className="grid grid-cols-[80px_120px_1fr_1fr_40px] gap-3 items-end"
               >
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">
@@ -119,20 +107,6 @@ export default function ScheduleBuilder({
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
-                    Episodes (comma-separated)
-                  </label>
-                  <input
-                    type="text"
-                    value={block.episode_numbers.join(', ')}
-                    onChange={(e) =>
-                      updateBlock(idx, 'episode_numbers', e.target.value)
-                    }
-                    placeholder="e.g., 1, 2"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">

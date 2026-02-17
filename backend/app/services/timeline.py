@@ -55,9 +55,11 @@ def _determine_phase_label(
 
     # Priority: shooting > wrap > post > prep
     if active_block:
-        eps = ", ".join(str(e) for e in active_block.episode_numbers)
         block_label = active_block.block_type.upper() if active_block.block_type else "SHOOT"
-        return f"{block_label} BLK {active_block.block_number} (Ep {eps})"
+        if active_block.episode_numbers:
+            eps = ", ".join(str(e) for e in active_block.episode_numbers)
+            return f"{block_label} BLK {active_block.block_number} (Ep {eps})"
+        return f"{block_label} BLK {active_block.block_number}"
 
     if in_wrap and not in_post:
         return "WRAP"

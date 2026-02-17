@@ -1,7 +1,6 @@
 export interface ShootingBlock {
   block_number: number;
   block_type?: string; // e.g. "Doc Shoot", "Recre Shoot"
-  episode_numbers: number[];
   shoot_start: string; // ISO date
   shoot_end: string;
   location?: string;
