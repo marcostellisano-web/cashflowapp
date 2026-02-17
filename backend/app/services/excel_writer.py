@@ -62,7 +62,8 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     ws.cell(row=1, column=1, value=f"{output.title} - Cashflow Forecast").font = TITLE_FONT
 
     # Row 2: Metadata
-    series_text = f"Series {params.series_number}" if params.series_number else ""
+    series_number = getattr(params, "series_number", None)
+    series_text = f"Series {series_number}" if series_number else ""
     ep_text = f"{params.episode_count} Episodes"
     meta = " | ".join(filter(None, [series_text, ep_text]))
     ws.cell(row=2, column=1, value=meta).font = SUBTITLE_FONT
@@ -274,7 +275,7 @@ def _write_parameters_sheet(wb: Workbook, params: ProductionParameters):
     row = 3
     fields = [
         ("Title", params.title),
-        ("Series Number", params.series_number or "N/A"),
+        ("Series Number", getattr(params, "series_number", None) or "N/A"),
         ("Episode Count", params.episode_count),
         ("Prep Start", params.prep_start.isoformat()),
         ("PP Start", params.pp_start.isoformat()),

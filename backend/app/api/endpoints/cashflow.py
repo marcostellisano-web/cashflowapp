@@ -1,9 +1,6 @@
-from io import BytesIO
-
 from fastapi import APIRouter
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 
-from app.models.budget import ParsedBudget
 from app.models.cashflow import CashflowOutput, GenerateRequest
 from app.services.cashflow_engine import generate_cashflow
 from app.services.excel_writer import write_cashflow_excel
@@ -31,8 +28,8 @@ async def generate_cashflow_excel(request: GenerateRequest):
     buffer = write_cashflow_excel(output, request.parameters)
     filename = f"{request.parameters.title.replace(' ', '_')}_cashflow.xlsx"
 
-    return StreamingResponse(
-        BytesIO(buffer.getvalue()),
+    return Response(
+        content=buffer.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

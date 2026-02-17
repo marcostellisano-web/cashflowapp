@@ -13,6 +13,13 @@ export default function BudgetPreview({
   onNext,
   onReset,
 }: BudgetPreviewProps) {
+  const noAmountWarnings = budget.warnings.filter((w) =>
+    w.toLowerCase().includes('has no amount, skipped'),
+  );
+  const otherWarnings = budget.warnings.filter(
+    (w) => !w.toLowerCase().includes('has no amount, skipped'),
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -43,16 +50,33 @@ export default function BudgetPreview({
       </div>
 
       {budget.warnings.length > 0 && (
-        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <div className="flex items-center gap-2 text-sm font-medium text-yellow-800 mb-1">
+        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-yellow-800">
             <AlertCircle className="w-4 h-4" />
-            Parser Warnings
+            Parser Warnings ({budget.warnings.length})
           </div>
-          <ul className="text-xs text-yellow-700 space-y-0.5">
-            {budget.warnings.map((w, i) => (
-              <li key={i}>{w}</li>
-            ))}
-          </ul>
+
+          {noAmountWarnings.length > 0 && (
+            <details className="text-xs text-yellow-800 bg-yellow-100/60 rounded border border-yellow-200">
+              <summary className="cursor-pointer px-2.5 py-2 font-medium">
+                {noAmountWarnings.length} blank-code / no-amount line item
+                {noAmountWarnings.length === 1 ? '' : 's'} skipped (show details)
+              </summary>
+              <ul className="px-2.5 pb-2 space-y-0.5 text-yellow-700">
+                {noAmountWarnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          {otherWarnings.length > 0 && (
+            <ul className="text-xs text-yellow-700 space-y-0.5">
+              {otherWarnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
