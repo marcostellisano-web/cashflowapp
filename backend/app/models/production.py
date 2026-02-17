@@ -28,7 +28,6 @@ class ProductionParameters(BaseModel):
     """All production scheduling parameters."""
 
     title: str
-    series_number: int | None = None
     episode_count: int
     prep_start: date
     pp_start: date  # Principal Photography start

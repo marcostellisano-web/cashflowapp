@@ -65,3 +65,18 @@ export async function getTimingBible(): Promise<TimingBible> {
   if (!res.ok) throw new Error('Failed to get timing bible');
   return res.json();
 }
+
+export async function uploadParameters(file: File): Promise<ProductionParameters> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${BASE}/upload/parameters`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to parse parameters file');
+  }
+  return res.json();
+}
+
+export function getParametersTemplateUrl(): string {
+  return `${BASE}/upload/parameters/template`;
+}

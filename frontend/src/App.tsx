@@ -2,6 +2,7 @@ import { useState } from 'react';
 import AppShell from './components/layout/AppShell';
 import BudgetUploader from './components/upload/BudgetUploader';
 import BudgetPreview from './components/upload/BudgetPreview';
+import ParametersUploader from './components/parameters/ParametersUploader';
 import ProductionForm from './components/parameters/ProductionForm';
 import CurveAssigner from './components/distribution/CurveAssigner';
 import CashflowPreview from './components/output/CashflowPreview';
@@ -15,6 +16,7 @@ export default function App() {
   const [step, setStep] = useState(0);
   const [budget, setBudget] = useState<ParsedBudget | null>(null);
   const [params, setParams] = useState<ProductionParameters | null>(null);
+  const [paramsMode, setParamsMode] = useState<'choose' | 'manual'>('choose');
   const [distributions, setDistributions] = useState<LineItemDistribution[]>(
     [],
   );
@@ -27,6 +29,11 @@ export default function App() {
   };
 
   const handleParamsSubmit = (p: ProductionParameters) => {
+    setParams(p);
+    setStep(2);
+  };
+
+  const handleParamsUploaded = (p: ProductionParameters) => {
     setParams(p);
     setStep(2);
   };
@@ -63,12 +70,19 @@ export default function App() {
         />
       )}
 
-      {/* Step 1: Production Parameters */}
-      {step === 1 && (
+      {/* Step 1: Production Parameters — choose mode or manual form */}
+      {step === 1 && paramsMode === 'choose' && (
+        <ParametersUploader
+          onParsed={handleParamsUploaded}
+          onManual={() => setParamsMode('manual')}
+          onBack={() => setStep(0)}
+        />
+      )}
+      {step === 1 && paramsMode === 'manual' && (
         <ProductionForm
           initialParams={params}
           onSubmit={handleParamsSubmit}
-          onBack={() => setStep(0)}
+          onBack={() => setParamsMode('choose')}
         />
       )}
 
@@ -78,7 +92,7 @@ export default function App() {
           budget={budget}
           savedDistributions={distributions}
           onSubmit={handleDistributionsSubmit}
-          onBack={() => setStep(1)}
+          onBack={() => { setStep(1); setParamsMode('choose'); }}
         />
       )}
 

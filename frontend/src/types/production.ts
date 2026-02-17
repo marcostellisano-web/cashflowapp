@@ -17,7 +17,6 @@ export interface EpisodeDelivery {
 
 export interface ProductionParameters {
   title: string;
-  series_number?: number;
   episode_count: number;
   prep_start: string;
   pp_start: string; // Principal Photography start

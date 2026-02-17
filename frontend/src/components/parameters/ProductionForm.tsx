@@ -11,7 +11,6 @@ interface ProductionFormProps {
 
 export default function ProductionForm({ episodeCount, initialParams, onSubmit, onBack }: ProductionFormProps) {
   const [title, setTitle] = useState(initialParams?.title ?? '');
-  const [seriesNumber, setSeriesNumber] = useState<number | undefined>(initialParams?.series_number ?? undefined);
   const [epCount, setEpCount] = useState(initialParams?.episode_count ?? episodeCount ?? 6);
   const [prepStart, setPrepStart] = useState(initialParams?.prep_start ?? '');
   const [ppStart, setPpStart] = useState(initialParams?.pp_start ?? '');
@@ -42,7 +41,6 @@ export default function ProductionForm({ episodeCount, initialParams, onSubmit, 
 
     onSubmit({
       title,
-      series_number: seriesNumber,
       episode_count: epCount,
       prep_start: prepStart,
       pp_start: ppStart,
@@ -89,7 +87,7 @@ export default function ProductionForm({ episodeCount, initialParams, onSubmit, 
       {/* Basic info */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
         <h3 className="font-medium text-gray-900">Production Info</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Title *
@@ -100,20 +98,6 @@ export default function ProductionForm({ episodeCount, initialParams, onSubmit, 
               onChange={(e) => setTitle(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Production title"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Series Number
-            </label>
-            <input
-              type="number"
-              value={seriesNumber ?? ''}
-              onChange={(e) =>
-                setSeriesNumber(e.target.value ? Number(e.target.value) : undefined)
-              }
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="e.g., 1"
             />
           </div>
           <div>
