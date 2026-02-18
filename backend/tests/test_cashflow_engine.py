@@ -56,3 +56,13 @@ def test_cashflow_weekly_totals_sum_correctly(sample_budget, sample_params):
     for week_idx in range(len(output.weeks)):
         column_sum = sum(row.weekly_amounts[week_idx] for row in output.rows)
         assert abs(column_sum - output.weekly_totals[week_idx]) < 0.1
+
+
+def test_cashflow_grand_total_exact_to_budget(sample_budget, sample_params):
+    output = generate_cashflow(
+        budget=sample_budget,
+        parameters=sample_params,
+        distributions=[],
+    )
+
+    assert round(output.grand_total, 2) == round(sample_budget.total_budget, 2)
