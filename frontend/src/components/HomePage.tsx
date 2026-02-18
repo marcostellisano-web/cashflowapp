@@ -12,7 +12,7 @@ export default function HomePage({ onSelectCashflow }: HomePageProps) {
           <img
             src="/logo.png"
             alt="Production Finance Engine"
-            className="h-[480px] w-auto object-contain -ml-[160px]"
+            className="h-full w-auto object-contain"
           />
 
           {/* Tagline */}
