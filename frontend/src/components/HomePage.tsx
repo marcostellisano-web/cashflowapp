@@ -6,13 +6,13 @@ export default function HomePage({ onSelectCashflow }: HomePageProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero / Banner */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-2 flex items-center justify-between">
+      <div className="bg-white border-b border-gray-200 h-56 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6 h-full py-3 flex items-center justify-between">
           {/* Logo */}
           <img
             src="/logo.png"
             alt="Production Finance Engine"
-            className="h-[480px] w-auto object-contain"
+            className="h-[80%] w-auto object-contain"
           />
 
           {/* Tagline */}
@@ -25,6 +25,13 @@ export default function HomePage({ onSelectCashflow }: HomePageProps) {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Explainer */}
+      <div className="max-w-7xl mx-auto px-6 py-5">
+        <p className="text-xl font-semibold tracking-wide text-gray-900">
+          Turn your production budget into a fully modeled cashflow and tax credit forecast — instantly.
+        </p>
       </div>
 
       {/* Tool Selection */}
