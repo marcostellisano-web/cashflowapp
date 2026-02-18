@@ -28,12 +28,10 @@ export default function HomePage({ onSelectCashflow }: HomePageProps) {
       </div>
 
       {/* Explainer */}
-      <div className="bg-blue-50">
-        <div className="max-w-7xl mx-auto px-6 py-5">
-          <p className="text-xl text-gray-800" style={{ fontFamily: "'Amiko', sans-serif", fontWeight: 700 }}>
-            Turn your production budget into a fully modeled cashflow and tax credit forecast — instantly.
-          </p>
-        </div>
+      <div className="max-w-7xl mx-auto px-6 py-5">
+        <p className="text-xl font-semibold tracking-wide text-gray-900">
+          Turn your production budget into a fully modeled cashflow and tax credit forecast — instantly.
+        </p>
       </div>
 
       {/* Tool Selection */}
