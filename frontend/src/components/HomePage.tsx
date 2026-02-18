@@ -6,38 +6,31 @@ export default function HomePage({ onSelectCashflow }: HomePageProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero / Banner */}
-      <div className="bg-white border-b border-gray-200 h-56 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 h-full py-3 flex items-center justify-between">
+      <div className="bg-gradient-to-br from-white to-blue-50 border-b border-gray-200 h-56 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
           {/* Logo */}
           <img
             src="/logo.png"
             alt="Production Finance Engine"
-            className="h-[80%] w-auto object-contain"
+            className="h-[432px] w-auto object-contain flex-shrink-0 -ml-[144px]"
           />
 
-          {/* Tagline */}
-          <div className="text-right">
-            <p className="text-2xl font-light text-gray-700 tracking-wide">
-              comprehensive budget analysis.
-            </p>
-            <p className="text-2xl font-semibold text-blue-600 tracking-wide">
-              made simple.
-            </p>
-          </div>
+          {/* Headline */}
+          <h1 className="text-4xl font-bold tracking-tight text-gray-900 leading-tight text-right">
+            Production finance
+            <span className="text-blue-600"> — automated.</span>
+          </h1>
         </div>
-      </div>
-
-      {/* Explainer */}
-      <div className="max-w-7xl mx-auto px-6 py-5">
-        <p className="text-xl font-semibold tracking-wide text-gray-900">
-          Turn your production budget into a fully modeled cashflow and tax credit forecast — instantly.
-        </p>
       </div>
 
       {/* Tool Selection */}
       <main className="max-w-7xl mx-auto px-6 py-16">
+        <p className="text-base text-gray-500 leading-relaxed mb-10">
+          Upload your Movie Magic budget and instantly generate a modeled
+          cashflow and tax credit forecast.
+        </p>
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-8">
-          Select an output
+          What would you like to generate?
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
