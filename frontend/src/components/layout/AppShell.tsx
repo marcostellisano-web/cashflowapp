@@ -33,7 +33,7 @@ export default function AppShell({ currentStep, onHome, children }: AppShellProp
             <img
               src="/logo.png"
               alt="Production Finance Engine"
-              className="h-10 w-auto object-contain"
+              className="h-16 w-auto object-contain"
             />
           </button>
 
