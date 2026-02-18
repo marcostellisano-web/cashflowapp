@@ -6,13 +6,13 @@ export default function HomePage({ onSelectCashflow }: HomePageProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero / Banner */}
-      <div className="bg-gradient-to-br from-white to-blue-50 border-b border-gray-200 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 py-10 flex items-center justify-between">
+      <div className="bg-gradient-to-br from-white to-blue-50 border-b border-gray-200 h-56 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6 h-full py-3 flex items-center justify-between">
           {/* Logo */}
           <img
             src="/logo.png"
             alt="Production Finance Engine"
-            className="h-24 w-auto object-contain flex-shrink-0"
+            className="h-full w-auto object-contain flex-shrink-0"
           />
 
           {/* Headline */}
