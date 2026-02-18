@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import HomePage from './components/HomePage';
 import AppShell from './components/layout/AppShell';
 import BudgetUploader from './components/upload/BudgetUploader';
 import BudgetPreview from './components/upload/BudgetPreview';
@@ -12,7 +13,10 @@ import type { ProductionParameters } from './types/production';
 import type { LineItemDistribution, CashflowOutput } from './types/cashflow';
 import { previewCashflow } from './lib/api';
 
+type AppMode = 'home' | 'cashflow';
+
 export default function App() {
+  const [mode, setMode] = useState<AppMode>('home');
   const [step, setStep] = useState(0);
   const [budget, setBudget] = useState<ParsedBudget | null>(null);
   const [params, setParams] = useState<ProductionParameters | null>(null);
@@ -23,6 +27,17 @@ export default function App() {
   const [preview, setPreview] = useState<CashflowOutput | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+
+  const handleGoHome = () => {
+    setMode('home');
+    setStep(0);
+    setBudget(null);
+    setParams(null);
+    setParamsMode('choose');
+    setDistributions([]);
+    setPreview(null);
+    setPreviewError(null);
+  };
 
   const handleBudgetParsed = (parsed: ParsedBudget) => {
     setBudget(parsed);
@@ -56,8 +71,12 @@ export default function App() {
     }
   };
 
+  if (mode === 'home') {
+    return <HomePage onSelectCashflow={() => setMode('cashflow')} />;
+  }
+
   return (
-    <AppShell currentStep={step}>
+    <AppShell currentStep={step} onHome={handleGoHome}>
       {/* Step 0: Upload */}
       {step === 0 && !budget && (
         <BudgetUploader onParsed={handleBudgetParsed} />
