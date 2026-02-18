@@ -28,6 +28,41 @@ from app.services.phase_mapper import merge_distributions
 from app.services.timeline import build_timeline
 
 
+def _allocate_total_with_fallback(total: float, weeks: list[WeekColumn]) -> np.ndarray:
+    """Allocate a total evenly across non-hiatus weeks (or all weeks as fallback)."""
+    n = len(weeks)
+    allocation = np.zeros(n)
+    if n == 0:
+        return allocation
+
+    target_indices = [i for i, week in enumerate(weeks) if not week.is_hiatus]
+    if not target_indices:
+        target_indices = list(range(n))
+
+    per_week = total / len(target_indices)
+    for idx in target_indices:
+        allocation[idx] = per_week
+
+    return allocation
+
+
+def _normalize_line_item_allocation(
+    weekly_amounts: np.ndarray,
+    total: float,
+    weeks: list[WeekColumn],
+) -> np.ndarray:
+    """Guarantee that a line item's weekly amounts sum to its budget total."""
+    allocated = float(weekly_amounts.sum())
+
+    if np.isclose(allocated, total, atol=0.01):
+        return weekly_amounts
+
+    if np.isclose(allocated, 0.0, atol=0.01):
+        return _allocate_total_with_fallback(total, weeks)
+
+    return weekly_amounts * (total / allocated)
+
+
 def _get_phase_week_indices(
     weeks: list[WeekColumn],
     phase: PhaseAssignment,
@@ -164,6 +199,12 @@ def generate_cashflow(
                     params=parameters,
                     num_weeks=num_weeks,
                 )
+
+        weekly_amounts = _normalize_line_item_allocation(
+            weekly_amounts=weekly_amounts,
+            total=item.total,
+            weeks=weeks,
+        )
 
         weekly_totals += weekly_amounts
 
