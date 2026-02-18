@@ -7,7 +7,7 @@ export default function HomePage({ onSelectCashflow }: HomePageProps) {
     <div className="min-h-screen bg-gray-50">
       {/* Hero / Banner */}
       <div className="bg-gradient-to-br from-white to-blue-50 border-b border-gray-200 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 py-10 flex items-center gap-12">
+        <div className="max-w-7xl mx-auto px-6 py-10 flex items-center justify-between">
           {/* Logo */}
           <img
             src="/logo.png"
@@ -15,25 +15,20 @@ export default function HomePage({ onSelectCashflow }: HomePageProps) {
             className="h-24 w-auto object-contain flex-shrink-0"
           />
 
-          {/* Divider */}
-          <div className="w-px h-16 bg-gray-200 flex-shrink-0" />
-
-          {/* Copy */}
-          <div>
-            <h1 className="text-4xl font-bold tracking-tight text-gray-900 leading-tight">
-              Production finance
-              <span className="text-blue-600"> — automated.</span>
-            </h1>
-            <p className="mt-3 text-base text-gray-500 leading-relaxed max-w-lg">
-              Upload your Movie Magic budget and instantly generate a modeled
-              cashflow and tax credit forecast.
-            </p>
-          </div>
+          {/* Headline */}
+          <h1 className="text-4xl font-bold tracking-tight text-gray-900 leading-tight text-right">
+            Production finance
+            <span className="text-blue-600"> — automated.</span>
+          </h1>
         </div>
       </div>
 
       {/* Tool Selection */}
       <main className="max-w-7xl mx-auto px-6 py-16">
+        <p className="text-base text-gray-500 leading-relaxed mb-10">
+          Upload your Movie Magic budget and instantly generate a modeled
+          cashflow and tax credit forecast.
+        </p>
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-8">
           What would you like to generate?
         </h2>
