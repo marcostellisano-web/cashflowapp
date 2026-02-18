@@ -1,0 +1,13 @@
+<svg width="312" height="312" viewBox="0 0 312 312" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="312" height="312" rx="48" fill="#000000"/>
+  <path d="M78 89C78 69.1178 94.1178 53 114 53H134.5C146.163 53 157.125 58.6518 163.91 68.1746L176.6 86H220C246.51 86 268 107.49 268 134V177.5C268 196.468 256.877 213.672 239.579 221.438L252.995 239.325C259.875 248.498 253.33 261.5 241.865 261.5H178C158.719 261.5 140.29 253.68 126.987 239.84L117.318 229.783C115.211 227.591 111.5 229.083 111.5 232.124V237C111.5 250.807 100.307 262 86.5 262C72.6929 262 61.5 250.807 61.5 237V125.5C61.5 105.341 77.8406 89 98 89H78Z" fill="url(#paint0_linear)"/>
+  <text x="95" y="136" fill="#F2F2F0" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700">Production</text>
+  <text x="95" y="174" fill="#F2F2F0" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700">Finance</text>
+  <text x="95" y="212" fill="#F2F2F0" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700">Engine</text>
+  <defs>
+    <linearGradient id="paint0_linear" x1="61.5" y1="157.75" x2="268" y2="157.75" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1C1D23"/>
+      <stop offset="1" stop-color="#1A1B20"/>
+    </linearGradient>
+  </defs>
+</svg>

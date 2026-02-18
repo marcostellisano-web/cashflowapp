@@ -10,12 +10,14 @@ interface DownloadButtonProps {
   budget: ParsedBudget;
   parameters: ProductionParameters;
   distributions: LineItemDistribution[];
+  label?: string;
 }
 
 export default function DownloadButton({
   budget,
   parameters,
   distributions,
+  label = 'Download Excel',
 }: DownloadButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,17 +45,17 @@ export default function DownloadButton({
       <button
         onClick={handleDownload}
         disabled={loading}
-        className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? (
           <>
-            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
             Generating...
           </>
         ) : (
           <>
-            <Download className="w-5 h-5" />
-            Download Excel
+            <Download className="h-5 w-5" />
+            {label}
           </>
         )}
       </button>

@@ -6,7 +6,7 @@ import ParametersUploader from './components/parameters/ParametersUploader';
 import ProductionForm from './components/parameters/ProductionForm';
 import CurveAssigner from './components/distribution/CurveAssigner';
 import CashflowPreview from './components/output/CashflowPreview';
-import DownloadButton from './components/output/DownloadButton';
+import ExportCenter from './components/output/ExportCenter';
 import type { ParsedBudget } from './types/budget';
 import type { ProductionParameters } from './types/production';
 import type { LineItemDistribution, CashflowOutput } from './types/cashflow';
@@ -99,30 +99,21 @@ export default function App() {
       {/* Step 3: Preview & Download */}
       {step === 3 && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
                 Cashflow Preview
               </h2>
               <p className="text-sm text-gray-500">
-                Review the generated cashflow and download the Excel file.
+                Review generated weekly cashflow, then export budget and cashflow deliverables.
               </p>
             </div>
-            <div className="flex gap-2 items-center">
-              <button
-                onClick={() => setStep(2)}
-                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
-              >
-                Back
-              </button>
-              {budget && params && distributions.length > 0 && (
-                <DownloadButton
-                  budget={budget}
-                  parameters={params}
-                  distributions={distributions}
-                />
-              )}
-            </div>
+            <button
+              onClick={() => setStep(2)}
+              className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+            >
+              Back
+            </button>
           </div>
 
           {previewLoading && (
@@ -141,6 +132,13 @@ export default function App() {
               {previewError}
             </div>
           )}
+
+          <ExportCenter
+            budget={budget}
+            parameters={params}
+            distributions={distributions}
+            preview={preview}
+          />
 
           {preview && <CashflowPreview output={preview} />}
         </div>

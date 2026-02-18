@@ -21,3 +21,9 @@ export function downloadBlob(blob: Blob, filename: string) {
 export function cn(...classes: (string | false | undefined | null)[]): string {
   return classes.filter(Boolean).join(' ');
 }
+
+
+export function downloadTextFile(content: string, filename: string, mimeType = 'text/plain') {
+  const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
+  downloadBlob(blob, filename);
+}
