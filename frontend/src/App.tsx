@@ -31,7 +31,6 @@ export default function App() {
   const handleGoHome = () => {
     setMode('home');
     setStep(0);
-    setBudget(null);
     setParams(null);
     setParamsMode('choose');
     setDistributions([]);
@@ -72,7 +71,7 @@ export default function App() {
   };
 
   if (mode === 'home') {
-    return <HomePage onSelectCashflow={() => setMode('cashflow')} onBudgetParsed={handleBudgetParsed} />;
+    return <HomePage onSelectCashflow={() => setMode('cashflow')} onBudgetParsed={handleBudgetParsed} initialBudget={budget} />;
   }
 
   return (
