@@ -8,7 +8,7 @@ bible-driven distributor for accurate TV production cashflow timing. Codes
 not in the bible fall back to the generic phase/curve system.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 import numpy as np
 
@@ -139,6 +139,49 @@ def _resolve_milestone_week_indices(
     return result
 
 
+def _compute_timeline_extension(
+    budget: ParsedBudget,
+    parameters: ProductionParameters,
+    bible: TimingBible,
+    dist_map: dict,
+) -> date:
+    """Return the latest date the timeline must cover to fit all payment patterns.
+
+    Patterns that pay after final delivery (FINANCING, AFTER_DELIVERY) need
+    the timeline to extend beyond final_delivery_date so their payments land
+    on the correct week rather than being clamped to the last production week.
+    """
+    end = parameters.final_delivery_date
+
+    for item in budget.line_items:
+        dist = dist_map.get(item.code)
+
+        # Resolve the effective timing pattern for this line item
+        pattern: TimingPattern | None = None
+        if dist and dist.timing_pattern_override:
+            try:
+                pattern = TimingPattern(dist.timing_pattern_override)
+            except ValueError:
+                pass
+        if pattern is None:
+            entry = bible.get_entry(item.code)
+            if entry:
+                pattern = entry.timing_pattern
+
+        if pattern == TimingPattern.AFTER_DELIVERY:
+            # One month (~5 weeks) after final delivery
+            end = max(end, parameters.final_delivery_date + timedelta(weeks=5))
+
+        elif pattern == TimingPattern.FINANCING:
+            # Extend to the Oct 31 of the fiscal year containing final delivery
+            delivery = parameters.final_delivery_date
+            fy_end_year = delivery.year if delivery.month <= 10 else delivery.year + 1
+            oct31 = date(fy_end_year, 10, 31)
+            end = max(end, oct31 + timedelta(weeks=1))
+
+    return end
+
+
 def generate_cashflow(
     budget: ParsedBudget,
     parameters: ProductionParameters,
@@ -162,14 +205,15 @@ def generate_cashflow(
     if bible is None:
         bible = DEFAULT_BIBLE
 
-    # Build timeline
-    weeks = build_timeline(parameters)
-    num_weeks = len(weeks)
-
-    # Merge user distributions with auto-assigned defaults (fallback for non-bible codes)
+    # Merge distributions first so we can inspect patterns before building the timeline
     all_codes = [item.code for item in budget.line_items]
     merged_dists = merge_distributions(all_codes, distributions)
     dist_map = {d.budget_code: d for d in merged_dists}
+
+    # Extend the timeline to cover post-delivery payments (financing, after-delivery)
+    extended_end = _compute_timeline_extension(budget, parameters, bible, dist_map)
+    weeks = build_timeline(parameters, end_date=extended_end)
+    num_weeks = len(weeks)
 
     # Generate cashflow rows
     rows: list[CashflowRow] = []
