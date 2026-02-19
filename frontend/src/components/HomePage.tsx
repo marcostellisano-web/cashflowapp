@@ -77,86 +77,120 @@ export default function HomePage({ onSelectCashflow, onBudgetParsed }: HomePageP
           {/* Left: Copy */}
           <div className="flex-1 flex flex-col items-start">
             <h2 className="text-5xl lg:text-6xl font-bold text-slate-900 leading-[1.1] tracking-tight mb-6">
-              comprehensive budget analysis. made simple.
+              Upload your Movie Magic budget.
             </h2>
             <p className="text-lg text-slate-600 leading-relaxed max-w-lg">
-              Upload your Movie Magic budget and instantly generate a modeled
-              cashflow and tax credit forecast.
+              Generate cashflow and tax credit forecasts in seconds.
             </p>
           </div>
 
-          {/* Right: Demo GIF */}
-          <div className="flex-1 w-full flex items-center justify-center">
-            <img
-              src="/demo.gif"
-              alt="Cashflow analysis demo"
-              className="w-full max-w-xl rounded-2xl shadow-xl shadow-stone-300"
+          {/* Right: Budget Upload */}
+          <div className="flex-1 w-full">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleInputChange}
             />
+
+            {parsedBudget ? (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="cursor-pointer bg-white rounded-2xl shadow-xl shadow-stone-300 p-10 flex flex-col items-center gap-5 border border-stone-200 hover:border-blue-300 transition-colors"
+              >
+                <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center">
+                  <svg
+                    className="w-7 h-7 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-gray-500 truncate max-w-xs">
+                    {parsedBudget.source_filename}
+                  </p>
+                  <p className="text-4xl font-bold text-slate-900 mt-3">
+                    $
+                    {parsedBudget.total_budget.toLocaleString('en-US', {
+                      maximumFractionDigits: 0,
+                    })}
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">total budget</p>
+                </div>
+                <p className="text-xs text-gray-400">
+                  Click to upload a different file
+                </p>
+              </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDrop={handleDrop}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragOver(true);
+                }}
+                onDragLeave={() => setIsDragOver(false)}
+                className={`w-full rounded-2xl border-2 border-dashed cursor-pointer transition-all p-16 flex flex-col items-center justify-center gap-4 shadow-xl shadow-stone-300 ${
+                  isDragOver
+                    ? 'border-blue-400 bg-blue-50'
+                    : uploading
+                      ? 'border-stone-300 bg-white'
+                      : 'border-stone-300 bg-white hover:border-blue-300 hover:bg-blue-50/30'
+                }`}
+              >
+                {uploading ? (
+                  <>
+                    <div className="animate-spin h-10 w-10 border-2 border-blue-500 border-t-transparent rounded-full" />
+                    <p className="text-sm text-gray-500">Parsing budget...</p>
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className={`w-12 h-12 ${isDragOver ? 'text-blue-400' : 'text-stone-400'}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                      />
+                    </svg>
+                    <div className="text-center">
+                      <p className="text-base font-medium text-slate-700">
+                        {isDragOver
+                          ? 'Drop your file here'
+                          : 'Drop your .xlsx file here'}
+                      </p>
+                      <p className="text-sm text-slate-400 mt-1">
+                        or click to browse
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {uploadError && (
+              <p className="text-sm text-red-600 mt-3">{uploadError}</p>
+            )}
           </div>
         </div>
       </div>
 
       {/* Tool Selection */}
       <main className="max-w-7xl mx-auto px-6 py-16">
-        {/* Upload row */}
-        <div className="flex items-center gap-6 mb-10">
-          <span className="text-base font-medium text-gray-700 whitespace-nowrap">
-            upload your budget
-          </span>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            className="hidden"
-            onChange={handleInputChange}
-          />
-
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            onDrop={handleDrop}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragOver(true);
-            }}
-            onDragLeave={() => setIsDragOver(false)}
-            className={`flex-1 flex items-center rounded-xl border-2 border-dashed px-6 py-4 cursor-pointer transition-colors ${
-              isDragOver
-                ? 'border-blue-400 bg-blue-50'
-                : parsedBudget
-                  ? 'border-stone-300 bg-stone-50'
-                  : 'border-stone-300 bg-white hover:border-stone-400'
-            }`}
-          >
-            {uploading ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
-                Parsing...
-              </div>
-            ) : parsedBudget ? (
-              <div className="flex items-center justify-between w-full">
-                <span className="text-sm text-gray-500 truncate">
-                  {parsedBudget.source_filename}
-                </span>
-                <span className="ml-6 text-base font-semibold text-gray-900 whitespace-nowrap">
-                  Total Budget: $
-                  {parsedBudget.total_budget.toLocaleString('en-US', {
-                    maximumFractionDigits: 0,
-                  })}
-                </span>
-              </div>
-            ) : (
-              <span className="text-sm text-gray-400">
-                {isDragOver ? 'Drop file here' : 'Drop .xlsx file or click to browse'}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {uploadError && (
-          <p className="text-sm text-red-600 -mt-6 mb-6">{uploadError}</p>
-        )}
-
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-8">
           What would you like to generate?
         </h2>
