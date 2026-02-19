@@ -24,6 +24,7 @@ export interface LineItemDistribution {
   milestone_dates?: string[];
   milestone_amounts?: number[];
   auto_assigned: boolean;
+  timing_pattern_override?: string;
 }
 
 export interface WeekColumn {
