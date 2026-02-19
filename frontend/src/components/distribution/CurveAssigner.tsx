@@ -215,45 +215,43 @@ export default function CurveAssigner({
                       )}
                     </td>
                     <td className="px-3 py-1.5">
-                      {bible ? (
-                        <span className="text-[10px] text-gray-400 italic">
-                          Bible-driven
-                        </span>
-                      ) : (
-                        <div className="flex gap-1">
-                          <select
-                            value={dist.phase}
-                            onChange={(e) =>
-                              updateDist(idx, 'phase', e.target.value)
-                            }
-                            className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
-                          >
-                            {PHASES.map((p) => (
-                              <option key={p.value} value={p.value}>
-                                {p.label}
-                              </option>
-                            ))}
-                          </select>
-                          <select
-                            value={dist.curve}
-                            onChange={(e) =>
-                              updateDist(idx, 'curve', e.target.value)
-                            }
-                            className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
-                          >
-                            {CURVES.map((c) => (
-                              <option key={c.value} value={c.value}>
-                                {c.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
+                      <div className="flex gap-1">
+                        <select
+                          value={dist.phase}
+                          onChange={(e) =>
+                            updateDist(idx, 'phase', e.target.value)
+                          }
+                          className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
+                        >
+                          {PHASES.map((p) => (
+                            <option key={p.value} value={p.value}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={dist.curve}
+                          onChange={(e) =>
+                            updateDist(idx, 'curve', e.target.value)
+                          }
+                          className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
+                        >
+                          {CURVES.map((c) => (
+                            <option key={c.value} value={c.value}>
+                              {c.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </td>
                     <td className="px-3 py-1.5 text-center">
-                      {bible ? (
+                      {bible && dist.auto_assigned ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
                           Bible
+                        </span>
+                      ) : bible && !dist.auto_assigned ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                          Override
                         </span>
                       ) : dist.auto_assigned ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
