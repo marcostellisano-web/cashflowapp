@@ -61,13 +61,12 @@ export default function HomePage({ onSelectCashflow, onBudgetParsed }: HomePageP
             className="h-[432px] w-auto object-contain flex-shrink-0 -ml-[144px]"
           />
 
-          {/* CTA */}
-          <button
-            onClick={onSelectCashflow}
-            className="bg-blue-600 text-white font-semibold px-10 py-4 rounded-full text-lg hover:bg-blue-700 transition-colors duration-200 shadow-md shadow-blue-200 flex-shrink-0"
-          >
-            Get started
-          </button>
+          {/* Tagline */}
+          <p className="text-right text-sm text-gray-400 font-light tracking-wide leading-snug flex-shrink-0">
+            comprehensive budget analysis.
+            <br />
+            <span className="text-blue-600 font-semibold">made simple.</span>
+          </p>
         </div>
       </div>
 
