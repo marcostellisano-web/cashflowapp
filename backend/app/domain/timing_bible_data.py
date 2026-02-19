@@ -14,9 +14,16 @@ _ENTRIES = [
     BibleEntry(
         account_code="0220",
         description="SCRIPT EDITOR(S)",
-        timing_pattern=TimingPattern.PP_TO_END,
-        timing_details="Evenly over the course of production on payroll weeks - starting at PP",
-        timing_title="PP to End",
+        timing_pattern=TimingPattern.EDIT_MINUS_2_TO_PIC_LOCK,
+        timing_details="Evenly over the course of production on payroll weeks - starting two weeks before the edit starts until the end of picture lock of all eps",
+        timing_title="Edit -2 to Picture Lock",
+    ),
+    BibleEntry(
+        account_code="0225",
+        description="RESEARCH",
+        timing_pattern=TimingPattern.PREP_TO_LAST_SHOOT_PAYROLL,
+        timing_details="Evenly over the course of production on payroll weeks - from the start until the end of last shoot block",
+        timing_title="Prep to Last Shoot",
     ),
     BibleEntry(
         account_code="0401",
@@ -35,9 +42,9 @@ _ENTRIES = [
     BibleEntry(
         account_code="0410",
         description="SERIES PRODUCER",
-        timing_pattern=TimingPattern.FULL_PAYROLL,
-        timing_details="Evenly over the course of production on payroll weeks",
-        timing_title="Full Payroll",
+        timing_pattern=TimingPattern.PREP_TO_DELIVERY_PAYROLL,
+        timing_details="Evenly over the course of production on payroll weeks - from the start until final delivery",
+        timing_title="Prep to Delivery Payroll",
     ),
     BibleEntry(
         account_code="0460",
@@ -109,9 +116,9 @@ _ENTRIES = [
     BibleEntry(
         account_code="1205",
         description="PRODUCTION MANAGER",
-        timing_pattern=TimingPattern.FULL_PAYROLL,
-        timing_details="Evenly over the course of production on payroll weeks",
-        timing_title="Full Payroll",
+        timing_pattern=TimingPattern.PREP_TO_DELIVERY_PAYROLL,
+        timing_details="Evenly over the course of production on payroll weeks - from the start until final delivery",
+        timing_title="Prep to Delivery Payroll",
     ),
     BibleEntry(
         account_code="1235",
@@ -123,9 +130,9 @@ _ENTRIES = [
     BibleEntry(
         account_code="1243",
         description="PRODUCTION CO-ORDINATOR",
-        timing_pattern=TimingPattern.FULL_PAYROLL,
-        timing_details="Evenly over the course of production on payroll weeks",
-        timing_title="Full Payroll",
+        timing_pattern=TimingPattern.PREP_TO_ROUGH_CUT_PAYROLL,
+        timing_details="Evenly over the course of production on payroll weeks - from the start until the end of rough cut for all eps",
+        timing_title="Prep to Rough Cut",
     ),
     BibleEntry(
         account_code="1248",
@@ -422,7 +429,7 @@ _ENTRIES = [
         account_code="3395",
         description="OTHER",
         timing_pattern=TimingPattern.LEGAL,
-        timing_details="Paid in 4 even chunks over the course of production - starting a few weeks after prep ending a few weeks after delivery - AP weeks",
+        timing_details="Paid in 4 even chunks - starting a few weeks after prep ending a few weeks after delivery - AP weeks",
         timing_title="Legal",
     ),
 
@@ -527,9 +534,9 @@ _ENTRIES = [
     BibleEntry(
         account_code="6002",
         description="POST COORDINATOR",
-        timing_pattern=TimingPattern.PP_TO_END,
-        timing_details="Evenly over the course of production on payroll weeks - starting at PP",
-        timing_title="PP to End",
+        timing_pattern=TimingPattern.PP_MINUS_2_TO_DELIVERY_PAYROLL,
+        timing_details="Evenly over the course of production on payroll weeks - starting two weeks before PP until final delivery",
+        timing_title="PP -2 to Delivery",
     ),
     BibleEntry(
         account_code="6010",
@@ -541,16 +548,16 @@ _ENTRIES = [
     BibleEntry(
         account_code="6012",
         description="ASSISTANT EDITOR(S)",
-        timing_pattern=TimingPattern.EDIT_PAYROLL,
-        timing_details="Evenly over the edit from edit start to picture lock - payroll weeks",
-        timing_title="Edit",
+        timing_pattern=TimingPattern.PP_MINUS_1_TO_DELIVERY_PAYROLL,
+        timing_details="Evenly over the course of production on payroll weeks - starting one weeks before PP until final delivery",
+        timing_title="PP -1 to Delivery",
     ),
     BibleEntry(
         account_code="6042",
         description="OTHER LABOUR",
-        timing_pattern=TimingPattern.ARCHIVE_RESEARCH,
-        timing_details="Evenly over the course of the edit on payroll weeks",
-        timing_title="Archive Research",
+        timing_pattern=TimingPattern.PP_MINUS_2_TO_DELIVERY_PAYROLL,
+        timing_details="Evenly over the course of production on payroll weeks - starting two weeks before PP until final delivery",
+        timing_title="PP -2 to Delivery",
     ),
     BibleEntry(
         account_code="6070",
@@ -630,6 +637,13 @@ _ENTRIES = [
         timing_title="After Delivery",
     ),
     BibleEntry(
+        account_code="6701",
+        description="TITLES-OPENING, CLOSING/GRAPHICS/SHOOT",
+        timing_pattern=TimingPattern.GRAPHICS,
+        timing_details="Starts 3-4 weeks after edit start, until final online - paid bi-weekly - AP weeks",
+        timing_title="Graphics",
+    ),
+    BibleEntry(
         account_code="6710",
         description="GRAPHICS",
         timing_pattern=TimingPattern.GRAPHICS,
@@ -686,7 +700,7 @@ _ENTRIES = [
         account_code="7110",
         description="LEGAL FEES",
         timing_pattern=TimingPattern.LEGAL,
-        timing_details="Paid in 4 even chunks over the course of production - starting a few weeks after prep ending a few weeks after delivery - AP weeks",
+        timing_details="Paid in 4 even chunks - starting a few weeks after prep ending a few weeks after delivery - AP weeks",
         timing_title="Legal",
     ),
     BibleEntry(
@@ -706,9 +720,9 @@ _ENTRIES = [
     BibleEntry(
         account_code="7130",
         description="BANK CHARGES",
-        timing_pattern=TimingPattern.FULL_AP,
-        timing_details="Evenly over the course of production on AP weeks",
-        timing_title="Full AP",
+        timing_pattern=TimingPattern.PREP_TO_DELIVERY_AP,
+        timing_details="Evenly over the course of production on AP weeks - from start until final delivery",
+        timing_title="Prep to Delivery AP",
     ),
     BibleEntry(
         account_code="7201",

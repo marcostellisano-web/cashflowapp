@@ -48,6 +48,18 @@ def distribute_bible_entry(
             return _composer(total, weeks, params)
         case TimingPattern.STILL_PHOTO:
             return _still_photo(total, weeks, params)
+        case TimingPattern.EDIT_MINUS_2_TO_PIC_LOCK:
+            return _edit_minus_2_to_pic_lock(total, weeks, params)
+        case TimingPattern.PREP_TO_LAST_SHOOT_PAYROLL:
+            return _prep_to_last_shoot_payroll(total, weeks, params)
+        case TimingPattern.PREP_TO_DELIVERY_PAYROLL:
+            return _prep_to_delivery_payroll(total, weeks, params)
+        case TimingPattern.PREP_TO_ROUGH_CUT_PAYROLL:
+            return _prep_to_rough_cut_payroll(total, weeks, params)
+        case TimingPattern.PP_MINUS_2_TO_DELIVERY_PAYROLL:
+            return _pp_minus_2_to_delivery_payroll(total, weeks, params)
+        case TimingPattern.PP_MINUS_1_TO_DELIVERY_PAYROLL:
+            return _pp_minus_1_to_delivery_payroll(total, weeks, params)
         case TimingPattern.INTERNALS:
             return _internals(total, weeks, params)
         case TimingPattern.EDIT_INTERNALS:
@@ -80,6 +92,8 @@ def distribute_bible_entry(
             return _insurance(total, weeks, params)
         case TimingPattern.FULL_AP:
             return _full_ap(total, weeks, params)
+        case TimingPattern.PREP_TO_DELIVERY_AP:
+            return _prep_to_delivery_ap(total, weeks, params)
         case TimingPattern.FINANCING:
             return _financing(total, weeks, params)
 
@@ -198,6 +212,42 @@ def _get_all_non_hiatus(weeks: list[WeekColumn]) -> list[int]:
 def _offset_weeks(base_idx: int, offset: int, n_weeks: int) -> int:
     """Apply a week offset, clamped to valid range."""
     return max(0, min(n_weeks - 1, base_idx + offset))
+
+
+def _week_range_indices(
+    weeks: list[WeekColumn],
+    start_date: date,
+    end_date: date,
+) -> list[int]:
+    """Return non-hiatus week indices between two dates (inclusive by week bucket)."""
+    if not weeks:
+        return []
+
+    start_idx = _week_index_for_date(weeks, start_date)
+    if start_idx is None:
+        start_idx = _closest_week_index(weeks, start_date)
+
+    end_idx = _week_index_for_date(weeks, end_date)
+    if end_idx is None:
+        end_idx = _closest_week_index(weeks, end_date)
+
+    if end_idx < start_idx:
+        end_idx = start_idx
+
+    return [i for i in range(start_idx, end_idx + 1) if not weeks[i].is_hiatus]
+
+
+def _spread_between_dates(
+    total: float,
+    weeks: list[WeekColumn],
+    start_date: date,
+    end_date: date,
+    want_payroll: bool,
+) -> np.ndarray:
+    """Spread evenly between two dates on payroll/AP weeks."""
+    indices = _week_range_indices(weeks, start_date, end_date)
+    typed = _filter_by_week_type(weeks, indices, want_payroll=want_payroll)
+    return _spread_flat(total, typed, len(weeks))
 
 
 def _get_monthly_midmonth_weeks(
@@ -402,6 +452,45 @@ def _still_photo(total: float, weeks: list[WeekColumn], params: ProductionParame
     if not targets:
         return _spread_flat(total, _get_all_non_hiatus(weeks), n)
     return _spread_at_indices(total, targets, n)
+
+
+def _edit_minus_2_to_pic_lock(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Payroll from 2 weeks before edit start through final picture lock."""
+    pic_locks = [ep.picture_lock_date for ep in params.episode_deliveries if ep.picture_lock_date]
+    final_lock = max(pic_locks) if pic_locks else params.final_delivery_date
+    start_date = params.edit_start - timedelta(weeks=2)
+    return _spread_between_dates(total, weeks, start_date, final_lock, want_payroll=True)
+
+
+def _prep_to_last_shoot_payroll(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Payroll from prep start through final shoot block end."""
+    if params.shooting_blocks:
+        end_date = max(b.shoot_end for b in params.shooting_blocks)
+    else:
+        end_date = params.final_delivery_date
+    return _spread_between_dates(total, weeks, params.prep_start, end_date, want_payroll=True)
+
+
+def _prep_to_delivery_payroll(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Payroll from prep start through final delivery."""
+    return _spread_between_dates(total, weeks, params.prep_start, params.final_delivery_date, want_payroll=True)
+
+
+def _prep_to_rough_cut_payroll(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Payroll from prep start through final rough cut milestone."""
+    rough_cuts = [ep.rough_cut_date for ep in params.episode_deliveries if ep.rough_cut_date]
+    end_date = max(rough_cuts) if rough_cuts else params.final_delivery_date
+    return _spread_between_dates(total, weeks, params.prep_start, end_date, want_payroll=True)
+
+
+def _pp_minus_2_to_delivery_payroll(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Payroll from 2 weeks before PP start through final delivery."""
+    return _spread_between_dates(total, weeks, params.pp_start - timedelta(weeks=2), params.final_delivery_date, want_payroll=True)
+
+
+def _pp_minus_1_to_delivery_payroll(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Payroll from 1 week before PP start through final delivery."""
+    return _spread_between_dates(total, weeks, params.pp_start - timedelta(weeks=1), params.final_delivery_date, want_payroll=True)
 
 
 def _internals(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
@@ -688,6 +777,11 @@ def _full_ap(total: float, weeks: list[WeekColumn], params: ProductionParameters
     all_weeks = _get_all_non_hiatus(weeks)
     ap_weeks = _filter_by_week_type(weeks, all_weeks, want_payroll=False)
     return _spread_flat(total, ap_weeks, len(weeks))
+
+
+def _prep_to_delivery_ap(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """AP from prep start through final delivery."""
+    return _spread_between_dates(total, weeks, params.prep_start, params.final_delivery_date, want_payroll=False)
 
 
 def _financing(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
