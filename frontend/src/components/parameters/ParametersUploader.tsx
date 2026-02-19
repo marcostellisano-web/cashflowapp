@@ -3,12 +3,13 @@ import type { ProductionParameters } from '../../types/production';
 import { uploadParameters, getParametersTemplateUrl } from '../../lib/api';
 
 interface ParametersUploaderProps {
+  existingParams?: ProductionParameters | null;
   onParsed: (params: ProductionParameters) => void;
   onManual: () => void;
   onBack: () => void;
 }
 
-export default function ParametersUploader({ onParsed, onManual, onBack }: ParametersUploaderProps) {
+export default function ParametersUploader({ existingParams, onParsed, onManual, onBack }: ParametersUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -58,6 +59,31 @@ export default function ParametersUploader({ onParsed, onManual, onBack }: Param
           Back
         </button>
       </div>
+
+      {existingParams && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-green-800">
+                {existingParams.title || 'Production'} &mdash; {existingParams.episode_count} episode{existingParams.episode_count !== 1 ? 's' : ''}
+              </p>
+              <p className="text-xs text-green-600">Parameters already loaded. Continue or replace below.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onParsed(existingParams)}
+            className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 flex-shrink-0"
+          >
+            Continue
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Option 1: Enter Manually */}
