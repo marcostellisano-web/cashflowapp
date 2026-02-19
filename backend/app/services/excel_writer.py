@@ -312,17 +312,18 @@ def _write_parameters_sheet(wb: Workbook, params: ProductionParameters):
     row += 1
     ws.cell(row=row, column=1, value="Episode Deliveries").font = HEADER_FONT
     row += 1
-    headers = ["Episode", "Picture Lock", "Online", "Mix", "Delivery"]
+    headers = ["Episode", "Rough Cut", "Picture Lock", "Online", "Mix", "Delivery"]
     for i, h in enumerate(headers):
         ws.cell(row=row, column=i + 1, value=h).font = Font(bold=True)
     row += 1
 
     for ep in params.episode_deliveries:
         ws.cell(row=row, column=1, value=ep.episode_number)
-        ws.cell(row=row, column=2, value=ep.picture_lock_date.isoformat() if ep.picture_lock_date else "")
-        ws.cell(row=row, column=3, value=ep.online_date.isoformat() if ep.online_date else "")
-        ws.cell(row=row, column=4, value=ep.mix_date.isoformat() if ep.mix_date else "")
-        ws.cell(row=row, column=5, value=ep.delivery_date.isoformat())
+        ws.cell(row=row, column=2, value=ep.rough_cut_date.isoformat() if ep.rough_cut_date else "")
+        ws.cell(row=row, column=3, value=ep.picture_lock_date.isoformat() if ep.picture_lock_date else "")
+        ws.cell(row=row, column=4, value=ep.online_date.isoformat() if ep.online_date else "")
+        ws.cell(row=row, column=5, value=ep.mix_date.isoformat() if ep.mix_date else "")
+        ws.cell(row=row, column=6, value=ep.delivery_date.isoformat())
         row += 1
 
     ws.column_dimensions["A"].width = 18
