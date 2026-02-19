@@ -691,13 +691,12 @@ def _full_ap(total: float, weeks: list[WeekColumn], params: ProductionParameters
 
 
 def _financing(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
-    """Paid at fiscal year-end (October), pro-rated by spend in each fiscal year.
+    """Paid in the last week of September, pro-rated by spend in each fiscal year.
 
     Fiscal year runs Nov 1 – Oct 31. Identifies every fiscal year the
-    production overlaps and splits the total proportionally by the number of
-    production weeks in each fiscal year. Each chunk lands on the AP week
-    nearest Oct 31 of that fiscal year; if that October falls outside the
-    production timeline the amount lands on the closest week within it.
+    production overlaps, splits the total proportionally by the number of
+    production weeks in each fiscal year, and places each chunk on the AP
+    week nearest September 30 of that fiscal year.
     """
     n = len(weeks)
     if n == 0:
@@ -714,13 +713,20 @@ def _financing(total: float, weeks: list[WeekColumn], params: ProductionParamete
     start_fy = fy_end_year(first_date)
     end_fy = fy_end_year(last_date)
 
-    oct_dates: list[date] = []
+    # Oct 31 boundaries are used only for pro-rating week counts.
+    # Payments land on the last weekday of September in the same year.
+    oct_dates: list[date] = []   # fiscal year boundaries (for counting)
+    pay_dates: list[date] = []   # payment target dates (end of September)
     for fy_year in range(start_fy, end_fy + 1):
         oct31 = date(fy_year, 10, 31)
-        # Back up to last weekday if it falls on a weekend
         while oct31.weekday() > 4:
             oct31 -= timedelta(days=1)
         oct_dates.append(oct31)
+
+        sep30 = date(fy_year, 9, 30)
+        while sep30.weekday() > 4:
+            sep30 -= timedelta(days=1)
+        pay_dates.append(sep30)
 
     if not oct_dates:
         all_weeks = _get_all_non_hiatus(weeks)
@@ -742,14 +748,14 @@ def _financing(total: float, weeks: list[WeekColumn], params: ProductionParamete
     total_counted = sum(segment_counts) or 1
 
     result = np.zeros(n)
-    for oct_d, count in zip(oct_dates, segment_counts):
+    for pay_d, count in zip(pay_dates, segment_counts):
         if count == 0:
             continue
         proportion = count / total_counted
         amount = total * proportion
-        idx = _week_index_for_date(weeks, oct_d)
+        idx = _week_index_for_date(weeks, pay_d)
         if idx is None:
-            idx = _closest_week_index(weeks, oct_d)
+            idx = _closest_week_index(weeks, pay_d)
         target = _find_nearest_week_type(weeks, idx, want_payroll=False)
         result[target] += amount
 
