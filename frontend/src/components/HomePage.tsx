@@ -61,11 +61,13 @@ export default function HomePage({ onSelectCashflow, onBudgetParsed }: HomePageP
             className="h-[432px] w-auto object-contain flex-shrink-0 -ml-[144px]"
           />
 
-          {/* Headline */}
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900 leading-tight text-right">
-            Production finance
-            <span className="text-blue-600"> — automated.</span>
-          </h1>
+          {/* CTA */}
+          <button
+            onClick={onSelectCashflow}
+            className="bg-blue-600 text-white font-semibold px-10 py-4 rounded-full text-lg hover:bg-blue-700 transition-colors duration-200 shadow-md shadow-blue-200 flex-shrink-0"
+          >
+            Get started
+          </button>
         </div>
       </div>
 
@@ -83,14 +85,13 @@ export default function HomePage({ onSelectCashflow, onBudgetParsed }: HomePageP
             </p>
           </div>
 
-          {/* Right: Blue CTA */}
+          {/* Right: Demo GIF */}
           <div className="flex-1 w-full flex items-center justify-center">
-            <button
-              onClick={onSelectCashflow}
-              className="bg-blue-600 text-white font-bold px-20 py-8 rounded-2xl text-2xl hover:bg-blue-700 transition-colors duration-200 shadow-lg shadow-blue-200"
-            >
-              Get started
-            </button>
+            <img
+              src="/demo.gif"
+              alt="Cashflow analysis demo"
+              className="w-full max-w-xl rounded-2xl shadow-xl shadow-stone-300"
+            />
           </div>
         </div>
       </div>
