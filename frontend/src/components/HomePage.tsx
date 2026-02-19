@@ -23,6 +23,37 @@ export default function HomePage({ onSelectCashflow }: HomePageProps) {
         </div>
       </div>
 
+      {/* Wealthsimple-style Marketing Section */}
+      <div className="bg-slate-950 py-24 px-6">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
+          {/* Left: Copy + CTA */}
+          <div className="flex-1 flex flex-col items-start">
+            <h2 className="text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight mb-6">
+              comprehensive budget analysis. made simple
+            </h2>
+            <p className="text-lg text-slate-400 mb-10 leading-relaxed max-w-lg">
+              Upload your Movie Magic budget and instantly generate a modeled
+              cashflow and tax credit forecast.
+            </p>
+            <button
+              onClick={onSelectCashflow}
+              className="bg-white text-slate-900 font-semibold px-8 py-3.5 rounded-full text-base hover:bg-slate-100 transition-colors duration-200"
+            >
+              Get started
+            </button>
+          </div>
+
+          {/* Right: Demo GIF */}
+          <div className="flex-1 w-full flex items-center justify-center">
+            <img
+              src="/demo.gif"
+              alt="Cashflow analysis demo"
+              className="w-full max-w-xl rounded-2xl shadow-2xl shadow-slate-900"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Tool Selection */}
       <main className="max-w-7xl mx-auto px-6 py-16">
         <p className="text-base text-gray-500 leading-relaxed mb-10">
