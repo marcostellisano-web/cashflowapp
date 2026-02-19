@@ -144,3 +144,61 @@ def test_prep_to_delivery_uses_latest_episode_delivery_not_earlier_final_deliver
 
     assert nonzero
     assert max(nonzero) == next_payroll_after_true_final
+
+
+def test_delivery_bound_patterns_use_true_final_episode_delivery_window():
+    params = _params().model_copy(update={"final_delivery_date": date(2025, 5, 30)})
+    weeks = build_timeline(params, end_date=date(2025, 8, 1))
+
+    true_final_delivery = max(ep.delivery_date for ep in params.episode_deliveries)
+    true_delivery_idx = next(
+        i for i, w in enumerate(weeks)
+        if w.week_commencing <= true_final_delivery < (w.week_commencing + timedelta(days=7))
+    )
+
+    entries = [
+        BibleEntry(account_code="0410", description="SERIES PRODUCER", timing_pattern=TimingPattern.PREP_TO_DELIVERY_PAYROLL, timing_details="", timing_title=""),
+        BibleEntry(account_code="0225", description="RESEARCH", timing_pattern=TimingPattern.PREP_TO_LAST_SHOOT_PAYROLL, timing_details="", timing_title=""),
+        BibleEntry(account_code="0401", description="EXECUTIVE PRODUCER", timing_pattern=TimingPattern.INTERNALS, timing_details="", timing_title=""),
+        BibleEntry(account_code="0220", description="SCRIPT EDITOR", timing_pattern=TimingPattern.PP_TO_END, timing_details="", timing_title=""),
+        BibleEntry(account_code="7130", description="BANK CHARGES", timing_pattern=TimingPattern.PREP_TO_DELIVERY_AP, timing_details="", timing_title=""),
+    ]
+
+    for entry in entries:
+        nonzero = _nonzero_weeks(distribute_bible_entry(1000, entry, weeks, params))
+        assert nonzero, entry.account_code
+        if entry.timing_pattern in {TimingPattern.PREP_TO_DELIVERY_PAYROLL, TimingPattern.PREP_TO_DELIVERY_AP}:
+            # these include first cycle week after final delivery
+            assert max(nonzero) > true_delivery_idx
+        else:
+            assert max(nonzero) <= true_delivery_idx
+
+
+def test_internals_reaches_final_delivery_month_when_final_delivery_is_early_month():
+    params = _params().model_copy(update={
+        "final_delivery_date": date(2025, 5, 30),
+        "episode_deliveries": [
+            EpisodeDelivery(episode_number=1, rough_cut_date=date(2025, 4, 25), picture_lock_date=date(2025, 5, 9), delivery_date=date(2025, 5, 30)),
+            EpisodeDelivery(episode_number=2, rough_cut_date=date(2025, 5, 2), picture_lock_date=date(2025, 5, 16), delivery_date=date(2025, 6, 6)),
+        ],
+    })
+    weeks = build_timeline(params, end_date=date(2025, 7, 31))
+
+    entry = BibleEntry(
+        account_code="0401",
+        description="EXECUTIVE PRODUCER",
+        timing_pattern=TimingPattern.INTERNALS,
+        timing_details="",
+        timing_title="",
+    )
+
+    nonzero = _nonzero_weeks(distribute_bible_entry(1000, entry, weeks, params))
+
+    true_final_delivery = max(ep.delivery_date for ep in params.episode_deliveries)
+    true_delivery_idx = next(
+        i for i, w in enumerate(weeks)
+        if w.week_commencing <= true_final_delivery < (w.week_commencing + timedelta(days=7))
+    )
+    # Should include an AP payment in the week containing final delivery (or nearest AP at/before it)
+    assert nonzero
+    assert max(nonzero) >= true_delivery_idx - 1
