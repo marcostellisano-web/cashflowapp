@@ -5,12 +5,13 @@ import type { ParsedBudget } from '../types/budget';
 interface HomePageProps {
   onSelectCashflow: () => void;
   onBudgetParsed: (budget: ParsedBudget) => void;
+  initialBudget?: ParsedBudget | null;
 }
 
-export default function HomePage({ onSelectCashflow, onBudgetParsed }: HomePageProps) {
+export default function HomePage({ onSelectCashflow, onBudgetParsed, initialBudget = null }: HomePageProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [parsedBudget, setParsedBudget] = useState<ParsedBudget | null>(null);
+  const [parsedBudget, setParsedBudget] = useState<ParsedBudget | null>(initialBudget);
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 

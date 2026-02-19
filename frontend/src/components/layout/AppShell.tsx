@@ -22,25 +22,26 @@ export default function AppShell({ currentStep, onHome, children }: AppShellProp
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <header className="bg-gradient-to-br from-white to-blue-50 border-b border-gray-200 h-56 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
           {/* Logo — click to return home */}
           <button
             onClick={onHome}
-            className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg"
+            className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg flex-shrink-0"
             aria-label="Return to home"
           >
             <img
               src="/logo.png"
               alt="Production Finance Engine"
-              className="h-16 w-auto object-contain"
+              className="h-[432px] w-auto object-contain -ml-[144px]"
             />
           </button>
 
           {/* Tagline */}
-          <p className="hidden sm:block text-sm text-gray-400 font-light tracking-wide">
-            comprehensive budget analysis.{' '}
-            <span className="text-blue-600 font-medium">made simple.</span>
+          <p className="text-right text-xl text-gray-400 font-light tracking-wide leading-snug flex-shrink-0">
+            Cashflow
+            <br />
+            <span className="text-blue-600 font-semibold">Generator</span>
           </p>
         </div>
       </header>
