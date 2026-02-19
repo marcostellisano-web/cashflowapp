@@ -31,7 +31,6 @@ export default function App() {
   const handleGoHome = () => {
     setMode('home');
     setStep(0);
-    setParams(null);
     setParamsMode('choose');
     setDistributions([]);
     setPreview(null);
@@ -91,6 +90,7 @@ export default function App() {
       {/* Step 1: Production Parameters — choose mode or manual form */}
       {step === 1 && paramsMode === 'choose' && (
         <ParametersUploader
+          existingParams={params}
           onParsed={handleParamsUploaded}
           onManual={() => setParamsMode('manual')}
           onBack={() => setStep(0)}
