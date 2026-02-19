@@ -107,7 +107,20 @@ export default function ProductionForm({ episodeCount, initialParams, onSubmit, 
             <input
               type="number"
               value={epCount}
-              onChange={(e) => setEpCount(Number(e.target.value))}
+              onChange={(e) => {
+                const newCount = Number(e.target.value);
+                setEpCount(newCount);
+                if (deliveries.length === 0 || newCount === deliveries.length) return;
+                if (newCount < deliveries.length) {
+                  setDeliveries(deliveries.slice(0, newCount));
+                } else {
+                  const extras: EpisodeDelivery[] = [];
+                  for (let i = deliveries.length + 1; i <= newCount; i++) {
+                    extras.push({ episode_number: i, delivery_date: '' });
+                  }
+                  setDeliveries([...deliveries, ...extras]);
+                }
+              }}
               min={1}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
