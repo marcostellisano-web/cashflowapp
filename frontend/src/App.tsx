@@ -72,7 +72,7 @@ export default function App() {
   };
 
   if (mode === 'home') {
-    return <HomePage onSelectCashflow={() => setMode('cashflow')} />;
+    return <HomePage onSelectCashflow={() => setMode('cashflow')} onBudgetParsed={handleBudgetParsed} />;
   }
 
   return (
