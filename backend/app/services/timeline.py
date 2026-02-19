@@ -36,6 +36,10 @@ def _determine_phase_label(
     if is_date_in_ranges(monday, params.hiatus_periods):
         return "HIATUS"
 
+    # Weeks after final delivery (timeline extension for post-delivery payments)
+    if monday > params.final_delivery_date:
+        return "POST-DELIVERY"
+
     # Check if in prep period (prep_start through day before pp_start)
     prep_end = params.pp_start - timedelta(days=1)
     in_prep = params.prep_start <= week_end and prep_end >= monday
@@ -92,13 +96,15 @@ def _is_payroll_week(monday: date, first_payroll_week: date | None) -> bool | No
     return weeks_diff % 2 == 0
 
 
-def build_timeline(params: ProductionParameters) -> list[WeekColumn]:
+def build_timeline(params: ProductionParameters, end_date: date | None = None) -> list[WeekColumn]:
     """Build the full production timeline as a list of WeekColumns.
 
-    Generates one WeekColumn per week from prep_start through final_delivery_date.
-    Each week is labeled with its production phase and annotated with shoot day counts.
+    Generates one WeekColumn per week from prep_start through end_date
+    (defaults to final_delivery_date). Weeks after final_delivery_date are
+    labelled POST-DELIVERY to accommodate patterns like financing and
+    after-delivery payments.
     """
-    mondays = generate_week_mondays(params.prep_start, params.final_delivery_date)
+    mondays = generate_week_mondays(params.prep_start, end_date or params.final_delivery_date)
 
     weeks: list[WeekColumn] = []
     for idx, monday in enumerate(mondays):
