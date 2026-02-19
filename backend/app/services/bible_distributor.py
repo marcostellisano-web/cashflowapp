@@ -156,6 +156,33 @@ def _find_nearest_week_type(
     return target_idx
 
 
+def _find_next_week_type(
+    weeks: list[WeekColumn],
+    start_idx: int,
+    want_payroll: bool,
+) -> int:
+    """Find first week index at/after start_idx matching payroll/AP type.
+
+    If payroll cycle is not configured, returns start_idx clamped.
+    """
+    n = len(weeks)
+    if n == 0:
+        return 0
+    if start_idx < 0:
+        start_idx = 0
+    if start_idx >= n:
+        start_idx = n - 1
+
+    if weeks[start_idx].is_payroll_week is None:
+        return start_idx
+
+    for i in range(start_idx, n):
+        if weeks[i].is_payroll_week == want_payroll:
+            return i
+
+    return start_idx
+
+
 def _filter_by_week_type(
     weeks: list[WeekColumn],
     indices: list[int],
@@ -472,8 +499,13 @@ def _prep_to_last_shoot_payroll(total: float, weeks: list[WeekColumn], params: P
 
 
 def _prep_to_delivery_payroll(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
-    """Payroll from prep start through final delivery."""
-    return _spread_between_dates(total, weeks, params.prep_start, params.final_delivery_date, want_payroll=True)
+    """Payroll from prep start through the first payroll week after final delivery."""
+    delivery_idx = _week_index_for_date(weeks, params.final_delivery_date)
+    if delivery_idx is None:
+        delivery_idx = _closest_week_index(weeks, params.final_delivery_date)
+    end_idx = _find_next_week_type(weeks, delivery_idx + 1, want_payroll=True)
+    end_date = weeks[end_idx].week_commencing
+    return _spread_between_dates(total, weeks, params.prep_start, end_date, want_payroll=True)
 
 
 def _prep_to_rough_cut_payroll(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
@@ -484,13 +516,23 @@ def _prep_to_rough_cut_payroll(total: float, weeks: list[WeekColumn], params: Pr
 
 
 def _pp_minus_2_to_delivery_payroll(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
-    """Payroll from 2 weeks before PP start through final delivery."""
-    return _spread_between_dates(total, weeks, params.pp_start - timedelta(weeks=2), params.final_delivery_date, want_payroll=True)
+    """Payroll from 2 weeks before PP start through the first payroll week after final delivery."""
+    delivery_idx = _week_index_for_date(weeks, params.final_delivery_date)
+    if delivery_idx is None:
+        delivery_idx = _closest_week_index(weeks, params.final_delivery_date)
+    end_idx = _find_next_week_type(weeks, delivery_idx + 1, want_payroll=True)
+    end_date = weeks[end_idx].week_commencing
+    return _spread_between_dates(total, weeks, params.pp_start - timedelta(weeks=2), end_date, want_payroll=True)
 
 
 def _pp_minus_1_to_delivery_payroll(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
-    """Payroll from 1 week before PP start through final delivery."""
-    return _spread_between_dates(total, weeks, params.pp_start - timedelta(weeks=1), params.final_delivery_date, want_payroll=True)
+    """Payroll from 1 week before PP start through the first payroll week after final delivery."""
+    delivery_idx = _week_index_for_date(weeks, params.final_delivery_date)
+    if delivery_idx is None:
+        delivery_idx = _closest_week_index(weeks, params.final_delivery_date)
+    end_idx = _find_next_week_type(weeks, delivery_idx + 1, want_payroll=True)
+    end_date = weeks[end_idx].week_commencing
+    return _spread_between_dates(total, weeks, params.pp_start - timedelta(weeks=1), end_date, want_payroll=True)
 
 
 def _internals(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
@@ -780,8 +822,13 @@ def _full_ap(total: float, weeks: list[WeekColumn], params: ProductionParameters
 
 
 def _prep_to_delivery_ap(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
-    """AP from prep start through final delivery."""
-    return _spread_between_dates(total, weeks, params.prep_start, params.final_delivery_date, want_payroll=False)
+    """AP from prep start through the first AP week after final delivery."""
+    delivery_idx = _week_index_for_date(weeks, params.final_delivery_date)
+    if delivery_idx is None:
+        delivery_idx = _closest_week_index(weeks, params.final_delivery_date)
+    end_idx = _find_next_week_type(weeks, delivery_idx + 1, want_payroll=False)
+    end_date = weeks[end_idx].week_commencing
+    return _spread_between_dates(total, weeks, params.prep_start, end_date, want_payroll=False)
 
 
 def _financing(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:

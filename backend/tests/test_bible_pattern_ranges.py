@@ -54,7 +54,7 @@ def _nonzero_weeks(amounts):
     return [i for i, x in enumerate(amounts) if abs(float(x)) > 0.001]
 
 
-def test_prep_to_delivery_patterns_stop_at_final_delivery_even_with_extended_timeline():
+def test_prep_to_delivery_patterns_include_first_payroll_or_ap_week_after_final_delivery():
     params = _params()
     weeks = build_timeline(params, end_date=params.final_delivery_date + timedelta(weeks=6))
 
@@ -79,8 +79,19 @@ def test_prep_to_delivery_patterns_stop_at_final_delivery_even_with_extended_tim
     delivery_idx = next(i for i, w in enumerate(weeks) if w.week_commencing <= params.final_delivery_date < (w.week_commencing + timedelta(days=7)))
 
     assert payroll_nonzero and ap_nonzero
-    assert max(payroll_nonzero) <= delivery_idx
-    assert max(ap_nonzero) <= delivery_idx
+    next_payroll_after_delivery = next(
+        i
+        for i in range(delivery_idx + 1, len(weeks))
+        if weeks[i].is_payroll_week is True
+    )
+    next_ap_after_delivery = next(
+        i
+        for i in range(delivery_idx + 1, len(weeks))
+        if weeks[i].is_payroll_week is False
+    )
+
+    assert max(payroll_nonzero) == next_payroll_after_delivery
+    assert max(ap_nonzero) == next_ap_after_delivery
 
 
 def test_0220_pattern_uses_edit_minus_two_weeks_to_final_picture_lock():
