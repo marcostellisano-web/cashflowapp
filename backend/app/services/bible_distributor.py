@@ -733,30 +733,33 @@ def _pre_shoot(total: float, weeks: list[WeekColumn], params: ProductionParamete
 
 
 def _legal(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
-    """4 even chunks over the course of production, on AP weeks.
-
-    Spaced approximately quarterly: a few weeks after prep, ~1/4, ~1/2, ~3/4 through,
-    and a few weeks after delivery.
-    """
+    """4 even AP chunks from a few weeks after prep to a few weeks after final delivery."""
     n = len(weeks)
-    all_non_hiatus = _get_all_non_hiatus(weeks)
-    if not all_non_hiatus:
+    if n == 0:
         return np.zeros(n)
 
-    total_span = len(all_non_hiatus)
-    # 4 evenly spaced points, offset slightly from edges
-    offsets = [
-        max(2, total_span // 8),
-        total_span // 4 + total_span // 8,
-        total_span // 2 + total_span // 8,
-        min(total_span - 1, total_span - max(2, total_span // 8)),
+    start_date = params.prep_start + timedelta(weeks=2)
+    end_date = _resolved_final_delivery_date(params) + timedelta(weeks=2)
+
+    start_idx = _week_index_for_date(weeks, start_date)
+    if start_idx is None:
+        start_idx = _closest_week_index(weeks, start_date)
+
+    end_idx = _week_index_for_date(weeks, end_date)
+    if end_idx is None:
+        end_idx = _closest_week_index(weeks, end_date)
+
+    if end_idx < start_idx:
+        end_idx = start_idx
+
+    points = [
+        start_idx,
+        start_idx + (end_idx - start_idx) // 3,
+        start_idx + (2 * (end_idx - start_idx)) // 3,
+        end_idx,
     ]
 
-    targets = []
-    for off in offsets:
-        idx = all_non_hiatus[min(off, total_span - 1)]
-        targets.append(_find_nearest_week_type(weeks, idx, want_payroll=False))
-
+    targets = [_find_nearest_week_type(weeks, p, want_payroll=False) for p in points]
     return _spread_at_indices(total, targets, n)
 
 

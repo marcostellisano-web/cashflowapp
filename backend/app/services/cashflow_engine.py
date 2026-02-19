@@ -197,6 +197,10 @@ def _compute_timeline_extension(
             # These patterns intentionally include the first cycle week after final delivery
             end = max(end, resolved_final_delivery + timedelta(weeks=2))
 
+        elif pattern == TimingPattern.LEGAL:
+            # Legal chunks can land a few weeks after final delivery
+            end = max(end, resolved_final_delivery + timedelta(weeks=3))
+
     return end
 
 
