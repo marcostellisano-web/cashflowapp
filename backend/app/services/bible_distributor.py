@@ -875,6 +875,16 @@ def _prep_to_delivery_ap(total: float, weeks: list[WeekColumn], params: Producti
     return _spread_between_dates(total, weeks, params.prep_start, end_date, want_payroll=False)
 
 
+def _prep_to_delivery_ap(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """AP from prep start through the first AP week after final delivery."""
+    delivery_idx = _week_index_for_date(weeks, _resolved_final_delivery_date(params))
+    if delivery_idx is None:
+        delivery_idx = _closest_week_index(weeks, _resolved_final_delivery_date(params))
+    end_idx = _find_next_week_type(weeks, delivery_idx + 1, want_payroll=False)
+    end_date = weeks[end_idx].week_commencing
+    return _spread_between_dates(total, weeks, params.prep_start, end_date, want_payroll=False)
+
+
 def _financing(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
     """Paid in the last week of September, pro-rated by spend in each fiscal year.
 
