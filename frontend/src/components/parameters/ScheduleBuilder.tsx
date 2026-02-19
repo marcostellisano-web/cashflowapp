@@ -172,6 +172,7 @@ export default function ScheduleBuilder({
               <thead>
                 <tr className="text-left text-xs font-medium text-gray-500">
                   <th className="px-2 py-1">Episode</th>
+                  <th className="px-2 py-1">Rough Cut</th>
                   <th className="px-2 py-1">Picture Lock</th>
                   <th className="px-2 py-1">Online</th>
                   <th className="px-2 py-1">Mix</th>
@@ -184,7 +185,7 @@ export default function ScheduleBuilder({
                     <td className="px-2 py-1 font-medium text-gray-700">
                       Ep {del_.episode_number}
                     </td>
-                    {(['picture_lock_date', 'online_date', 'mix_date', 'delivery_date'] as const).map(
+                    {(['rough_cut_date', 'picture_lock_date', 'online_date', 'mix_date', 'delivery_date'] as const).map(
                       (field) => (
                         <td key={field} className="px-2 py-1">
                           <input

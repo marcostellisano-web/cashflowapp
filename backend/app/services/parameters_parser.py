@@ -17,7 +17,7 @@ Expected format — a single-sheet workbook with vertical key-value layout:
   Rows 17+: data
 
   Row 29: "Episode Deliveries" section header
-  Row 30: Episode | Picture Lock | Online | Mix | Delivery
+  Row 30: Episode | Rough Cut | Picture Lock | Online | Mix | Delivery
   Rows 31+: data
 
 The parser also supports the old 3-sheet format for backwards compatibility.
@@ -190,6 +190,7 @@ def _parse_single_sheet(ws) -> ProductionParameters:
             deliveries.append(
                 EpisodeDelivery(
                     episode_number=ep_num,
+                    rough_cut_date=_parse_date(_dcol(row_vals, "rough") or _dcol(row_vals, "cut")),
                     picture_lock_date=_parse_date(
                         _dcol(row_vals, "picture") or _dcol(row_vals, "lock")
                     ),
@@ -311,6 +312,7 @@ def _parse_multi_sheet(wb) -> ProductionParameters:
             deliveries.append(
                 EpisodeDelivery(
                     episode_number=int(ep_num),
+                    rough_cut_date=_parse_date(_dcol(row_vals, "rough") or _dcol(row_vals, "cut")),
                     picture_lock_date=_parse_date(_dcol(row_vals, "picture") or _dcol(row_vals, "lock")),
                     online_date=_parse_date(_dcol(row_vals, "online")),
                     mix_date=_parse_date(_dcol(row_vals, "mix")),
@@ -404,6 +406,7 @@ def generate_parameters_template() -> BytesIO:
     ws.column_dimensions["C"].width = 18
     ws.column_dimensions["D"].width = 18
     ws.column_dimensions["E"].width = 18
+    ws.column_dimensions["F"].width = 18
 
     # Row 2: instruction
     ws.cell(row=2, column=1, value="** please enter information in the YELLOW cells").font = Font(
@@ -450,18 +453,18 @@ def generate_parameters_template() -> BytesIO:
         ws.cell(row=row_num, column=4).number_format = "DD-MMM-YYYY"
 
     # Row 29: Episode Deliveries section header
-    for col in range(1, 6):
+    for col in range(1, 7):
         _set_cell(ws, 29, col, "Episode Deliveries" if col == 1 else None, fill=_CYAN, font=_BOLD_WHITE)
-    ws.merge_cells(start_row=29, start_column=1, end_row=29, end_column=5)
+    ws.merge_cells(start_row=29, start_column=1, end_row=29, end_column=6)
 
     # Row 30: Episode Deliveries column headers
-    for col, header in enumerate(["Episode", "Picture Lock", "Online", "Mix", "Delivery"], start=1):
+    for col, header in enumerate(["Episode", "Rough Cut", "Picture Lock", "Online", "Mix", "Delivery"], start=1):
         _set_cell(ws, 30, col, header, fill=_GRAY_HEADER, font=_BOLD)
 
     # Rows 31-40: 10 blank delivery rows (yellow)
     for row_num in range(31, 41):
         _set_cell(ws, row_num, 1, row_num - 30 if row_num == 31 else None, fill=_YELLOW)
-        for col in range(2, 6):
+        for col in range(2, 7):
             _set_cell(ws, row_num, col, None, fill=_YELLOW)
             ws.cell(row=row_num, column=col).number_format = "DD-MMM-YYYY"
 
