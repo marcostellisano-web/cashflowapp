@@ -18,6 +18,7 @@ class EpisodeDelivery(BaseModel):
     """Post-production milestones for a single episode."""
 
     episode_number: int
+    rough_cut_date: date | None = None
     picture_lock_date: date | None = None
     online_date: date | None = None
     mix_date: date | None = None

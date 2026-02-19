@@ -8,6 +8,7 @@ export interface ShootingBlock {
 
 export interface EpisodeDelivery {
   episode_number: number;
+  rough_cut_date?: string;
   picture_lock_date?: string;
   online_date?: string;
   mix_date?: string;

@@ -116,7 +116,7 @@ export default function ProductionForm({ episodeCount, initialParams, onSubmit, 
                 } else {
                   const extras: EpisodeDelivery[] = [];
                   for (let i = deliveries.length + 1; i <= newCount; i++) {
-                    extras.push({ episode_number: i, delivery_date: '' });
+                    extras.push({ episode_number: i, rough_cut_date: '', picture_lock_date: '', online_date: '', mix_date: '', delivery_date: '' });
                   }
                   setDeliveries([...deliveries, ...extras]);
                 }
