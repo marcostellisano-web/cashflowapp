@@ -33,6 +33,24 @@ class TimingPattern(str, Enum):
     STILL_PHOTO = "still_photo"
     """2-3 weeks after each shooting block, payroll weeks."""
 
+    EDIT_MINUS_2_TO_PIC_LOCK = "edit_minus_2_to_pic_lock"
+    """Payroll from 2 weeks before edit start through final picture lock."""
+
+    PREP_TO_LAST_SHOOT_PAYROLL = "prep_to_last_shoot_payroll"
+    """Payroll from prep start through the final shooting block end."""
+
+    PREP_TO_DELIVERY_PAYROLL = "prep_to_delivery_payroll"
+    """Payroll from prep start through final delivery."""
+
+    PREP_TO_ROUGH_CUT_PAYROLL = "prep_to_rough_cut_payroll"
+    """Payroll from prep start through final rough cut milestone."""
+
+    PP_MINUS_2_TO_DELIVERY_PAYROLL = "pp_minus_2_to_delivery_payroll"
+    """Payroll from 2 weeks before PP start through final delivery."""
+
+    PP_MINUS_1_TO_DELIVERY_PAYROLL = "pp_minus_1_to_delivery_payroll"
+    """Payroll from 1 week before PP start through final delivery."""
+
     # AP-based patterns
     INTERNALS = "internals"
     """Monthly mid-month from prep to delivery, AP weeks."""
@@ -81,6 +99,9 @@ class TimingPattern(str, Enum):
 
     FULL_AP = "full_ap"
     """Evenly over the course of production on AP weeks."""
+
+    PREP_TO_DELIVERY_AP = "prep_to_delivery_ap"
+    """AP from prep start through final delivery."""
 
     FINANCING = "financing"
     """Paid at fiscal year-end (October), pro-rated by spend in each fiscal year."""
