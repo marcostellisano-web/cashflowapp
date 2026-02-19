@@ -1,8 +1,54 @@
+import { useCallback, useRef, useState } from 'react';
+import { uploadBudget } from '../lib/api';
+import type { ParsedBudget } from '../types/budget';
+
 interface HomePageProps {
   onSelectCashflow: () => void;
+  onBudgetParsed: (budget: ParsedBudget) => void;
 }
 
-export default function HomePage({ onSelectCashflow }: HomePageProps) {
+export default function HomePage({ onSelectCashflow, onBudgetParsed }: HomePageProps) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [parsedBudget, setParsedBudget] = useState<ParsedBudget | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = useCallback(
+    async (file: File) => {
+      setUploading(true);
+      setUploadError(null);
+      try {
+        const result = await uploadBudget(file);
+        setParsedBudget(result);
+        onBudgetParsed(result);
+      } catch (e: any) {
+        setUploadError(e.message || 'Failed to parse budget file');
+      } finally {
+        setUploading(false);
+      }
+    },
+    [onBudgetParsed],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    },
+    [handleFile],
+  );
+
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) handleFile(file);
+    },
+    [handleFile],
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero / Banner */}
@@ -15,32 +61,28 @@ export default function HomePage({ onSelectCashflow }: HomePageProps) {
             className="h-[432px] w-auto object-contain flex-shrink-0 -ml-[144px]"
           />
 
-          {/* Headline */}
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900 leading-tight text-right">
-            Production finance
-            <span className="text-blue-600"> — automated.</span>
-          </h1>
+          {/* CTA */}
+          <button
+            onClick={onSelectCashflow}
+            className="bg-blue-600 text-white font-semibold px-10 py-4 rounded-full text-lg hover:bg-blue-700 transition-colors duration-200 shadow-md shadow-blue-200 flex-shrink-0"
+          >
+            Get started
+          </button>
         </div>
       </div>
 
-      {/* Wealthsimple-style Marketing Section */}
+      {/* Marketing Section */}
       <div className="bg-stone-100 py-24 px-6">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
-          {/* Left: Copy + CTA */}
+          {/* Left: Copy */}
           <div className="flex-1 flex flex-col items-start">
             <h2 className="text-5xl lg:text-6xl font-bold text-slate-900 leading-[1.1] tracking-tight mb-6">
               comprehensive budget analysis. made simple.
             </h2>
-            <p className="text-lg text-slate-600 mb-10 leading-relaxed max-w-lg">
+            <p className="text-lg text-slate-600 leading-relaxed max-w-lg">
               Upload your Movie Magic budget and instantly generate a modeled
               cashflow and tax credit forecast.
             </p>
-            <button
-              onClick={onSelectCashflow}
-              className="bg-slate-900 text-white font-semibold px-8 py-3.5 rounded-full text-base hover:bg-slate-800 transition-colors duration-200"
-            >
-              Get started
-            </button>
           </div>
 
           {/* Right: Demo GIF */}
@@ -56,10 +98,65 @@ export default function HomePage({ onSelectCashflow }: HomePageProps) {
 
       {/* Tool Selection */}
       <main className="max-w-7xl mx-auto px-6 py-16">
-        <p className="text-base text-gray-500 leading-relaxed mb-10">
-          Upload your Movie Magic budget and instantly generate a modeled
-          cashflow and tax credit forecast.
-        </p>
+        {/* Upload row */}
+        <div className="flex items-center gap-6 mb-10">
+          <span className="text-base font-medium text-gray-700 whitespace-nowrap">
+            upload your budget
+          </span>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleInputChange}
+          />
+
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            className={`flex-1 flex items-center rounded-xl border-2 border-dashed px-6 py-4 cursor-pointer transition-colors ${
+              isDragOver
+                ? 'border-blue-400 bg-blue-50'
+                : parsedBudget
+                  ? 'border-stone-300 bg-stone-50'
+                  : 'border-stone-300 bg-white hover:border-stone-400'
+            }`}
+          >
+            {uploading ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+                Parsing...
+              </div>
+            ) : parsedBudget ? (
+              <div className="flex items-center justify-between w-full">
+                <span className="text-sm text-gray-500 truncate">
+                  {parsedBudget.source_filename}
+                </span>
+                <span className="ml-6 text-base font-semibold text-gray-900 whitespace-nowrap">
+                  Total Budget: $
+                  {parsedBudget.total_budget.toLocaleString('en-US', {
+                    maximumFractionDigits: 0,
+                  })}
+                </span>
+              </div>
+            ) : (
+              <span className="text-sm text-gray-400">
+                {isDragOver ? 'Drop file here' : 'Drop .xlsx file or click to browse'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {uploadError && (
+          <p className="text-sm text-red-600 -mt-6 mb-6">{uploadError}</p>
+        )}
+
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-8">
           What would you like to generate?
         </h2>
