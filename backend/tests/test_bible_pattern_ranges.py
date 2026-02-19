@@ -116,3 +116,31 @@ def test_0220_pattern_uses_edit_minus_two_weeks_to_final_picture_lock():
     assert nonzero
     assert min(nonzero) >= start_idx
     assert max(nonzero) <= lock_idx
+
+
+def test_prep_to_delivery_uses_latest_episode_delivery_not_earlier_final_delivery_field():
+    params = _params().model_copy(update={"final_delivery_date": date(2025, 5, 30)})
+    weeks = build_timeline(params, end_date=date(2025, 7, 31))
+
+    entry = BibleEntry(
+        account_code="1205",
+        description="PRODUCTION MANAGER",
+        timing_pattern=TimingPattern.PREP_TO_DELIVERY_PAYROLL,
+        timing_details="",
+        timing_title="",
+    )
+
+    nonzero = _nonzero_weeks(distribute_bible_entry(1000, entry, weeks, params))
+
+    true_final_delivery = max(ep.delivery_date for ep in params.episode_deliveries)
+    true_delivery_idx = next(
+        i for i, w in enumerate(weeks)
+        if w.week_commencing <= true_final_delivery < (w.week_commencing + timedelta(days=7))
+    )
+    next_payroll_after_true_final = next(
+        i for i in range(true_delivery_idx + 1, len(weeks))
+        if weeks[i].is_payroll_week is True
+    )
+
+    assert nonzero
+    assert max(nonzero) == next_payroll_after_true_final
