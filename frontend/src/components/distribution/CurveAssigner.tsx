@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { BibleEntry } from '../../types/bible';
 import type { ParsedBudget } from '../../types/budget';
 import type {
@@ -82,9 +82,33 @@ export default function CurveAssigner({
       .finally(() => setLoading(false));
   }, [budget, savedDistributions]);
 
+  // Unique timing options derived from the full bible (for the override dropdown)
+  const timingOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const options: { pattern: string; title: string; details: string }[] = [];
+    Object.values(bibleMap).forEach((entry) => {
+      if (!seen.has(entry.timing_pattern)) {
+        seen.add(entry.timing_pattern);
+        options.push({
+          pattern: entry.timing_pattern,
+          title: entry.timing_title,
+          details: entry.timing_details,
+        });
+      }
+    });
+    return options.sort((a, b) => a.title.localeCompare(b.title));
+  }, [bibleMap]);
+
+  // Map from timing_pattern → timing_title for the Timing column display
+  const patternTitles = useMemo(() => {
+    const map: Record<string, string> = {};
+    Object.values(bibleMap).forEach((e) => { map[e.timing_pattern] = e.timing_title; });
+    return map;
+  }, [bibleMap]);
+
   const updateDist = (
     idx: number,
-    field: 'phase' | 'curve',
+    field: 'phase' | 'curve' | 'timing_pattern_override',
     value: string,
   ) => {
     const updated = [...distributions];
@@ -178,15 +202,23 @@ export default function CurveAssigner({
                 const dist = distributions[idx];
                 if (!dist) return null;
                 const bible = bibleMap[item.code];
+                const isOverridden = bible && !dist.auto_assigned;
+                const effectivePattern = dist.timing_pattern_override ?? bible?.timing_pattern;
+                const effectiveTitle = effectivePattern
+                  ? (patternTitles[effectivePattern] ?? bible?.timing_title)
+                  : undefined;
+
                 return (
                   <tr
                     key={idx}
                     className={
-                      bible
-                        ? 'bg-blue-50/50'
-                        : dist.auto_assigned
-                          ? 'bg-amber-50/50'
-                          : 'hover:bg-gray-50'
+                      isOverridden
+                        ? 'bg-purple-50/50'
+                        : bible
+                          ? 'bg-blue-50/50'
+                          : dist.auto_assigned
+                            ? 'bg-amber-50/50'
+                            : 'hover:bg-gray-50'
                     }
                   >
                     <td className="px-3 py-1.5 font-mono text-gray-600 text-xs">
@@ -201,12 +233,14 @@ export default function CurveAssigner({
                     <td className="px-3 py-1.5">
                       {bible ? (
                         <div>
-                          <span className="text-xs font-medium text-blue-700">
-                            {bible.timing_title}
+                          <span className={`text-xs font-medium ${isOverridden ? 'text-purple-700' : 'text-blue-700'}`}>
+                            {effectiveTitle ?? bible.timing_title}
                           </span>
-                          <p className="text-[10px] text-gray-400 leading-tight mt-0.5 max-w-56 truncate" title={bible.timing_details}>
-                            {bible.timing_details}
-                          </p>
+                          {isOverridden && dist.timing_pattern_override !== bible.timing_pattern && (
+                            <p className="text-[10px] text-purple-400 leading-tight mt-0.5">
+                              was: {bible.timing_title}
+                            </p>
+                          )}
                         </div>
                       ) : (
                         <span className="text-xs text-gray-400 italic">
@@ -216,10 +250,22 @@ export default function CurveAssigner({
                     </td>
                     <td className="px-3 py-1.5">
                       {bible ? (
-                        <span className="text-[10px] text-gray-400 italic">
-                          Bible-driven
-                        </span>
+                        // Bible row: show a dropdown of all bible timing options
+                        <select
+                          value={dist.timing_pattern_override ?? bible.timing_pattern}
+                          onChange={(e) =>
+                            updateDist(idx, 'timing_pattern_override', e.target.value)
+                          }
+                          className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
+                        >
+                          {timingOptions.map((opt) => (
+                            <option key={opt.pattern} value={opt.pattern}>
+                              {opt.title}
+                            </option>
+                          ))}
+                        </select>
                       ) : (
+                        // Non-bible row: phase + curve dropdowns
                         <div className="flex gap-1">
                           <select
                             value={dist.phase}
@@ -251,7 +297,11 @@ export default function CurveAssigner({
                       )}
                     </td>
                     <td className="px-3 py-1.5 text-center">
-                      {bible ? (
+                      {isOverridden ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                          Override
+                        </span>
+                      ) : bible ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
                           Bible
                         </span>

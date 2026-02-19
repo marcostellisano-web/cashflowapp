@@ -34,3 +34,4 @@ class LineItemDistribution(BaseModel):
     milestone_dates: list[date] | None = None
     milestone_amounts: list[float] | None = None
     auto_assigned: bool = False
+    timing_pattern_override: str | None = None

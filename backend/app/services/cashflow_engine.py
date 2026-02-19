@@ -17,7 +17,7 @@ from app.models.budget import ParsedBudget
 from app.models.cashflow import CashflowOutput, CashflowRow, WeekColumn
 from app.models.distribution import CurveType, LineItemDistribution, PhaseAssignment
 from app.models.production import ProductionParameters
-from app.models.timing_bible import TimingBible
+from app.models.timing_bible import BibleEntry, TimingBible, TimingPattern
 from app.services.bible_distributor import distribute_bible_entry
 from app.services.distribution import (
     generate_milestone_weights,
@@ -176,29 +176,49 @@ def generate_cashflow(
     weekly_totals = np.zeros(num_weeks)
 
     for item in budget.line_items:
-        # Check bible first
+        dist = dist_map.get(item.code)
         bible_entry = bible.get_entry(item.code)
 
-        if bible_entry is not None:
+        # 1. User timing-pattern override takes priority over bible default
+        if dist and dist.timing_pattern_override:
+            try:
+                override_entry = BibleEntry(
+                    account_code=item.code,
+                    description=item.description,
+                    timing_pattern=TimingPattern(dist.timing_pattern_override),
+                    timing_details='',
+                    timing_title='',
+                )
+                weekly_amounts = distribute_bible_entry(
+                    total=item.total,
+                    entry=override_entry,
+                    weeks=weeks,
+                    params=parameters,
+                )
+            except ValueError:
+                weekly_amounts = _allocate_total_with_fallback(item.total, weeks)
+
+        # 2. Bible-driven (no override)
+        elif bible_entry is not None:
             weekly_amounts = distribute_bible_entry(
                 total=item.total,
                 entry=bible_entry,
                 weeks=weeks,
                 params=parameters,
             )
+
+        # 3. Phase/curve fallback
+        elif dist is not None:
+            weekly_amounts = _distribute_line_item(
+                total=item.total,
+                dist=dist,
+                weeks=weeks,
+                params=parameters,
+                num_weeks=num_weeks,
+            )
+
         else:
-            # Fall back to curve-based distribution
-            dist = dist_map.get(item.code)
-            if dist is None:
-                weekly_amounts = np.zeros(num_weeks)
-            else:
-                weekly_amounts = _distribute_line_item(
-                    total=item.total,
-                    dist=dist,
-                    weeks=weeks,
-                    params=parameters,
-                    num_weeks=num_weeks,
-                )
+            weekly_amounts = np.zeros(num_weeks)
 
         weekly_amounts = _normalize_line_item_allocation(
             weekly_amounts=weekly_amounts,
