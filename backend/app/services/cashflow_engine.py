@@ -139,6 +139,14 @@ def _resolve_milestone_week_indices(
     return result
 
 
+def _resolved_final_delivery_date(parameters: ProductionParameters) -> date:
+    """Return latest delivery date across final_delivery_date and per-episode deliveries."""
+    ep_dates = [ep.delivery_date for ep in parameters.episode_deliveries if ep.delivery_date]
+    if ep_dates:
+        return max([parameters.final_delivery_date, *ep_dates])
+    return parameters.final_delivery_date
+
+
 def _compute_timeline_extension(
     budget: ParsedBudget,
     parameters: ProductionParameters,
@@ -151,7 +159,8 @@ def _compute_timeline_extension(
     the timeline to extend beyond final_delivery_date so their payments land
     on the correct week rather than being clamped to the last production week.
     """
-    end = parameters.final_delivery_date
+    resolved_final_delivery = _resolved_final_delivery_date(parameters)
+    end = resolved_final_delivery
 
     for item in budget.line_items:
         dist = dist_map.get(item.code)
@@ -170,14 +179,23 @@ def _compute_timeline_extension(
 
         if pattern == TimingPattern.AFTER_DELIVERY:
             # One month (~5 weeks) after final delivery
-            end = max(end, parameters.final_delivery_date + timedelta(weeks=5))
+            end = max(end, resolved_final_delivery + timedelta(weeks=5))
 
         elif pattern == TimingPattern.FINANCING:
             # Extend to end of September of the fiscal year containing final delivery
-            delivery = parameters.final_delivery_date
+            delivery = resolved_final_delivery
             fy_end_year = delivery.year if delivery.month <= 10 else delivery.year + 1
             sep30 = date(fy_end_year, 9, 30)
             end = max(end, sep30 + timedelta(weeks=1))
+
+        elif pattern in {
+            TimingPattern.PREP_TO_DELIVERY_PAYROLL,
+            TimingPattern.PP_MINUS_2_TO_DELIVERY_PAYROLL,
+            TimingPattern.PP_MINUS_1_TO_DELIVERY_PAYROLL,
+            TimingPattern.PREP_TO_DELIVERY_AP,
+        }:
+            # These patterns intentionally include the first cycle week after final delivery
+            end = max(end, resolved_final_delivery + timedelta(weeks=2))
 
     return end
 
