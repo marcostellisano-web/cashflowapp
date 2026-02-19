@@ -191,6 +191,30 @@ def _find_next_week_type(
     return start_idx
 
 
+def _find_prev_week_type(
+    weeks: list[WeekColumn],
+    start_idx: int,
+    want_payroll: bool,
+) -> int:
+    """Find first week index at/before start_idx matching payroll/AP type."""
+    n = len(weeks)
+    if n == 0:
+        return 0
+    if start_idx < 0:
+        start_idx = 0
+    if start_idx >= n:
+        start_idx = n - 1
+
+    if weeks[start_idx].is_payroll_week is None:
+        return start_idx
+
+    for i in range(start_idx, -1, -1):
+        if weeks[i].is_payroll_week == want_payroll:
+            return i
+
+    return start_idx
+
+
 def _filter_by_week_type(
     weeks: list[WeekColumn],
     indices: list[int],
@@ -547,10 +571,18 @@ def _internals(total: float, weeks: list[WeekColumn], params: ProductionParamete
         for idx in monthly
     ]
     ap_monthly = [i for i in ap_monthly if weeks[i].week_commencing <= end_date]
+
+    end_idx = _week_index_for_date(weeks, end_date)
+    if end_idx is None:
+        end_idx = _closest_week_index(weeks, end_date)
+    tail_idx = _find_prev_week_type(weeks, end_idx, want_payroll=False)
+    if weeks[tail_idx].week_commencing <= end_date and tail_idx not in ap_monthly:
+        ap_monthly.append(tail_idx)
+
     if not ap_monthly:
         candidate = _week_range_indices(weeks, params.prep_start, end_date)
         return _spread_flat(total, _filter_by_week_type(weeks, candidate, want_payroll=False), len(weeks))
-    return _spread_at_indices(total, ap_monthly, len(weeks))
+    return _spread_at_indices(total, sorted(set(ap_monthly)), len(weeks))
 
 
 def _edit_internals(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
@@ -561,10 +593,19 @@ def _edit_internals(total: float, weeks: list[WeekColumn], params: ProductionPar
         _find_nearest_week_type(weeks, idx, want_payroll=False)
         for idx in monthly
     ]
+    ap_monthly = [i for i in ap_monthly if weeks[i].week_commencing <= end_date]
+
+    end_idx = _week_index_for_date(weeks, end_date)
+    if end_idx is None:
+        end_idx = _closest_week_index(weeks, end_date)
+    tail_idx = _find_prev_week_type(weeks, end_idx, want_payroll=False)
+    if weeks[tail_idx].week_commencing <= end_date and tail_idx not in ap_monthly:
+        ap_monthly.append(tail_idx)
+
     if not ap_monthly:
         candidate = _week_range_indices(weeks, params.edit_start, end_date)
         return _spread_flat(total, _filter_by_week_type(weeks, candidate, want_payroll=False), len(weeks))
-    return _spread_at_indices(total, ap_monthly, len(weeks))
+    return _spread_at_indices(total, sorted(set(ap_monthly)), len(weeks))
 
 
 def _travel(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:

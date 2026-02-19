@@ -172,3 +172,33 @@ def test_delivery_bound_patterns_use_true_final_episode_delivery_window():
             assert max(nonzero) > true_delivery_idx
         else:
             assert max(nonzero) <= true_delivery_idx
+
+
+def test_internals_reaches_final_delivery_month_when_final_delivery_is_early_month():
+    params = _params().model_copy(update={
+        "final_delivery_date": date(2025, 5, 30),
+        "episode_deliveries": [
+            EpisodeDelivery(episode_number=1, rough_cut_date=date(2025, 4, 25), picture_lock_date=date(2025, 5, 9), delivery_date=date(2025, 5, 30)),
+            EpisodeDelivery(episode_number=2, rough_cut_date=date(2025, 5, 2), picture_lock_date=date(2025, 5, 16), delivery_date=date(2025, 6, 6)),
+        ],
+    })
+    weeks = build_timeline(params, end_date=date(2025, 7, 31))
+
+    entry = BibleEntry(
+        account_code="0401",
+        description="EXECUTIVE PRODUCER",
+        timing_pattern=TimingPattern.INTERNALS,
+        timing_details="",
+        timing_title="",
+    )
+
+    nonzero = _nonzero_weeks(distribute_bible_entry(1000, entry, weeks, params))
+
+    true_final_delivery = max(ep.delivery_date for ep in params.episode_deliveries)
+    true_delivery_idx = next(
+        i for i, w in enumerate(weeks)
+        if w.week_commencing <= true_final_delivery < (w.week_commencing + timedelta(days=7))
+    )
+    # Should include an AP payment in the week containing final delivery (or nearest AP at/before it)
+    assert nonzero
+    assert max(nonzero) >= true_delivery_idx - 1
