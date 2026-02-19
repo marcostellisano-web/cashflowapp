@@ -62,7 +62,7 @@ export default function HomePage({ onSelectCashflow, onBudgetParsed }: HomePageP
           />
 
           {/* Tagline */}
-          <p className="text-right text-sm text-gray-400 font-light tracking-wide leading-snug flex-shrink-0">
+          <p className="text-right text-xl text-gray-400 font-light tracking-wide leading-snug flex-shrink-0">
             comprehensive budget analysis.
             <br />
             <span className="text-blue-600 font-semibold">made simple.</span>
