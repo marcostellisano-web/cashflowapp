@@ -733,13 +733,13 @@ def _pre_shoot(total: float, weeks: list[WeekColumn], params: ProductionParamete
 
 
 def _legal(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
-    """4 even AP chunks from a few weeks after prep to a few weeks after final delivery."""
+    """4 even AP chunks from a few weeks after prep to 4 weeks after final delivery."""
     n = len(weeks)
     if n == 0:
         return np.zeros(n)
 
     start_date = params.prep_start + timedelta(weeks=2)
-    end_date = _resolved_final_delivery_date(params) + timedelta(weeks=2)
+    end_date = _resolved_final_delivery_date(params) + timedelta(weeks=4)
 
     start_idx = _week_index_for_date(weeks, start_date)
     if start_idx is None:
