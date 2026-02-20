@@ -378,6 +378,38 @@ _ENTRIES = [
         timing_title="Shoot Payroll",
     ),
 
+    # --- Wardrobe ---
+    BibleEntry(
+        account_code="1905",
+        description="HEAD WARDROBE",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1910",
+        description="ASSISTANT WARDROBE",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+
+    # --- Makeup / Hair ---
+    BibleEntry(
+        account_code="2001",
+        description="MAKEUP ARTIST",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="2010",
+        description="ASSISTANT MAKEUP ARTIST(S)",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+
     # --- Camera ---
     BibleEntry(
         account_code="2201",
