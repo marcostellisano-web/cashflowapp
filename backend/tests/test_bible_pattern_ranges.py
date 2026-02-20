@@ -202,3 +202,55 @@ def test_internals_reaches_final_delivery_month_when_final_delivery_is_early_mon
     # Should include an AP payment in the week containing final delivery (or nearest AP at/before it)
     assert nonzero
     assert max(nonzero) >= true_delivery_idx - 1
+
+
+def test_graphics_uses_last_episode_online_not_first_episode_online():
+    params = _params().model_copy(update={
+        "episode_deliveries": [
+            EpisodeDelivery(episode_number=1, rough_cut_date=date(2025, 4, 25), picture_lock_date=date(2025, 5, 9), online_date=date(2025, 4, 20), delivery_date=date(2025, 5, 30)),
+            EpisodeDelivery(episode_number=2, rough_cut_date=date(2025, 5, 2), picture_lock_date=date(2025, 5, 16), online_date=date(2025, 5, 18), delivery_date=date(2025, 6, 6)),
+        ],
+    })
+    weeks = build_timeline(params, end_date=date(2025, 7, 31))
+
+    entry = BibleEntry(
+        account_code="6701",
+        description="TITLES-OPENING, CLOSING/GRAPHICS/SHOOT",
+        timing_pattern=TimingPattern.GRAPHICS,
+        timing_details="",
+        timing_title="",
+    )
+
+    nonzero = _nonzero_weeks(distribute_bible_entry(1000, entry, weeks, params))
+
+    first_online = params.episode_deliveries[0].online_date
+    last_episode_online = params.episode_deliveries[-1].online_date
+    first_online_idx = next(i for i, w in enumerate(weeks) if w.week_commencing <= first_online < (w.week_commencing + timedelta(days=7)))
+    last_online_idx = next(i for i, w in enumerate(weeks) if w.week_commencing <= last_episode_online < (w.week_commencing + timedelta(days=7)))
+
+    assert nonzero
+    assert max(nonzero) >= last_online_idx - 1
+    assert max(nonzero) > first_online_idx
+
+
+def test_legal_pattern_ends_after_true_final_delivery():
+    params = _params().model_copy(update={"final_delivery_date": date(2025, 5, 30)})
+    weeks = build_timeline(params, end_date=date(2025, 8, 1))
+
+    entry = BibleEntry(
+        account_code="7110",
+        description="LEGAL FEES",
+        timing_pattern=TimingPattern.LEGAL,
+        timing_details="",
+        timing_title="",
+    )
+
+    nonzero = _nonzero_weeks(distribute_bible_entry(1000, entry, weeks, params))
+    true_final_delivery = max(ep.delivery_date for ep in params.episode_deliveries)
+    true_delivery_idx = next(
+        i for i, w in enumerate(weeks)
+        if w.week_commencing <= true_final_delivery < (w.week_commencing + timedelta(days=7))
+    )
+
+    assert len(nonzero) <= 4
+    assert max(nonzero) > true_delivery_idx

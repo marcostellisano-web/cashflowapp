@@ -113,6 +113,23 @@ def _resolved_final_delivery_date(params: ProductionParameters) -> date:
     return params.final_delivery_date
 
 
+def _resolved_final_online_date(params: ProductionParameters) -> date | None:
+    """Return online date for the last episode when available.
+
+    Prefers the highest episode_number that has an online_date.
+    Falls back to latest online date across episodes.
+    """
+    with_online = [ep for ep in params.episode_deliveries if ep.online_date]
+    if not with_online:
+        return None
+
+    by_ep_num = sorted(with_online, key=lambda ep: ep.episode_number, reverse=True)
+    if by_ep_num[0].online_date:
+        return by_ep_num[0].online_date
+
+    return max(ep.online_date for ep in with_online if ep.online_date)
+
+
 def _week_index_for_date(weeks: list[WeekColumn], target: date) -> int | None:
     """Find the week index containing a given date."""
     for i, w in enumerate(weeks):
@@ -716,30 +733,33 @@ def _pre_shoot(total: float, weeks: list[WeekColumn], params: ProductionParamete
 
 
 def _legal(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
-    """4 even chunks over the course of production, on AP weeks.
-
-    Spaced approximately quarterly: a few weeks after prep, ~1/4, ~1/2, ~3/4 through,
-    and a few weeks after delivery.
-    """
+    """4 even AP chunks from a few weeks after prep to a few weeks after final delivery."""
     n = len(weeks)
-    all_non_hiatus = _get_all_non_hiatus(weeks)
-    if not all_non_hiatus:
+    if n == 0:
         return np.zeros(n)
 
-    total_span = len(all_non_hiatus)
-    # 4 evenly spaced points, offset slightly from edges
-    offsets = [
-        max(2, total_span // 8),
-        total_span // 4 + total_span // 8,
-        total_span // 2 + total_span // 8,
-        min(total_span - 1, total_span - max(2, total_span // 8)),
+    start_date = params.prep_start + timedelta(weeks=2)
+    end_date = _resolved_final_delivery_date(params) + timedelta(weeks=2)
+
+    start_idx = _week_index_for_date(weeks, start_date)
+    if start_idx is None:
+        start_idx = _closest_week_index(weeks, start_date)
+
+    end_idx = _week_index_for_date(weeks, end_date)
+    if end_idx is None:
+        end_idx = _closest_week_index(weeks, end_date)
+
+    if end_idx < start_idx:
+        end_idx = start_idx
+
+    points = [
+        start_idx,
+        start_idx + (end_idx - start_idx) // 3,
+        start_idx + (2 * (end_idx - start_idx)) // 3,
+        end_idx,
     ]
 
-    targets = []
-    for off in offsets:
-        idx = all_non_hiatus[min(off, total_span - 1)]
-        targets.append(_find_nearest_week_type(weeks, idx, want_payroll=False))
-
+    targets = [_find_nearest_week_type(weeks, p, want_payroll=False) for p in points]
     return _spread_at_indices(total, targets, n)
 
 
@@ -821,15 +841,14 @@ def _graphics(total: float, weeks: list[WeekColumn], params: ProductionParameter
     # Start 3 weeks after edit
     start_idx = _offset_weeks(edit_idx, 3, n)
 
-    # End at final online
-    online_dates = [ep.online_date for ep in params.episode_deliveries if ep.online_date]
-    if online_dates:
-        final_online = max(online_dates)
-        end_idx = _week_index_for_date(weeks, final_online)
-        if end_idx is None:
-            end_idx = n - 1
-    else:
-        end_idx = n - 1
+    # End at online of last episode (fallback to latest known online, then final delivery)
+    final_online = _resolved_final_online_date(params)
+    if final_online is None:
+        final_online = _resolved_final_delivery_date(params)
+
+    end_idx = _week_index_for_date(weeks, final_online)
+    if end_idx is None:
+        end_idx = _closest_week_index(weeks, final_online)
 
     # Bi-weekly = every other week within the range
     candidate = []
