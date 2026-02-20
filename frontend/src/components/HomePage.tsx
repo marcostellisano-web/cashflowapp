@@ -191,7 +191,7 @@ export default function HomePage({ onSelectCashflow, onBudgetParsed, initialBudg
 
       {/* Tool Selection */}
       <main className="max-w-7xl mx-auto px-6 py-10">
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-5">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest mb-5 border-l-2 border-blue-400 pl-3">
           What would you like to generate?
         </h2>
 
