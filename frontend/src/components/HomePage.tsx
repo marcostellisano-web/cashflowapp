@@ -72,8 +72,8 @@ export default function HomePage({ onSelectCashflow, onBudgetParsed, initialBudg
       </div>
 
       {/* Marketing Section */}
-      <div className="bg-stone-100 py-24 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
+      <div className="bg-stone-100 py-12 px-6">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-10">
           {/* Left: Copy */}
           <div className="flex-1 flex flex-col items-start">
             <h2 className="text-5xl lg:text-6xl font-bold text-slate-900 leading-[1.1] tracking-tight mb-6">
@@ -190,8 +190,8 @@ export default function HomePage({ onSelectCashflow, onBudgetParsed, initialBudg
       </div>
 
       {/* Tool Selection */}
-      <main className="max-w-7xl mx-auto px-6 py-16">
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-8">
+      <main className="max-w-7xl mx-auto px-6 py-10">
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-5">
           What would you like to generate?
         </h2>
 
