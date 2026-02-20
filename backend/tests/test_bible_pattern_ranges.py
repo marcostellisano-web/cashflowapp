@@ -251,6 +251,14 @@ def test_legal_pattern_ends_after_true_final_delivery():
         i for i, w in enumerate(weeks)
         if w.week_commencing <= true_final_delivery < (w.week_commencing + timedelta(days=7))
     )
+    # Target end point is 4 weeks after final delivery; find that week index
+    target_end_date = true_final_delivery + timedelta(weeks=4)
+    target_end_idx = next(
+        i for i, w in enumerate(weeks)
+        if w.week_commencing <= target_end_date < (w.week_commencing + timedelta(days=7))
+    )
 
     assert len(nonzero) <= 4
     assert max(nonzero) > true_delivery_idx
+    # Final chunk must land on or within 1 week of the 4-weeks-after-delivery target (AP week snapping)
+    assert abs(max(nonzero) - target_end_idx) <= 1
