@@ -106,6 +106,18 @@ class TimingPattern(str, Enum):
     FINANCING = "financing"
     """Paid at fiscal year-end (October), pro-rated by spend in each fiscal year."""
 
+    PREP_TO_FIRST_SHOOT_PAYROLL = "prep_to_first_shoot_payroll"
+    """Payroll from prep start through end of the first shooting block."""
+
+    NARRATOR = "narrator"
+    """Payroll from 3-4 weeks after edit start through final picture lock."""
+
+    CASTING = "casting"
+    """Two payroll payments at 4 and 2 weeks before PP start."""
+
+    MID_EDIT_LUMP = "mid_edit_lump"
+    """Single AP lump sum at the midpoint of the edit period."""
+
 
 class BibleEntry(BaseModel):
     """A single entry in the Cashflow Timing Bible."""

@@ -12,6 +12,13 @@ from app.models.timing_bible import BibleEntry, TimingBible, TimingPattern
 _ENTRIES = [
     # --- Above the Line ---
     BibleEntry(
+        account_code="0201",
+        description="WRITER(S)",
+        timing_pattern=TimingPattern.PREP_TO_FIRST_SHOOT_PAYROLL,
+        timing_details="Evenly over the course of production on payroll weeks - from the start until end of the first shoot block",
+        timing_title="Prep to First Shoot",
+    ),
+    BibleEntry(
         account_code="0220",
         description="SCRIPT EDITOR(S)",
         timing_pattern=TimingPattern.EDIT_MINUS_2_TO_PIC_LOCK,
@@ -25,6 +32,15 @@ _ENTRIES = [
         timing_details="Evenly over the course of production on payroll weeks - from the start until the end of last shoot block",
         timing_title="Prep to Last Shoot",
     ),
+    BibleEntry(
+        account_code="0295",
+        description="OTHER",
+        timing_pattern=TimingPattern.INSURANCE,
+        timing_details="Paid 2-3 weeks after the start of prep in one lump sum on AP week",
+        timing_title="Insurance",
+    ),
+
+    # --- Producers ---
     BibleEntry(
         account_code="0401",
         description="EXECUTIVE PRODUCER",
@@ -40,11 +56,32 @@ _ENTRIES = [
         timing_title="Internals",
     ),
     BibleEntry(
+        account_code="0407",
+        description="LINE PRODUCER",
+        timing_pattern=TimingPattern.FULL_PAYROLL,
+        timing_details="Evenly over the course of production on payroll weeks - from the start until final delivery",
+        timing_title="Full Payroll",
+    ),
+    BibleEntry(
+        account_code="0408",
+        description="SERIES PRODUCER",
+        timing_pattern=TimingPattern.FULL_PAYROLL,
+        timing_details="Evenly over the course of production on payroll weeks - from the start until final delivery",
+        timing_title="Full Payroll",
+    ),
+    BibleEntry(
         account_code="0410",
         description="SERIES PRODUCER",
         timing_pattern=TimingPattern.PREP_TO_DELIVERY_PAYROLL,
         timing_details="Evenly over the course of production on payroll weeks - from the start until final delivery",
         timing_title="Prep to Delivery Payroll",
+    ),
+    BibleEntry(
+        account_code="0415",
+        description="ASSOCIATE PRODUCER",
+        timing_pattern=TimingPattern.EDIT_MINUS_2_TO_PIC_LOCK,
+        timing_details="Evenly over the course of production on payroll weeks - starting two weeks before the edit starts until the end of picture lock of all eps",
+        timing_title="Edit -2 to Picture Lock",
     ),
     BibleEntry(
         account_code="0460",
@@ -89,6 +126,15 @@ _ENTRIES = [
         timing_title="Travel",
     ),
 
+    # --- Directors ---
+    BibleEntry(
+        account_code="0501",
+        description="DIRECTOR",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+
     # --- Cast / Performers ---
     BibleEntry(
         account_code="0601",
@@ -100,6 +146,55 @@ _ENTRIES = [
     BibleEntry(
         account_code="0640",
         description="OTHER PERFORMER'S",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1001",
+        description="PRINCIPAL'S",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1010",
+        description="ACTOR'S",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1025",
+        description="OFF CAMERA PERFORMANCES",
+        timing_pattern=TimingPattern.NARRATOR,
+        timing_details="Starts 3-4 weeks after edit start, until final picture lock - paid on Payroll weeks",
+        timing_title="Narrator",
+    ),
+    BibleEntry(
+        account_code="1070",
+        description="CASTING DIRECTOR",
+        timing_pattern=TimingPattern.CASTING,
+        timing_details="Split into 2 payments 2 and 4 weeks before the start of PP - Payroll weeks",
+        timing_title="Casting",
+    ),
+    BibleEntry(
+        account_code="1095",
+        description="OTHER",
+        timing_pattern=TimingPattern.STILL_PHOTO,
+        timing_details="2-3 weeks after each block on payroll weeks",
+        timing_title="Narrator",
+    ),
+    BibleEntry(
+        account_code="1101",
+        description="SPECIAL SKILL EXTRAS",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1110",
+        description="GENERAL EXTRAS",
         timing_pattern=TimingPattern.SHOOT_PAYROLL,
         timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
         timing_title="Shoot Payroll",
@@ -119,6 +214,27 @@ _ENTRIES = [
         timing_pattern=TimingPattern.PREP_TO_DELIVERY_PAYROLL,
         timing_details="Evenly over the course of production on payroll weeks - from the start until final delivery",
         timing_title="Prep to Delivery Payroll",
+    ),
+    BibleEntry(
+        account_code="1210",
+        description="UNIT MANAGER",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1220",
+        description="1ST ASSISTANT DIRECTOR",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1223",
+        description="2ND ASSISTANT DIRECTOR",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
     ),
     BibleEntry(
         account_code="1235",
@@ -155,11 +271,32 @@ _ENTRIES = [
         timing_details="Monthly - mid month from prep to delivery, on AP weeks",
         timing_title="Internals",
     ),
+    BibleEntry(
+        account_code="1270",
+        description="CRAFT SERVICES",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
 
     # --- Art / Design ---
     BibleEntry(
         account_code="1301",
         description="PRODUCTION DESIGNER",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1310",
+        description="ART DIRECTOR",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1312",
+        description="1ST ASSISTANT ART DIRECTOR",
         timing_pattern=TimingPattern.SHOOT_PAYROLL,
         timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
         timing_title="Shoot Payroll",
@@ -188,6 +325,59 @@ _ENTRIES = [
         timing_title="Shoot Payroll",
     ),
 
+    # --- Set Decoration ---
+    BibleEntry(
+        account_code="1501",
+        description="SET DECORATOR",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1510",
+        description="ASSISTANT SET DRESSER(S)",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1520",
+        description="SWING GANG",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1530",
+        description="LABOURER(S)",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+
+    # --- Props ---
+    BibleEntry(
+        account_code="1601",
+        description="PROPERTY MASTER",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1610",
+        description="ASSISTANT PROPERTY MASTER",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="1616",
+        description="PROPERTY BUYER(S)",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+
     # --- Camera ---
     BibleEntry(
         account_code="2201",
@@ -206,6 +396,27 @@ _ENTRIES = [
     BibleEntry(
         account_code="2210",
         description="1ST ASSISTANT CAMERAPERSON / DMT",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="2212",
+        description="2ND ASSISTANT CAMERAPERSON / DMT",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="2220",
+        description="TRAINEE(S)",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="2250",
+        description="SPECIAL EQUIPMENT OPERATOR(S)",
         timing_pattern=TimingPattern.SHOOT_PAYROLL,
         timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
         timing_title="Shoot Payroll",
@@ -230,6 +441,66 @@ _ENTRIES = [
         timing_pattern=TimingPattern.STILL_PHOTO,
         timing_details="2-3 weeks after each block on payroll weeks",
         timing_title="Still Photo",
+    ),
+
+    # --- Electrical ---
+    BibleEntry(
+        account_code="2301",
+        description="GAFFER",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="2310",
+        description="BEST BOY",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="2320",
+        description="ELECTRICIAN(S)",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="2330",
+        description="DAILIES",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="2340",
+        description="RIGGING / STRIKING",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="2350",
+        description="GENERATOR OPERATOR",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+
+    # --- Grip ---
+    BibleEntry(
+        account_code="2401",
+        description="KEY GRIP",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
+    ),
+    BibleEntry(
+        account_code="2410",
+        description="SECOND GRIP",
+        timing_pattern=TimingPattern.SHOOT_PAYROLL,
+        timing_details="Split by number of weeks during shooting, paid on payroll weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Payroll",
     ),
 
     # --- Sound ---
@@ -313,6 +584,22 @@ _ENTRIES = [
         timing_title="Internals",
     ),
 
+    # --- Studio / Shoot Space ---
+    BibleEntry(
+        account_code="2901",
+        description="STUDIO/BACKLOT RENTALS",
+        timing_pattern=TimingPattern.MONTHLY_SHOOT,
+        timing_details="Monthly over the course of the shoot (end of month), on AP weeks",
+        timing_title="Monthly (shoot months)",
+    ),
+    BibleEntry(
+        account_code="2955",
+        description="CLEANING",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+
     # --- Location / Shoot Operations ---
     BibleEntry(
         account_code="3020",
@@ -334,6 +621,13 @@ _ENTRIES = [
         timing_pattern=TimingPattern.MONTHLY_SHOOT,
         timing_details="Monthly over the course of the shoot (end of month), on AP weeks",
         timing_title="Monthly (shoot months)",
+    ),
+    BibleEntry(
+        account_code="3110",
+        description="SITE ACCESS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
     ),
     BibleEntry(
         account_code="3142",
@@ -364,6 +658,13 @@ _ENTRIES = [
         timing_pattern=TimingPattern.PER_DIEM,
         timing_details="Split by number of blocks - during shoot blocks on AP weeks",
         timing_title="Per Diem",
+    ),
+    BibleEntry(
+        account_code="3218",
+        description="TABLES/CHAIRS/HALLS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
     ),
 
     # --- Pre-Shoot Lump Sums ---
@@ -442,6 +743,27 @@ _ENTRIES = [
         timing_title="Monthly (shoot months)",
     ),
     BibleEntry(
+        account_code="3405",
+        description="TRUCKS/VANS",
+        timing_pattern=TimingPattern.MONTHLY_SHOOT,
+        timing_details="Monthly over the course of the shoot (end of month), on AP weeks",
+        timing_title="Monthly (shoot months)",
+    ),
+    BibleEntry(
+        account_code="3412",
+        description="MOTORHOMES",
+        timing_pattern=TimingPattern.MONTHLY_SHOOT,
+        timing_details="Monthly over the course of the shoot (end of month), on AP weeks",
+        timing_title="Monthly (shoot months)",
+    ),
+    BibleEntry(
+        account_code="3415",
+        description="TALENT CARS",
+        timing_pattern=TimingPattern.MONTHLY_SHOOT,
+        timing_details="Monthly over the course of the shoot (end of month), on AP weeks",
+        timing_title="Monthly (shoot months)",
+    ),
+    BibleEntry(
         account_code="3430",
         description="GAS",
         timing_pattern=TimingPattern.PER_DIEM,
@@ -470,10 +792,56 @@ _ENTRIES = [
         timing_title="Per Diem",
     ),
 
-    # --- Rentals (Shoot) ---
+    # --- Carpentry ---
     BibleEntry(
         account_code="3510",
         description="CARPENTRY RENTALS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+    BibleEntry(
+        account_code="3515",
+        description="CARPENTRY PURCHASES",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+    BibleEntry(
+        account_code="3545",
+        description="BACKDROPS/MURALS",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+
+    # --- Props Rentals / Purchases ---
+    BibleEntry(
+        account_code="3710",
+        description="RENTALS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+    BibleEntry(
+        account_code="3730",
+        description="PURCHASES",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+    BibleEntry(
+        account_code="3740",
+        description="MANUFACTURING",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+
+    # --- Wardrobe / Costume ---
+    BibleEntry(
+        account_code="3810",
+        description="RENTALS",
         timing_pattern=TimingPattern.SHOOT_RENTALS,
         timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
         timing_title="Shoot Rentals",
@@ -486,8 +854,100 @@ _ENTRIES = [
         timing_title="Shoot Purchases",
     ),
     BibleEntry(
+        account_code="3850",
+        description="PICTURE VEHICLES RENTALS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+
+    # --- Hair, Makeup & Miscellaneous ---
+    BibleEntry(
+        account_code="3910",
+        description="RENTALS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+    BibleEntry(
+        account_code="3930",
+        description="PURCHASES",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+
+    # --- Grip / Special Camera Equipment ---
+    BibleEntry(
+        account_code="4110",
+        description="RENTALS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+    BibleEntry(
+        account_code="4130",
+        description="PURCHASES",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+    BibleEntry(
+        account_code="4140",
+        description="MANUFACTURING",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+    BibleEntry(
+        account_code="4148",
+        description="REPAIRS/CLEANING",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+
+    # --- Makeup / Hair Equipment ---
+    BibleEntry(
+        account_code="4210",
+        description="MAKEUP RENTALS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+    BibleEntry(
+        account_code="4212",
+        description="MAKEUP PURCHASES",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+
+    # --- Camera Equipment Rentals ---
+    BibleEntry(
+        account_code="4510",
+        description="BASIC PACKAGE RENTALS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+    BibleEntry(
         account_code="4512",
         description="DAILY RENTALS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+    BibleEntry(
+        account_code="4515",
+        description="SPECIALTY RENTALS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+    BibleEntry(
+        account_code="4525",
+        description="VIDEO/TELEPROMPTER",
         timing_pattern=TimingPattern.SHOOT_RENTALS,
         timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
         timing_title="Shoot Rentals",
@@ -500,11 +960,73 @@ _ENTRIES = [
         timing_title="Shoot Purchases",
     ),
     BibleEntry(
+        account_code="4595",
+        description="OTHER",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+
+    # --- Sound Equipment Rentals ---
+    BibleEntry(
+        account_code="4610",
+        description="BASIC PACKAGE RENTALS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+    BibleEntry(
+        account_code="4612",
+        description="DAILY RENTALS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+    BibleEntry(
+        account_code="4630",
+        description="PURCHASES",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+
+    # --- Lighting Equipment Rentals ---
+    BibleEntry(
+        account_code="4710",
+        description="BASIC PACKAGE RENTALS",
+        timing_pattern=TimingPattern.SHOOT_RENTALS,
+        timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
+        timing_title="Shoot Rentals",
+    ),
+    BibleEntry(
+        account_code="4730",
+        description="PURCHASES",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+    BibleEntry(
+        account_code="4795",
+        description="OTHER",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
+    ),
+
+    # --- Special Equipment ---
+    BibleEntry(
         account_code="4812",
         description="DAILY RENTALS",
         timing_pattern=TimingPattern.SHOOT_RENTALS,
         timing_details="Split by number of weeks during shooting, paid on AP weeks (starts 1-2 weeks after start of shoot)",
         timing_title="Shoot Rentals",
+    ),
+    BibleEntry(
+        account_code="4828",
+        description="WALKIE/TALKIES",
+        timing_pattern=TimingPattern.SHOOT_PURCHASES,
+        timing_details="Split by number of blocks - during shoot blocks on AP weeks",
+        timing_title="Shoot Purchases",
     ),
     BibleEntry(
         account_code="4830",
@@ -651,6 +1173,20 @@ _ENTRIES = [
         timing_title="Graphics",
     ),
     BibleEntry(
+        account_code="6730",
+        description="STOCK FOOTAGE",
+        timing_pattern=TimingPattern.GRAPHICS,
+        timing_details="Starts 3-4 weeks after edit start, until final online - paid bi-weekly - AP weeks",
+        timing_title="Graphics",
+    ),
+    BibleEntry(
+        account_code="6795",
+        description="OTHER",
+        timing_pattern=TimingPattern.MID_EDIT_LUMP,
+        timing_details="Middle of the edit in one lump sum - AP Week",
+        timing_title="Graphics",
+    ),
+    BibleEntry(
         account_code="6890",
         description="CLOSED CAPTIONING",
         timing_pattern=TimingPattern.PICK_LOCK,
@@ -679,6 +1215,13 @@ _ENTRIES = [
         timing_pattern=TimingPattern.STILL_PHOTO,
         timing_details="2-3 weeks after each block on payroll weeks",
         timing_title="Still Photo",
+    ),
+    BibleEntry(
+        account_code="7040",
+        description="PROMOTION",
+        timing_pattern=TimingPattern.PICK_LOCK,
+        timing_details="Split by picture locks, paid 2-3 weeks after each picture lock - AP weeks",
+        timing_title="Pick Lock",
     ),
     BibleEntry(
         account_code="7050",

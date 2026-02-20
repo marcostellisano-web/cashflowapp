@@ -96,6 +96,14 @@ def distribute_bible_entry(
             return _prep_to_delivery_ap(total, weeks, params)
         case TimingPattern.FINANCING:
             return _financing(total, weeks, params)
+        case TimingPattern.PREP_TO_FIRST_SHOOT_PAYROLL:
+            return _prep_to_first_shoot_payroll(total, weeks, params)
+        case TimingPattern.NARRATOR:
+            return _narrator(total, weeks, params)
+        case TimingPattern.CASTING:
+            return _casting(total, weeks, params)
+        case TimingPattern.MID_EDIT_LUMP:
+            return _mid_edit_lump(total, weeks, params)
 
     # Fallback: flat across all weeks
     return _spread_flat(total, list(range(len(weeks))), len(weeks))
@@ -974,3 +982,64 @@ def _financing(total: float, weeks: list[WeekColumn], params: ProductionParamete
         result[target] += amount
 
     return result
+
+
+def _prep_to_first_shoot_payroll(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Payroll from prep start through end of the first shooting block."""
+    if params.shooting_blocks:
+        end_date = min(b.shoot_end for b in params.shooting_blocks)
+    else:
+        end_date = _resolved_final_delivery_date(params)
+    return _spread_between_dates(total, weeks, params.prep_start, end_date, want_payroll=True)
+
+
+def _narrator(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Payroll from 3-4 weeks after edit start through final picture lock."""
+    n = len(weeks)
+    edit_idx = _week_index_for_date(weeks, params.edit_start)
+    if edit_idx is None:
+        edit_idx = 0
+    start_idx = _offset_weeks(edit_idx, 3, n)
+    start_date = weeks[start_idx].week_commencing
+
+    pic_locks = [ep.picture_lock_date for ep in params.episode_deliveries if ep.picture_lock_date]
+    end_date = max(pic_locks) if pic_locks else _resolved_final_delivery_date(params)
+    return _spread_between_dates(total, weeks, start_date, end_date, want_payroll=True)
+
+
+def _casting(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Two payroll payments at 4 and 2 weeks before PP start."""
+    n = len(weeks)
+    pp_idx = _week_index_for_date(weeks, params.pp_start)
+    if pp_idx is None:
+        pp_idx = _closest_week_index(weeks, params.pp_start)
+    t1 = _offset_weeks(pp_idx, -4, n)
+    t2 = _offset_weeks(pp_idx, -2, n)
+    targets = [
+        _find_nearest_week_type(weeks, t1, want_payroll=True),
+        _find_nearest_week_type(weeks, t2, want_payroll=True),
+    ]
+    return _spread_at_indices(total, targets, n)
+
+
+def _mid_edit_lump(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
+    """Single AP lump sum at the midpoint of the edit period."""
+    n = len(weeks)
+    edit_idx = _week_index_for_date(weeks, params.edit_start)
+    if edit_idx is None:
+        edit_idx = 0
+
+    pic_locks = [ep.picture_lock_date for ep in params.episode_deliveries if ep.picture_lock_date]
+    if pic_locks:
+        final_lock = max(pic_locks)
+        lock_idx = _week_index_for_date(weeks, final_lock)
+        if lock_idx is None:
+            lock_idx = n - 1
+    else:
+        lock_idx = _week_index_for_date(weeks, _resolved_final_delivery_date(params))
+        if lock_idx is None:
+            lock_idx = _closest_week_index(weeks, _resolved_final_delivery_date(params))
+
+    mid_idx = (edit_idx + lock_idx) // 2
+    target = _find_nearest_week_type(weeks, mid_idx, want_payroll=False)
+    return _spread_at_indices(total, [target], n)
