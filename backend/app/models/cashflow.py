@@ -6,6 +6,16 @@ from app.models.budget import ParsedBudget
 from app.models.distribution import LineItemDistribution
 from app.models.production import ProductionParameters
 
+CASH_INFLOW_LABELS = [
+    "Broadcaster 1",
+    "Broadcaster 2",
+    "Broadcaster 3",
+    "CMF Funding",
+    "Provincial Tax Credit",
+    "Federal Tax Credit",
+    "Distribution Guarantee",
+]
+
 
 class WeekColumn(BaseModel):
     """A single week in the cashflow timeline."""
@@ -27,6 +37,13 @@ class CashflowRow(BaseModel):
     weekly_amounts: list[float]
 
 
+class CashInflowRow(BaseModel):
+    """A single cash inflow source with weekly amounts."""
+
+    label: str
+    weekly_amounts: list[float]
+
+
 class CashflowOutput(BaseModel):
     """The complete cashflow ready for Excel generation."""
 
@@ -36,6 +53,9 @@ class CashflowOutput(BaseModel):
     weekly_totals: list[float]
     cumulative_totals: list[float]
     grand_total: float
+    cash_inflows: list[CashInflowRow] = []
+    inflow_weekly_totals: list[float] = []
+    inflow_cumulative_totals: list[float] = []
 
 
 class GenerateRequest(BaseModel):
