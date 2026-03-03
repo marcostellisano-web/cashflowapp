@@ -33,6 +33,8 @@ PHASE_COLORS = {
 }
 TOTAL_FILL = PatternFill(start_color="D9E2F3", end_color="D9E2F3", fill_type="solid")       # Steel blue
 NONZERO_FILL = PatternFill(start_color="F2F7F2", end_color="F2F7F2", fill_type="solid")     # Very light green
+INFLOW_HEADER_FILL = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")  # Light green
+INFLOW_TOTAL_FILL = PatternFill(start_color="A9D18E", end_color="A9D18E", fill_type="solid")   # Medium green
 
 DATA_START_ROW = 6
 CODE_COL = 1
@@ -191,6 +193,88 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
                 row=cum_row,
                 column=col,
                 value=f"={prev_col_letter}{cum_row}+{col_letter}{totals_row}",
+            )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font = Font(bold=True, italic=True)
+        cell.border = THIN_BORDER
+
+    # Cash Inflows section (2 blank rows below CUMULATIVE TOTAL)
+    inflow_header_row = cum_row + 3  # cum_row+1 and cum_row+2 are blank
+    ws.cell(row=inflow_header_row, column=DESC_COL, value="CASH INFLOWS").font = Font(bold=True, size=11)
+    ws.cell(row=inflow_header_row, column=DESC_COL).fill = INFLOW_HEADER_FILL
+    ws.cell(row=inflow_header_row, column=DESC_COL).border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        cell = ws.cell(row=inflow_header_row, column=col)
+        cell.fill = INFLOW_HEADER_FILL
+        cell.border = THIN_BORDER
+
+    # Inflow data rows
+    inflow_data_start = inflow_header_row + 1
+    for row_idx, inflow_row in enumerate(output.cash_inflows):
+        excel_row = inflow_data_start + row_idx
+        ws.cell(row=excel_row, column=DESC_COL, value=inflow_row.label).border = THIN_BORDER
+        first_data_col_letter = get_column_letter(FIRST_WEEK_COL)
+        last_data_col_letter = get_column_letter(last_week_col)
+        total_cell = ws.cell(
+            row=excel_row,
+            column=TOTAL_COL,
+            value=f"=SUM({first_data_col_letter}{excel_row}:{last_data_col_letter}{excel_row})",
+        )
+        total_cell.number_format = CURRENCY_FORMAT
+        total_cell.font = Font(bold=True)
+        total_cell.border = THIN_BORDER
+        for col_offset, amount in enumerate(inflow_row.weekly_amounts):
+            col = FIRST_WEEK_COL + col_offset
+            cell = ws.cell(row=excel_row, column=col, value=round(amount, 2) if amount else 0)
+            cell.number_format = CURRENCY_FORMAT
+            cell.border = THIN_BORDER
+
+    # Weekly inflow total row
+    inflow_total_row = inflow_data_start + len(output.cash_inflows)
+    ws.cell(row=inflow_total_row, column=DESC_COL, value="WEEKLY INFLOW TOTAL").font = Font(bold=True, size=11)
+    ws.cell(row=inflow_total_row, column=DESC_COL).border = THIN_BORDER
+    ws.cell(row=inflow_total_row, column=DESC_COL).fill = INFLOW_TOTAL_FILL
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        col_letter = get_column_letter(col)
+        cell = ws.cell(
+            row=inflow_total_row,
+            column=col,
+            value=f"=SUM({col_letter}{inflow_data_start}:{col_letter}{inflow_total_row - 1})",
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font = Font(bold=True)
+        cell.fill = INFLOW_TOTAL_FILL
+        cell.border = THIN_BORDER
+    first_data_col_letter = get_column_letter(FIRST_WEEK_COL)
+    last_data_col_letter = get_column_letter(last_week_col)
+    inflow_grand_cell = ws.cell(
+        row=inflow_total_row,
+        column=TOTAL_COL,
+        value=f"=SUM({first_data_col_letter}{inflow_total_row}:{last_data_col_letter}{inflow_total_row})",
+    )
+    inflow_grand_cell.number_format = CURRENCY_FORMAT_TOTAL
+    inflow_grand_cell.font = Font(bold=True)
+    inflow_grand_cell.fill = INFLOW_TOTAL_FILL
+    inflow_grand_cell.border = THIN_BORDER
+
+    # Cumulative inflow total row
+    inflow_cum_row = inflow_total_row + 1
+    ws.cell(row=inflow_cum_row, column=DESC_COL, value="CUMULATIVE INFLOW TOTAL").font = Font(bold=True, size=11)
+    ws.cell(row=inflow_cum_row, column=DESC_COL).border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        if i == 0:
+            col_letter = get_column_letter(col)
+            cell = ws.cell(row=inflow_cum_row, column=col, value=f"={col_letter}{inflow_total_row}")
+        else:
+            prev_col_letter = get_column_letter(col - 1)
+            col_letter = get_column_letter(col)
+            cell = ws.cell(
+                row=inflow_cum_row,
+                column=col,
+                value=f"={prev_col_letter}{inflow_cum_row}+{col_letter}{inflow_total_row}",
             )
         cell.number_format = CURRENCY_FORMAT_TOTAL
         cell.font = Font(bold=True, italic=True)

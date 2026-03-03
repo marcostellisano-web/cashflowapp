@@ -43,6 +43,11 @@ export interface CashflowRow {
   weekly_amounts: number[];
 }
 
+export interface CashInflowRow {
+  label: string;
+  weekly_amounts: number[];
+}
+
 export interface CashflowOutput {
   title: string;
   weeks: WeekColumn[];
@@ -50,4 +55,7 @@ export interface CashflowOutput {
   weekly_totals: number[];
   cumulative_totals: number[];
   grand_total: number;
+  cash_inflows: CashInflowRow[];
+  inflow_weekly_totals: number[];
+  inflow_cumulative_totals: number[];
 }

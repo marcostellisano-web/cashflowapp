@@ -78,8 +78,8 @@ export default function CashflowPreview({ output }: CashflowPreviewProps) {
                 </tr>
               ))}
             </tbody>
-            <tfoot className="bg-blue-50 sticky bottom-0">
-              <tr className="font-bold">
+            <tfoot className="sticky bottom-0">
+              <tr className="font-bold bg-blue-50">
                 <td className="px-2 py-1.5 sticky left-0 bg-blue-50 z-10">
                   WEEKLY TOTAL
                 </td>
@@ -92,6 +92,53 @@ export default function CashflowPreview({ output }: CashflowPreviewProps) {
                   </td>
                 ))}
               </tr>
+              {output.cash_inflows && output.cash_inflows.length > 0 && (
+                <>
+                  <tr>
+                    <td
+                      colSpan={2 + output.weeks.length}
+                      className="px-2 py-2 font-bold text-sm bg-green-100 sticky left-0"
+                    >
+                      CASH INFLOWS
+                    </td>
+                  </tr>
+                  {output.cash_inflows.map((inflow, idx) => (
+                    <tr key={idx} className="bg-white">
+                      <td className="px-2 py-1 text-gray-800 sticky left-0 bg-white z-10">
+                        {inflow.label}
+                      </td>
+                      <td className="px-2 py-1 text-right font-mono text-gray-500">—</td>
+                      {inflow.weekly_amounts.map((amount, wi) => (
+                        <td key={wi} className="px-1 py-1 text-right font-mono text-gray-400">
+                          {amount > 0 ? formatCurrency(amount) : ''}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  <tr className="font-bold bg-green-200">
+                    <td className="px-2 py-1.5 sticky left-0 bg-green-200 z-10">
+                      WEEKLY INFLOW TOTAL
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-mono">—</td>
+                    {output.inflow_weekly_totals.map((total, i) => (
+                      <td key={i} className="px-1 py-1.5 text-right font-mono">
+                        {total > 0 ? formatCurrency(total) : ''}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="font-bold italic bg-green-50">
+                    <td className="px-2 py-1.5 sticky left-0 bg-green-50 z-10">
+                      CUMULATIVE INFLOW TOTAL
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-mono">—</td>
+                    {output.inflow_cumulative_totals.map((total, i) => (
+                      <td key={i} className="px-1 py-1.5 text-right font-mono">
+                        {total > 0 ? formatCurrency(total) : ''}
+                      </td>
+                    ))}
+                  </tr>
+                </>
+              )}
             </tfoot>
           </table>
         </div>

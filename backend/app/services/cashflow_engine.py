@@ -14,7 +14,7 @@ import numpy as np
 
 from app.domain.timing_bible_data import DEFAULT_BIBLE
 from app.models.budget import ParsedBudget
-from app.models.cashflow import CashflowOutput, CashflowRow, WeekColumn
+from app.models.cashflow import CASH_INFLOW_LABELS, CashflowOutput, CashflowRow, CashInflowRow, WeekColumn
 from app.models.distribution import CurveType, LineItemDistribution, PhaseAssignment
 from app.models.production import ProductionParameters
 from app.models.timing_bible import BibleEntry, TimingBible, TimingPattern
@@ -306,6 +306,14 @@ def generate_cashflow(
     # Compute cumulative totals
     cumulative = np.cumsum(weekly_totals)
 
+    # Initialize default cash inflow rows (all zeros, editable in Excel)
+    cash_inflows = [
+        CashInflowRow(label=label, weekly_amounts=[0.0] * num_weeks)
+        for label in CASH_INFLOW_LABELS
+    ]
+    inflow_weekly = [0.0] * num_weeks
+    inflow_cumulative = [0.0] * num_weeks
+
     return CashflowOutput(
         title=parameters.title,
         weeks=weeks,
@@ -313,6 +321,9 @@ def generate_cashflow(
         weekly_totals=[round(t, 2) for t in weekly_totals.tolist()],
         cumulative_totals=[round(c, 2) for c in cumulative.tolist()],
         grand_total=round(float(weekly_totals.sum()), 2),
+        cash_inflows=cash_inflows,
+        inflow_weekly_totals=inflow_weekly,
+        inflow_cumulative_totals=inflow_cumulative,
     )
 
 
