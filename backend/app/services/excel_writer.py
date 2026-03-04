@@ -152,9 +152,11 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
 
     num_weeks = len(output.weeks)
     last_week_col = FIRST_WEEK_COL + num_weeks - 1
+    last_week_col_letter = get_column_letter(last_week_col)
     # Tax-credit collection column sits immediately after the last week column.
     # Its header date = last week commencing + 365 days.
     tax_credit_col = FIRST_WEEK_COL + num_weeks
+    tc_col_letter = get_column_letter(tax_credit_col)
     # Helper column: summary code sits one further right.
     summary_code_col = FIRST_WEEK_COL + num_weeks + 1
 
@@ -335,6 +337,9 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         cell = ws.cell(row=inflow_header_row, column=col)
         cell.fill = INFLOW_HEADER_FILL
         cell.border = THIN_BORDER
+    tc_hdr_cell = ws.cell(row=inflow_header_row, column=tax_credit_col)
+    tc_hdr_cell.fill = INFLOW_HEADER_FILL
+    tc_hdr_cell.border = THIN_BORDER
 
     # Inflow data rows
     inflow_data_start = inflow_header_row + 1
@@ -344,7 +349,7 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         total_cell = ws.cell(
             row=excel_row,
             column=TOTAL_COL,
-            value=f"=SUM({first_data_col_letter}{excel_row}:{last_data_col_letter}{excel_row})",
+            value=f"=SUM({first_data_col_letter}{excel_row}:{tc_col_letter}{excel_row})",
         )
         total_cell.number_format = CURRENCY_FORMAT
         total_cell.font = Font(bold=True)
@@ -354,6 +359,10 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
             cell = ws.cell(row=excel_row, column=col, value=round(amount, 2) if amount else 0)
             cell.number_format = CURRENCY_FORMAT
             cell.border = THIN_BORDER
+        # Tax-credit inflow placeholder — user enters the amount here
+        tc_inflow = ws.cell(row=excel_row, column=tax_credit_col, value=0)
+        tc_inflow.number_format = CURRENCY_FORMAT
+        tc_inflow.border = THIN_BORDER
 
     # Weekly inflow total row
     inflow_total_row = inflow_data_start + len(output.cash_inflows)
@@ -372,12 +381,21 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         cell.font = Font(bold=True)
         cell.fill = INFLOW_TOTAL_FILL
         cell.border = THIN_BORDER
+    # Tax-credit weekly inflow total
+    tc_inflow_total = ws.cell(
+        row=inflow_total_row, column=tax_credit_col,
+        value=f"=SUM({tc_col_letter}{inflow_data_start}:{tc_col_letter}{inflow_total_row - 1})",
+    )
+    tc_inflow_total.number_format = CURRENCY_FORMAT_TOTAL
+    tc_inflow_total.font = Font(bold=True)
+    tc_inflow_total.fill = INFLOW_TOTAL_FILL
+    tc_inflow_total.border = THIN_BORDER
     first_data_col_letter = get_column_letter(FIRST_WEEK_COL)
     last_data_col_letter = get_column_letter(last_week_col)
     inflow_grand_cell = ws.cell(
         row=inflow_total_row,
         column=TOTAL_COL,
-        value=f"=SUM({first_data_col_letter}{inflow_total_row}:{last_data_col_letter}{inflow_total_row})",
+        value=f"=SUM({first_data_col_letter}{inflow_total_row}:{tc_col_letter}{inflow_total_row})",
     )
     inflow_grand_cell.number_format = CURRENCY_FORMAT_TOTAL
     inflow_grand_cell.font = Font(bold=True)
@@ -404,6 +422,14 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         cell.number_format = CURRENCY_FORMAT_TOTAL
         cell.font = Font(bold=True, italic=True)
         cell.border = THIN_BORDER
+    # Tax-credit cumulative inflow = last week's running total + tc weekly inflow
+    tc_cum_inflow = ws.cell(
+        row=inflow_cum_row, column=tax_credit_col,
+        value=f"={last_week_col_letter}{inflow_cum_row}+{tc_col_letter}{inflow_total_row}",
+    )
+    tc_cum_inflow.number_format = CURRENCY_FORMAT_TOTAL
+    tc_cum_inflow.font = Font(bold=True, italic=True)
+    tc_cum_inflow.border = THIN_BORDER
 
     # Cumulative cash position (2 rows below cumulative inflow total)
     # = cumulative inflows − cumulative outflows for each week
@@ -423,6 +449,16 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         cell.font = Font(bold=True)
         cell.fill = CASH_POS_FILL
         cell.border = THIN_BORDER
+    # Tax-credit cash position = tc cumulative inflow − last week cumulative outflow
+    # (no new outflows at the tax credit date, so outflows stay at last week's level)
+    tc_cash_pos = ws.cell(
+        row=cash_pos_row, column=tax_credit_col,
+        value=f"={tc_col_letter}{inflow_cum_row}-{last_week_col_letter}{cum_row}",
+    )
+    tc_cash_pos.number_format = CURRENCY_FORMAT_TOTAL
+    tc_cash_pos.font = Font(bold=True)
+    tc_cash_pos.fill = CASH_POS_FILL
+    tc_cash_pos.border = THIN_BORDER
 
     # Interest cost (2 rows below cumulative cash position)
     # = ABS(cash_position) × rate × (days in period) / 365  — only when position is negative
@@ -458,11 +494,20 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         cell.font = Font(bold=True)
         cell.fill = INTEREST_FILL
         cell.border = THIN_BORDER
-    # Grand total: sum of all weekly interest costs
+    # Tax-credit interest cost: days in period = tc_date − last_week_date (≈ 365)
+    tc_interest = ws.cell(
+        row=interest_cost_row, column=tax_credit_col,
+        value=f"=IF({tc_col_letter}{cash_pos_row}<0,ABS({tc_col_letter}{cash_pos_row})*{rate_cell_ref}*({tc_col_letter}5-{last_week_col_letter}5)/365,0)",
+    )
+    tc_interest.number_format = CURRENCY_FORMAT_TOTAL
+    tc_interest.font = Font(bold=True)
+    tc_interest.fill = INTEREST_FILL
+    tc_interest.border = THIN_BORDER
+    # Grand total: sum of all weekly + tax-credit interest costs
     interest_grand_cell = ws.cell(
         row=interest_cost_row,
         column=TOTAL_COL,
-        value=f"=SUM({first_data_col_letter}{interest_cost_row}:{last_data_col_letter}{interest_cost_row})",
+        value=f"=SUM({first_data_col_letter}{interest_cost_row}:{tc_col_letter}{interest_cost_row})",
     )
     interest_grand_cell.number_format = CURRENCY_FORMAT_TOTAL
     interest_grand_cell.font = Font(bold=True)
@@ -562,8 +607,11 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
 
     num_weeks = len(output.weeks)
     last_week_col = FIRST_WEEK_COL + num_weeks - 1
+    last_week_col_letter = get_column_letter(last_week_col)
     first_data_col_letter = get_column_letter(FIRST_WEEK_COL)
     last_data_col_letter = get_column_letter(last_week_col)
+    tax_credit_col = FIRST_WEEK_COL + num_weeks
+    tc_col_letter = get_column_letter(tax_credit_col)
     # Summary code column in the Cashflow sheet (matches _write_main_sheet).
     # Sits two columns after the last week column: +1 = tax credit, +2 = smry code.
     detail_summary_code_col_letter = get_column_letter(FIRST_WEEK_COL + num_weeks + 1)
@@ -607,10 +655,6 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
             cell.font = Font(bold=True, size=7)
             cell.alignment = Alignment(horizontal="center")
             cell.border = THIN_BORDER
-
-    # Tax-credit column index (mirrors _write_main_sheet)
-    tax_credit_col = FIRST_WEEK_COL + num_weeks
-    tc_col_letter  = get_column_letter(tax_credit_col)
 
     # ── Row 4: phase labels ──────────────────────────────────────────────────
     for i, week in enumerate(output.weeks):
@@ -733,6 +777,9 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         cell = ws.cell(row=sum_inflow_hdr_row, column=col)
         cell.fill   = INFLOW_HEADER_FILL
         cell.border = THIN_BORDER
+    tc_hdr = ws.cell(row=sum_inflow_hdr_row, column=tax_credit_col)
+    tc_hdr.fill   = INFLOW_HEADER_FILL
+    tc_hdr.border = THIN_BORDER
 
     for row_idx, inflow_row in enumerate(output.cash_inflows):
         excel_row        = sum_inflow_data_start + row_idx
@@ -754,6 +801,13 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
             )
             cell.number_format = CURRENCY_FORMAT
             cell.border = THIN_BORDER
+        # Tax-credit inflow — linked from Cashflow sheet
+        tc_inflow = ws.cell(
+            row=excel_row, column=tax_credit_col,
+            value=f"={DETAIL}!{tc_col_letter}{detail_inflow_row}",
+        )
+        tc_inflow.number_format = CURRENCY_FORMAT
+        tc_inflow.border = THIN_BORDER
 
     # Weekly inflow total
     ws.cell(row=sum_inflow_total_row, column=DESC_COL, value="WEEKLY INFLOW TOTAL").font = Font(bold=True, size=11)
@@ -770,9 +824,18 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         cell.font   = Font(bold=True)
         cell.fill   = INFLOW_TOTAL_FILL
         cell.border = THIN_BORDER
+    # Tax-credit weekly inflow total
+    tc_inflow_total = ws.cell(
+        row=sum_inflow_total_row, column=tax_credit_col,
+        value=f"=SUM({tc_col_letter}{sum_inflow_data_start}:{tc_col_letter}{sum_inflow_total_row - 1})",
+    )
+    tc_inflow_total.number_format = CURRENCY_FORMAT_TOTAL
+    tc_inflow_total.font   = Font(bold=True)
+    tc_inflow_total.fill   = INFLOW_TOTAL_FILL
+    tc_inflow_total.border = THIN_BORDER
     inflow_grand = ws.cell(
         row=sum_inflow_total_row, column=TOTAL_COL,
-        value=f"=SUM({first_data_col_letter}{sum_inflow_total_row}:{last_data_col_letter}{sum_inflow_total_row})",
+        value=f"=SUM({first_data_col_letter}{sum_inflow_total_row}:{tc_col_letter}{sum_inflow_total_row})",
     )
     inflow_grand.number_format = CURRENCY_FORMAT_TOTAL
     inflow_grand.font   = Font(bold=True)
@@ -796,6 +859,14 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         cell.number_format = CURRENCY_FORMAT_TOTAL
         cell.font   = Font(bold=True, italic=True)
         cell.border = THIN_BORDER
+    # Tax-credit cumulative inflow = last week's running total + tc weekly inflow
+    tc_cum_inflow = ws.cell(
+        row=sum_inflow_cum_row, column=tax_credit_col,
+        value=f"={last_week_col_letter}{sum_inflow_cum_row}+{tc_col_letter}{sum_inflow_total_row}",
+    )
+    tc_cum_inflow.number_format = CURRENCY_FORMAT_TOTAL
+    tc_cum_inflow.font   = Font(bold=True, italic=True)
+    tc_cum_inflow.border = THIN_BORDER
 
     # ── Cumulative cash position (2 rows below cumulative inflow total) ───────
     sum_cash_pos_row = sum_inflow_cum_row + 2
@@ -813,6 +884,15 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         cell.font   = Font(bold=True)
         cell.fill   = CASH_POS_FILL
         cell.border = THIN_BORDER
+    # Tax-credit cash position = tc cumulative inflow − last week cumulative outflow
+    tc_cash_pos = ws.cell(
+        row=sum_cash_pos_row, column=tax_credit_col,
+        value=f"={tc_col_letter}{sum_inflow_cum_row}-{last_week_col_letter}{sum_cum_row}",
+    )
+    tc_cash_pos.number_format = CURRENCY_FORMAT_TOTAL
+    tc_cash_pos.font   = Font(bold=True)
+    tc_cash_pos.fill   = CASH_POS_FILL
+    tc_cash_pos.border = THIN_BORDER
 
     # ── Interest cost (2 rows below cumulative cash position) ────────────────
     # Re-computed using this sheet's cash position; rate linked from Cashflow sheet.
@@ -840,9 +920,18 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         cell.font   = Font(bold=True)
         cell.fill   = INTEREST_FILL
         cell.border = THIN_BORDER
+    # Tax-credit interest cost: days = tc_date − last_week_date (≈ 365)
+    tc_interest = ws.cell(
+        row=sum_interest_cost_row, column=tax_credit_col,
+        value=f"=IF({tc_col_letter}{sum_cash_pos_row}<0,ABS({tc_col_letter}{sum_cash_pos_row})*{rate_ref}*({tc_col_letter}5-{last_week_col_letter}5)/365,0)",
+    )
+    tc_interest.number_format = CURRENCY_FORMAT_TOTAL
+    tc_interest.font   = Font(bold=True)
+    tc_interest.fill   = INTEREST_FILL
+    tc_interest.border = THIN_BORDER
     interest_grand = ws.cell(
         row=sum_interest_cost_row, column=TOTAL_COL,
-        value=f"=SUM({first_data_col_letter}{sum_interest_cost_row}:{last_data_col_letter}{sum_interest_cost_row})",
+        value=f"=SUM({first_data_col_letter}{sum_interest_cost_row}:{tc_col_letter}{sum_interest_cost_row})",
     )
     interest_grand.number_format = CURRENCY_FORMAT_TOTAL
     interest_grand.font   = Font(bold=True)
