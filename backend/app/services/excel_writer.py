@@ -1,5 +1,6 @@
 """Generate formatted Excel cashflow workbook from CashflowOutput."""
 
+from datetime import timedelta
 from io import BytesIO
 
 from openpyxl import Workbook
@@ -151,10 +152,11 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
 
     num_weeks = len(output.weeks)
     last_week_col = FIRST_WEEK_COL + num_weeks - 1
-    # Helper column: summary code sits immediately after the last week column.
-    # Written as static text by Python so SUMIF in Summary CF always works,
-    # regardless of how the original budget stored numeric codes.
-    summary_code_col = FIRST_WEEK_COL + num_weeks
+    # Tax-credit collection column sits immediately after the last week column.
+    # Its header date = last week commencing + 365 days.
+    tax_credit_col = FIRST_WEEK_COL + num_weeks
+    # Helper column: summary code sits one further right.
+    summary_code_col = FIRST_WEEK_COL + num_weeks + 1
 
     # Row 1: Title
     ws.cell(row=1, column=1, value=f"{output.title} - Cashflow Forecast").font = TITLE_FONT
@@ -207,9 +209,22 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         col = FIRST_WEEK_COL + i
         cell = ws.cell(row=5, column=col, value=week.week_commencing)
         cell.font = Font(bold=True, size=8)
-        cell.number_format = "DD/MM"
+        cell.number_format = "DD-MMM-YYYY"
         cell.alignment = Alignment(horizontal="center")
         cell.border = THIN_BORDER
+
+    # Tax-credit column: date = last week commencing + 365 days
+    tc_date = output.weeks[-1].week_commencing + timedelta(days=365)
+    tc_phase_cell = ws.cell(row=4, column=tax_credit_col, value="TAX CREDIT")
+    tc_phase_cell.font = Font(bold=True, size=8)
+    tc_phase_cell.fill = PatternFill(start_color="D9EAD3", end_color="D9EAD3", fill_type="solid")
+    tc_phase_cell.alignment = Alignment(horizontal="center", text_rotation=90)
+    tc_phase_cell.border = THIN_BORDER
+    tc_date_cell = ws.cell(row=5, column=tax_credit_col, value=tc_date)
+    tc_date_cell.font = Font(bold=True, size=8)
+    tc_date_cell.number_format = "DD-MMM-YYYY"
+    tc_date_cell.alignment = Alignment(horizontal="center")
+    tc_date_cell.border = THIN_BORDER
 
     # Row 5: summary code helper column header
     sc_hdr = ws.cell(row=5, column=summary_code_col, value="Smry Code")
@@ -244,6 +259,11 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
             cell.border = THIN_BORDER
             if amount and amount > 0:
                 cell.fill = NONZERO_FILL
+
+        # Tax-credit column — blank/zero placeholder for each detail row
+        tc_cell = ws.cell(row=excel_row, column=tax_credit_col, value=0)
+        tc_cell.number_format = CURRENCY_FORMAT
+        tc_cell.border = THIN_BORDER
 
         # Summary code — Python-computed so it's always clean text regardless
         # of how the original budget stored numeric codes
@@ -522,6 +542,7 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     ws.column_dimensions[get_column_letter(TOTAL_COL)].width = 15
     for i in range(num_weeks):
         ws.column_dimensions[get_column_letter(FIRST_WEEK_COL + i)].width = 12
+    ws.column_dimensions[get_column_letter(tax_credit_col)].width = 14
     ws.column_dimensions[get_column_letter(summary_code_col)].width = 9
 
     # Freeze panes: fix code/desc/total columns and header rows
@@ -543,8 +564,9 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
     last_week_col = FIRST_WEEK_COL + num_weeks - 1
     first_data_col_letter = get_column_letter(FIRST_WEEK_COL)
     last_data_col_letter = get_column_letter(last_week_col)
-    # Summary code column in the Cashflow sheet (matches _write_main_sheet)
-    detail_summary_code_col_letter = get_column_letter(FIRST_WEEK_COL + num_weeks)
+    # Summary code column in the Cashflow sheet (matches _write_main_sheet).
+    # Sits two columns after the last week column: +1 = tax credit, +2 = smry code.
+    detail_summary_code_col_letter = get_column_letter(FIRST_WEEK_COL + num_weeks + 1)
 
     # Mirror the detail sheet row positions (must stay in sync with _write_main_sheet)
     detail_totals_row       = DATA_START_ROW + len(output.rows)
@@ -586,6 +608,10 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
             cell.alignment = Alignment(horizontal="center")
             cell.border = THIN_BORDER
 
+    # Tax-credit column index (mirrors _write_main_sheet)
+    tax_credit_col = FIRST_WEEK_COL + num_weeks
+    tc_col_letter  = get_column_letter(tax_credit_col)
+
     # ── Row 4: phase labels ──────────────────────────────────────────────────
     for i, week in enumerate(output.weeks):
         col = FIRST_WEEK_COL + i
@@ -594,6 +620,12 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         cell.fill = _get_phase_fill(week.phase_label)
         cell.alignment = Alignment(horizontal="center", text_rotation=90)
         cell.border = THIN_BORDER
+    # Tax-credit phase label — linked from Cashflow sheet row 4
+    tc_phase = ws.cell(row=4, column=tax_credit_col, value=f"={DETAIL}!{tc_col_letter}4")
+    tc_phase.font = Font(bold=True, size=8)
+    tc_phase.fill = PatternFill(start_color="D9EAD3", end_color="D9EAD3", fill_type="solid")
+    tc_phase.alignment = Alignment(horizontal="center", text_rotation=90)
+    tc_phase.border = THIN_BORDER
 
     # ── Row 5: column headers — dates linked from Cashflow sheet ─────────────
     ws.cell(row=5, column=CODE_COL,   value="Code").font        = HEADER_FONT
@@ -607,9 +639,15 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         col_letter = get_column_letter(col)
         cell = ws.cell(row=5, column=col, value=f"={DETAIL}!{col_letter}5")
         cell.font = Font(bold=True, size=8)
-        cell.number_format = "DD/MM"
+        cell.number_format = "DD-MMM-YYYY"
         cell.alignment = Alignment(horizontal="center")
         cell.border = THIN_BORDER
+    # Tax-credit date — linked from Cashflow sheet row 5
+    tc_date_cell = ws.cell(row=5, column=tax_credit_col, value=f"={DETAIL}!{tc_col_letter}5")
+    tc_date_cell.font = Font(bold=True, size=8)
+    tc_date_cell.number_format = "DD-MMM-YYYY"
+    tc_date_cell.alignment = Alignment(horizontal="center")
+    tc_date_cell.border = THIN_BORDER
 
     # ── Summary account rows ─────────────────────────────────────────────────
     for row_idx, (code, description) in enumerate(SUMMARY_ACCOUNTS):
@@ -874,6 +912,7 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
     ws.column_dimensions[get_column_letter(TOTAL_COL)].width = 15
     for i in range(num_weeks):
         ws.column_dimensions[get_column_letter(FIRST_WEEK_COL + i)].width = 12
+    ws.column_dimensions[get_column_letter(tax_credit_col)].width = 14
     ws.freeze_panes = ws.cell(row=DATA_START_ROW, column=FIRST_WEEK_COL)
 
 
