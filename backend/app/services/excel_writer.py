@@ -37,12 +37,84 @@ INFLOW_HEADER_FILL = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_
 INFLOW_TOTAL_FILL = PatternFill(start_color="A9D18E", end_color="A9D18E", fill_type="solid")   # Medium green
 CASH_POS_FILL = PatternFill(start_color="D9D2EA", end_color="D9D2EA", fill_type="solid")       # Light purple
 INTEREST_FILL = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")       # Light salmon/red
+FINANCING_FILL = PatternFill(start_color="FDE9D9", end_color="FDE9D9", fill_type="solid")      # Soft peach
+FINANCING_TOTAL_FILL = PatternFill(start_color="F4B183", end_color="F4B183", fill_type="solid") # Warm orange
 
 DATA_START_ROW = 6
 CODE_COL = 1
 DESC_COL = 2
 TOTAL_COL = 3
 FIRST_WEEK_COL = 4
+
+# Top-level summary accounts for the "Summary CF" sheet.
+# Each entry is (code, description). SUMIF uses a wildcard ("0100*") so any
+# sub-codes present in the detailed budget (e.g. 010001, 010002) are captured.
+SUMMARY_ACCOUNTS: list[tuple[str, str]] = [
+    ("0100", "STORY RIGHTS/ACQUISITIONS"),
+    ("0200", "SCENARIO"),
+    ("0300", "DEVELOPMENT COSTS"),
+    ("0400", "PRODUCER"),
+    ("0500", "DIRECTOR"),
+    ("0600", "STARS"),
+    ("1000", "CAST"),
+    ("1100", "EXTRAS"),
+    ("1200", "PRODUCTION STAFF"),
+    ("1300", "DESIGN LABOUR"),
+    ("1400", "CONSTRUCTION LABOUR"),
+    ("1500", "SET DRESSING LABOUR"),
+    ("1600", "PROPERTY LABOUR"),
+    ("1700", "SPECIAL EFFECTS LABOUR"),
+    ("1800", "WRANGLING LABOUR"),
+    ("1900", "WARDROBE LABOUR"),
+    ("2000", "MAKEUP/HAIR LABOUR"),
+    ("2100", "VIDEO TECHNICAL CREW"),
+    ("2200", "CAMERA LABOUR"),
+    ("2300", "ELECTRICAL LABOUR"),
+    ("2400", "GRIP LABOUR"),
+    ("2500", "PRODUCTION SOUND LABOUR"),
+    ("2600", "HEALTH AND SAFETY LABOUR"),
+    ("2700", "FRINGE BENEFITS"),
+    ("2800", "PRODUCTION OFFICE EXPENSES"),
+    ("2900", "STUDIO/BACKLOT EXPENSES"),
+    ("3000", "LOCATION OFFICE EXPENSES"),
+    ("3100", "SITE EXPENSES"),
+    ("3200", "UNIT EXPENSES"),
+    ("3300", "TRAVEL & LIVING EXPENSES"),
+    ("3400", "TRANSPORTATION"),
+    ("3500", "CONSTRUCTION MATERIALS"),
+    ("3600", "ART SUPPLIES"),
+    ("3700", "SET DRESSING"),
+    ("3800", "PROPS"),
+    ("3900", "SPECIAL EFFECTS"),
+    ("4000", "HEALTH AND SAFETY PREVENTION"),
+    ("4100", "WARDROBE SUPPLIES"),
+    ("4200", "MAKEUP/HAIR SUPPLIES"),
+    ("4300", "VIDEO STUDIO FACILITIES"),
+    ("4400", "VIDEO REMOTE TECHNICAL FACILITIES"),
+    ("4500", "CAMERA EQUIPMENT"),
+    ("4600", "ELECTRICAL EQUIPMENT"),
+    ("4700", "GRIP EQUIPMENT"),
+    ("4800", "SOUND EQUIPMENT"),
+    ("4900", "SECOND UNIT"),
+    ("5000", "VIDEOTAPE STOCK"),
+    ("5100", "PRODUCTION LABORATORY"),
+    ("6000", "EDITORIAL LABOUR"),
+    ("6100", "EDITORIAL EQUIPMENT"),
+    ("6200", "VIDEO POST PRODUCTION (PICTURE)"),
+    ("6300", "VIDEO POST PRODUCTION (SOUND)"),
+    ("6400", "POST PRODUCTION LABORATORY"),
+    ("6500", "FILM POST PRODUCTION SOUND"),
+    ("6600", "MUSIC"),
+    ("6700", "TITLES/OPTICALS/STOCK FOOTAGE"),
+    ("6800", "VERSIONING"),
+    ("6900", "AMORTIZATIONS (SERIES)"),
+    ("7000", "UNIT PUBLICITY"),
+    ("7100", "GENERAL EXPENSES"),
+    ("7200", "INDIRECT COSTS"),
+    ("8000", "CONTINGENCY"),
+    ("8100", "COMPLETION GUARANTEE"),
+    ("8200", "COST OF ISSUE"),
+]
 
 
 def _get_phase_fill(label: str) -> PatternFill:
@@ -363,9 +435,6 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     fin_legal_row    = fin_setup_row + 1
     fin_total_row    = fin_legal_row + 1
 
-    FINANCING_FILL = PatternFill(start_color="FDE9D9", end_color="FDE9D9", fill_type="solid")   # Soft peach
-    FINANCING_TOTAL_FILL = PatternFill(start_color="F4B183", end_color="F4B183", fill_type="solid")  # Warm orange
-
     # Interest Cost — links to the grand total from the INTEREST COST row
     ws.cell(row=fin_interest_row, column=DESC_COL, value="Interest Cost").font = Font(bold=True)
     ws.cell(row=fin_interest_row, column=DESC_COL).fill = FINANCING_FILL
@@ -424,6 +493,350 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         ws.column_dimensions[get_column_letter(FIRST_WEEK_COL + i)].width = 12
 
     # Freeze panes: fix code/desc/total columns and header rows
+    ws.freeze_panes = ws.cell(row=DATA_START_ROW, column=FIRST_WEEK_COL)
+
+
+def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: ProductionParameters) -> None:
+    """Write the 'Summary CF' sheet.
+
+    Each outflow row uses SUMIF against the detailed Cashflow sheet so any
+    sub-codes (e.g. 010001, 010002) roll up into their parent (0100).
+    Inflow values are linked directly; cumulative cash position, interest cost
+    and financing summary are all formula-driven and consistent with the detail.
+    """
+    DETAIL = "Cashflow"
+    ws = wb.create_sheet("Summary CF")
+
+    num_weeks = len(output.weeks)
+    last_week_col = FIRST_WEEK_COL + num_weeks - 1
+    first_data_col_letter = get_column_letter(FIRST_WEEK_COL)
+    last_data_col_letter = get_column_letter(last_week_col)
+
+    # Mirror the detail sheet row positions (must stay in sync with _write_main_sheet)
+    detail_totals_row       = DATA_START_ROW + len(output.rows)
+    detail_cum_row          = detail_totals_row + 1
+    detail_inflow_hdr_row   = detail_cum_row + 3
+    detail_inflow_data_start = detail_inflow_hdr_row + 1
+    detail_inflow_total_row = detail_inflow_data_start + len(output.cash_inflows)
+    detail_inflow_cum_row   = detail_inflow_total_row + 1
+    detail_cash_pos_row     = detail_inflow_cum_row + 2
+    detail_interest_cost_row = detail_cash_pos_row + 2
+    detail_interest_rate_row = detail_interest_cost_row + 1
+    detail_fin_legal_row    = detail_interest_rate_row + 4  # interest_rate+2+1+1
+
+    # ── Rows 1-2: title / metadata ───────────────────────────────────────────
+    ws.cell(row=1, column=1, value=f"{output.title} - Summary Cashflow Forecast").font = TITLE_FONT
+    series_number = getattr(params, "series_number", None)
+    series_text = f"Series {series_number}" if series_number else ""
+    ep_text = f"{params.episode_count} Episodes"
+    meta = " | ".join(filter(None, [series_text, ep_text]))
+    ws.cell(row=2, column=1, value=meta).font = SUBTITLE_FONT
+
+    # ── Row 3: pay cycle indicator ───────────────────────────────────────────
+    has_payroll = any(w.is_payroll_week is not None for w in output.weeks)
+    if has_payroll:
+        ws.cell(row=3, column=DESC_COL, value="Pay Cycle").font = Font(bold=True, size=8, color="666666")
+        payroll_fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
+        ap_fill      = PatternFill(start_color="FFF3E0", end_color="FFF3E0", fill_type="solid")
+        for i, week in enumerate(output.weeks):
+            col = FIRST_WEEK_COL + i
+            if week.is_payroll_week is True:
+                cell = ws.cell(row=3, column=col, value="Payroll")
+                cell.fill = payroll_fill
+            elif week.is_payroll_week is False:
+                cell = ws.cell(row=3, column=col, value="AP")
+                cell.fill = ap_fill
+            else:
+                cell = ws.cell(row=3, column=col)
+            cell.font = Font(bold=True, size=7)
+            cell.alignment = Alignment(horizontal="center")
+            cell.border = THIN_BORDER
+
+    # ── Row 4: phase labels ──────────────────────────────────────────────────
+    for i, week in enumerate(output.weeks):
+        col = FIRST_WEEK_COL + i
+        cell = ws.cell(row=4, column=col, value=week.phase_label)
+        cell.font = Font(bold=True, size=8)
+        cell.fill = _get_phase_fill(week.phase_label)
+        cell.alignment = Alignment(horizontal="center", text_rotation=90)
+        cell.border = THIN_BORDER
+
+    # ── Row 5: column headers — dates linked from Cashflow sheet ─────────────
+    ws.cell(row=5, column=CODE_COL,   value="Code").font        = HEADER_FONT
+    ws.cell(row=5, column=DESC_COL,   value="Description").font = HEADER_FONT
+    ws.cell(row=5, column=TOTAL_COL,  value="Total").font       = HEADER_FONT
+    ws.cell(row=5, column=CODE_COL).border  = THIN_BORDER
+    ws.cell(row=5, column=DESC_COL).border  = THIN_BORDER
+    ws.cell(row=5, column=TOTAL_COL).border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        col_letter = get_column_letter(col)
+        cell = ws.cell(row=5, column=col, value=f"={DETAIL}!{col_letter}5")
+        cell.font = Font(bold=True, size=8)
+        cell.number_format = "DD/MM"
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = THIN_BORDER
+
+    # ── Summary account rows ─────────────────────────────────────────────────
+    for row_idx, (code, description) in enumerate(SUMMARY_ACCOUNTS):
+        excel_row = DATA_START_ROW + row_idx
+        ws.cell(row=excel_row, column=CODE_COL,  value=code).border        = THIN_BORDER
+        ws.cell(row=excel_row, column=DESC_COL,  value=description).border = THIN_BORDER
+
+        total_cell = ws.cell(
+            row=excel_row, column=TOTAL_COL,
+            value=f"=SUM({first_data_col_letter}{excel_row}:{last_data_col_letter}{excel_row})",
+        )
+        total_cell.number_format = CURRENCY_FORMAT
+        total_cell.font   = Font(bold=True)
+        total_cell.border = THIN_BORDER
+
+        for i in range(num_weeks):
+            col = FIRST_WEEK_COL + i
+            col_letter = get_column_letter(col)
+            cell = ws.cell(
+                row=excel_row, column=col,
+                value=f'=SUMIF({DETAIL}!$A:$A,"{code}*",{DETAIL}!{col_letter}:{col_letter})',
+            )
+            cell.number_format = CURRENCY_FORMAT
+            cell.border = THIN_BORDER
+
+    # ── Weekly totals row ────────────────────────────────────────────────────
+    sum_totals_row = DATA_START_ROW + len(SUMMARY_ACCOUNTS)
+    ws.cell(row=sum_totals_row, column=DESC_COL, value="WEEKLY TOTAL").font = Font(bold=True, size=11)
+    ws.cell(row=sum_totals_row, column=DESC_COL).border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        col_letter = get_column_letter(col)
+        cell = ws.cell(
+            row=sum_totals_row, column=col,
+            value=f"=SUM({col_letter}{DATA_START_ROW}:{col_letter}{sum_totals_row - 1})",
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font  = Font(bold=True)
+        cell.fill  = TOTAL_FILL
+        cell.border = THIN_BORDER
+    grand_total_cell = ws.cell(
+        row=sum_totals_row, column=TOTAL_COL,
+        value=f"=SUM({first_data_col_letter}{sum_totals_row}:{last_data_col_letter}{sum_totals_row})",
+    )
+    grand_total_cell.number_format = CURRENCY_FORMAT_TOTAL
+    grand_total_cell.font  = Font(bold=True)
+    grand_total_cell.fill  = TOTAL_FILL
+    grand_total_cell.border = THIN_BORDER
+
+    # ── Cumulative totals row ────────────────────────────────────────────────
+    sum_cum_row = sum_totals_row + 1
+    ws.cell(row=sum_cum_row, column=DESC_COL, value="CUMULATIVE TOTAL").font = Font(bold=True, size=11)
+    ws.cell(row=sum_cum_row, column=DESC_COL).border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        col_letter = get_column_letter(col)
+        if i == 0:
+            cell = ws.cell(row=sum_cum_row, column=col, value=f"={col_letter}{sum_totals_row}")
+        else:
+            prev_col = get_column_letter(col - 1)
+            cell = ws.cell(
+                row=sum_cum_row, column=col,
+                value=f"={prev_col}{sum_cum_row}+{col_letter}{sum_totals_row}",
+            )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font  = Font(bold=True, italic=True)
+        cell.border = THIN_BORDER
+
+    # ── Cash Inflows section (2 blank rows below cumulative) ─────────────────
+    sum_inflow_hdr_row   = sum_cum_row + 3
+    sum_inflow_data_start = sum_inflow_hdr_row + 1
+    sum_inflow_total_row = sum_inflow_data_start + len(output.cash_inflows)
+    sum_inflow_cum_row   = sum_inflow_total_row + 1
+
+    ws.cell(row=sum_inflow_hdr_row, column=DESC_COL, value="CASH INFLOWS").font = Font(bold=True, size=11)
+    ws.cell(row=sum_inflow_hdr_row, column=DESC_COL).fill   = INFLOW_HEADER_FILL
+    ws.cell(row=sum_inflow_hdr_row, column=DESC_COL).border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        cell = ws.cell(row=sum_inflow_hdr_row, column=col)
+        cell.fill   = INFLOW_HEADER_FILL
+        cell.border = THIN_BORDER
+
+    for row_idx, inflow_row in enumerate(output.cash_inflows):
+        excel_row        = sum_inflow_data_start + row_idx
+        detail_inflow_row = detail_inflow_data_start + row_idx
+        ws.cell(row=excel_row, column=DESC_COL, value=inflow_row.label).border = THIN_BORDER
+        total_cell = ws.cell(
+            row=excel_row, column=TOTAL_COL,
+            value=f"={DETAIL}!C{detail_inflow_row}",
+        )
+        total_cell.number_format = CURRENCY_FORMAT
+        total_cell.font   = Font(bold=True)
+        total_cell.border = THIN_BORDER
+        for i in range(num_weeks):
+            col = FIRST_WEEK_COL + i
+            col_letter = get_column_letter(col)
+            cell = ws.cell(
+                row=excel_row, column=col,
+                value=f"={DETAIL}!{col_letter}{detail_inflow_row}",
+            )
+            cell.number_format = CURRENCY_FORMAT
+            cell.border = THIN_BORDER
+
+    # Weekly inflow total
+    ws.cell(row=sum_inflow_total_row, column=DESC_COL, value="WEEKLY INFLOW TOTAL").font = Font(bold=True, size=11)
+    ws.cell(row=sum_inflow_total_row, column=DESC_COL).fill   = INFLOW_TOTAL_FILL
+    ws.cell(row=sum_inflow_total_row, column=DESC_COL).border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        col_letter = get_column_letter(col)
+        cell = ws.cell(
+            row=sum_inflow_total_row, column=col,
+            value=f"=SUM({col_letter}{sum_inflow_data_start}:{col_letter}{sum_inflow_total_row - 1})",
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font   = Font(bold=True)
+        cell.fill   = INFLOW_TOTAL_FILL
+        cell.border = THIN_BORDER
+    inflow_grand = ws.cell(
+        row=sum_inflow_total_row, column=TOTAL_COL,
+        value=f"=SUM({first_data_col_letter}{sum_inflow_total_row}:{last_data_col_letter}{sum_inflow_total_row})",
+    )
+    inflow_grand.number_format = CURRENCY_FORMAT_TOTAL
+    inflow_grand.font   = Font(bold=True)
+    inflow_grand.fill   = INFLOW_TOTAL_FILL
+    inflow_grand.border = THIN_BORDER
+
+    # Cumulative inflow total
+    ws.cell(row=sum_inflow_cum_row, column=DESC_COL, value="CUMULATIVE INFLOW TOTAL").font = Font(bold=True, size=11)
+    ws.cell(row=sum_inflow_cum_row, column=DESC_COL).border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        col_letter = get_column_letter(col)
+        if i == 0:
+            cell = ws.cell(row=sum_inflow_cum_row, column=col, value=f"={col_letter}{sum_inflow_total_row}")
+        else:
+            prev_col = get_column_letter(col - 1)
+            cell = ws.cell(
+                row=sum_inflow_cum_row, column=col,
+                value=f"={prev_col}{sum_inflow_cum_row}+{col_letter}{sum_inflow_total_row}",
+            )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font   = Font(bold=True, italic=True)
+        cell.border = THIN_BORDER
+
+    # ── Cumulative cash position (2 rows below cumulative inflow total) ───────
+    sum_cash_pos_row = sum_inflow_cum_row + 2
+    ws.cell(row=sum_cash_pos_row, column=DESC_COL, value="CUMULATIVE CASH POSITION").font = Font(bold=True, size=11)
+    ws.cell(row=sum_cash_pos_row, column=DESC_COL).fill   = CASH_POS_FILL
+    ws.cell(row=sum_cash_pos_row, column=DESC_COL).border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        col_letter = get_column_letter(col)
+        cell = ws.cell(
+            row=sum_cash_pos_row, column=col,
+            value=f"={col_letter}{sum_inflow_cum_row}-{col_letter}{sum_cum_row}",
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font   = Font(bold=True)
+        cell.fill   = CASH_POS_FILL
+        cell.border = THIN_BORDER
+
+    # ── Interest cost (2 rows below cumulative cash position) ────────────────
+    # Re-computed using this sheet's cash position; rate linked from Cashflow sheet.
+    sum_interest_cost_row = sum_cash_pos_row + 2
+    sum_interest_rate_row = sum_interest_cost_row + 1
+    rate_ref = f"{DETAIL}!$C${detail_interest_rate_row}"
+
+    ws.cell(row=sum_interest_cost_row, column=DESC_COL, value="INTEREST COST").font = Font(bold=True, size=11)
+    ws.cell(row=sum_interest_cost_row, column=DESC_COL).fill   = INTEREST_FILL
+    ws.cell(row=sum_interest_cost_row, column=DESC_COL).border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        col_letter = get_column_letter(col)
+        if num_weeks == 1:
+            days_formula = "7"
+        elif i < num_weeks - 1:
+            days_formula = f"({get_column_letter(col + 1)}5-{col_letter}5)"
+        else:
+            days_formula = f"({col_letter}5-{get_column_letter(col - 1)}5)"
+        cell = ws.cell(
+            row=sum_interest_cost_row, column=col,
+            value=f"=IF({col_letter}{sum_cash_pos_row}<0,ABS({col_letter}{sum_cash_pos_row})*{rate_ref}*{days_formula}/365,0)",
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font   = Font(bold=True)
+        cell.fill   = INTEREST_FILL
+        cell.border = THIN_BORDER
+    interest_grand = ws.cell(
+        row=sum_interest_cost_row, column=TOTAL_COL,
+        value=f"=SUM({first_data_col_letter}{sum_interest_cost_row}:{last_data_col_letter}{sum_interest_cost_row})",
+    )
+    interest_grand.number_format = CURRENCY_FORMAT_TOTAL
+    interest_grand.font   = Font(bold=True)
+    interest_grand.fill   = INTEREST_FILL
+    interest_grand.border = THIN_BORDER
+
+    # Annual Interest Rate — linked from Cashflow sheet (one source of truth)
+    ws.cell(row=sum_interest_rate_row, column=DESC_COL, value="Annual Interest Rate").font = Font(
+        bold=True, size=10, italic=True
+    )
+    ws.cell(row=sum_interest_rate_row, column=DESC_COL).border = THIN_BORDER
+    rate_link = ws.cell(
+        row=sum_interest_rate_row, column=TOTAL_COL,
+        value=f"={DETAIL}!$C${detail_interest_rate_row}",
+    )
+    rate_link.number_format = "0.00%"
+    rate_link.font   = Font(bold=True)
+    rate_link.border = THIN_BORDER
+
+    # ── Financing cost summary (2 rows below interest rate) ──────────────────
+    sum_fin_interest_row = sum_interest_rate_row + 2
+    sum_fin_setup_row    = sum_fin_interest_row + 1
+    sum_fin_legal_row    = sum_fin_setup_row + 1
+    sum_fin_total_row    = sum_fin_legal_row + 1
+    cash_pos_range = f"{first_data_col_letter}{sum_cash_pos_row}:{last_data_col_letter}{sum_cash_pos_row}"
+
+    ws.cell(row=sum_fin_interest_row, column=DESC_COL, value="Interest Cost").font = Font(bold=True)
+    ws.cell(row=sum_fin_interest_row, column=DESC_COL).fill   = FINANCING_FILL
+    ws.cell(row=sum_fin_interest_row, column=DESC_COL).border = THIN_BORDER
+    c = ws.cell(row=sum_fin_interest_row, column=TOTAL_COL, value=f"=C{sum_interest_cost_row}")
+    c.number_format = CURRENCY_FORMAT_TOTAL
+    c.font = Font(bold=True); c.fill = FINANCING_FILL; c.border = THIN_BORDER
+
+    ws.cell(row=sum_fin_setup_row, column=DESC_COL, value="Setup Fee (1.5% of peak loan)").font = Font(bold=True)
+    ws.cell(row=sum_fin_setup_row, column=DESC_COL).fill   = FINANCING_FILL
+    ws.cell(row=sum_fin_setup_row, column=DESC_COL).border = THIN_BORDER
+    c = ws.cell(
+        row=sum_fin_setup_row, column=TOTAL_COL,
+        value=f"=IF(MIN({cash_pos_range})<0,-MIN({cash_pos_range})*0.015,0)",
+    )
+    c.number_format = CURRENCY_FORMAT_TOTAL
+    c.font = Font(bold=True); c.fill = FINANCING_FILL; c.border = THIN_BORDER
+
+    ws.cell(row=sum_fin_legal_row, column=DESC_COL, value="Legal Cost").font = Font(bold=True)
+    ws.cell(row=sum_fin_legal_row, column=DESC_COL).fill   = FINANCING_FILL
+    ws.cell(row=sum_fin_legal_row, column=DESC_COL).border = THIN_BORDER
+    c = ws.cell(
+        row=sum_fin_legal_row, column=TOTAL_COL,
+        value=f"={DETAIL}!C{detail_fin_legal_row}",   # linked so Legal Cost stays in sync
+    )
+    c.number_format = CURRENCY_FORMAT_TOTAL
+    c.font = Font(bold=True); c.fill = FINANCING_FILL; c.border = THIN_BORDER
+
+    ws.cell(row=sum_fin_total_row, column=DESC_COL, value="TOTAL FINANCING COST").font = Font(bold=True, size=11)
+    ws.cell(row=sum_fin_total_row, column=DESC_COL).fill   = FINANCING_TOTAL_FILL
+    ws.cell(row=sum_fin_total_row, column=DESC_COL).border = THIN_BORDER
+    c = ws.cell(
+        row=sum_fin_total_row, column=TOTAL_COL,
+        value=f"=SUM(C{sum_fin_interest_row}:C{sum_fin_legal_row})",
+    )
+    c.number_format = CURRENCY_FORMAT_TOTAL
+    c.font = Font(bold=True); c.fill = FINANCING_TOTAL_FILL; c.border = THIN_BORDER
+
+    # ── Column widths and freeze panes ───────────────────────────────────────
+    ws.column_dimensions[get_column_letter(CODE_COL)].width  = 10
+    ws.column_dimensions[get_column_letter(DESC_COL)].width  = 35
+    ws.column_dimensions[get_column_letter(TOTAL_COL)].width = 15
+    for i in range(num_weeks):
+        ws.column_dimensions[get_column_letter(FIRST_WEEK_COL + i)].width = 12
     ws.freeze_panes = ws.cell(row=DATA_START_ROW, column=FIRST_WEEK_COL)
 
 
@@ -562,6 +975,7 @@ def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters) -
     wb = Workbook()
 
     _write_main_sheet(wb, output, params)
+    _write_summary_cf_sheet(wb, output, params)
     _write_summary_sheet(wb, output, params)
     _write_parameters_sheet(wb, params)
 
