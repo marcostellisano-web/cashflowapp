@@ -356,6 +356,66 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     rate_value_cell.font = Font(bold=True)
     rate_value_cell.border = THIN_BORDER
 
+    # Financing cost summary (2 rows below Annual Interest Rate)
+    # Rows: Interest Cost | Setup Fee | Legal Cost | Total
+    fin_interest_row = interest_rate_row + 2
+    fin_setup_row    = fin_interest_row + 1
+    fin_legal_row    = fin_setup_row + 1
+    fin_total_row    = fin_legal_row + 1
+
+    FINANCING_FILL = PatternFill(start_color="FDE9D9", end_color="FDE9D9", fill_type="solid")   # Soft peach
+    FINANCING_TOTAL_FILL = PatternFill(start_color="F4B183", end_color="F4B183", fill_type="solid")  # Warm orange
+
+    # Interest Cost — links to the grand total from the INTEREST COST row
+    ws.cell(row=fin_interest_row, column=DESC_COL, value="Interest Cost").font = Font(bold=True)
+    ws.cell(row=fin_interest_row, column=DESC_COL).fill = FINANCING_FILL
+    ws.cell(row=fin_interest_row, column=DESC_COL).border = THIN_BORDER
+    fin_interest_cell = ws.cell(
+        row=fin_interest_row, column=TOTAL_COL,
+        value=f"=C{interest_cost_row}",
+    )
+    fin_interest_cell.number_format = CURRENCY_FORMAT_TOTAL
+    fin_interest_cell.font = Font(bold=True)
+    fin_interest_cell.fill = FINANCING_FILL
+    fin_interest_cell.border = THIN_BORDER
+
+    # Setup Fee — 1.5% of the peak (most negative) cumulative cash position
+    ws.cell(row=fin_setup_row, column=DESC_COL, value="Setup Fee (1.5% of peak loan)").font = Font(bold=True)
+    ws.cell(row=fin_setup_row, column=DESC_COL).fill = FINANCING_FILL
+    ws.cell(row=fin_setup_row, column=DESC_COL).border = THIN_BORDER
+    cash_pos_range = f"{first_data_col_letter}{cash_pos_row}:{last_data_col_letter}{cash_pos_row}"
+    fin_setup_cell = ws.cell(
+        row=fin_setup_row, column=TOTAL_COL,
+        value=f"=IF(MIN({cash_pos_range})<0,-MIN({cash_pos_range})*0.015,0)",
+    )
+    fin_setup_cell.number_format = CURRENCY_FORMAT_TOTAL
+    fin_setup_cell.font = Font(bold=True)
+    fin_setup_cell.fill = FINANCING_FILL
+    fin_setup_cell.border = THIN_BORDER
+
+    # Legal Cost — fixed amount
+    ws.cell(row=fin_legal_row, column=DESC_COL, value="Legal Cost").font = Font(bold=True)
+    ws.cell(row=fin_legal_row, column=DESC_COL).fill = FINANCING_FILL
+    ws.cell(row=fin_legal_row, column=DESC_COL).border = THIN_BORDER
+    fin_legal_cell = ws.cell(row=fin_legal_row, column=TOTAL_COL, value=5000)
+    fin_legal_cell.number_format = CURRENCY_FORMAT_TOTAL
+    fin_legal_cell.font = Font(bold=True)
+    fin_legal_cell.fill = FINANCING_FILL
+    fin_legal_cell.border = THIN_BORDER
+
+    # Total — sum of the three items above
+    ws.cell(row=fin_total_row, column=DESC_COL, value="TOTAL FINANCING COST").font = Font(bold=True, size=11)
+    ws.cell(row=fin_total_row, column=DESC_COL).fill = FINANCING_TOTAL_FILL
+    ws.cell(row=fin_total_row, column=DESC_COL).border = THIN_BORDER
+    fin_total_cell = ws.cell(
+        row=fin_total_row, column=TOTAL_COL,
+        value=f"=SUM(C{fin_interest_row}:C{fin_legal_row})",
+    )
+    fin_total_cell.number_format = CURRENCY_FORMAT_TOTAL
+    fin_total_cell.font = Font(bold=True)
+    fin_total_cell.fill = FINANCING_TOTAL_FILL
+    fin_total_cell.border = THIN_BORDER
+
     # Column widths
     ws.column_dimensions[get_column_letter(CODE_COL)].width = 10
     ws.column_dimensions[get_column_letter(DESC_COL)].width = 35
