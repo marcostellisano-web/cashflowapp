@@ -118,20 +118,19 @@ SUMMARY_ACCOUNTS: list[tuple[str, str]] = [
 
 
 def _get_summary_code(code: str) -> str:
-    """Map a detail account code to its 4-digit parent summary code.
+    """Map a detail account code to its parent summary account code.
 
-    Budget codes may be stored without leading zeros (e.g. '100' instead of
-    '0100') so we zero-pad to 4 digits before matching against SUMMARY_ACCOUNTS.
-    Returns an empty string if no match is found.
+    Detail codes share the first 2 digits with their parent summary account:
+      0408, 0415 → 0400  |  1312, 1320 → 1300  |  0501 → 0500
+
+    We zero-pad to 4 digits first so numeric codes without leading zeros
+    (e.g. '408' stored as the number 408) are handled correctly.
+    Returns an empty string if no matching summary account is found.
     """
     padded = code.strip().zfill(4)
-    # Exact match first
+    prefix = padded[:2]
     for sc, _ in SUMMARY_ACCOUNTS:
-        if padded == sc:
-            return sc
-    # Prefix match for sub-codes (e.g. '010001' → '0100')
-    for sc, _ in SUMMARY_ACCOUNTS:
-        if padded.startswith(sc):
+        if sc[:2] == prefix:
             return sc
     return ""
 
