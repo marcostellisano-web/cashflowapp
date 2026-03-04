@@ -17,7 +17,7 @@ SUBTITLE_FONT = Font(bold=True, size=10, color="666666")
 CURRENCY_FORMAT = '#,##0'
 CURRENCY_FORMAT_TOTAL = '#,##0'
 ACCOUNTING_NO_DECIMAL_FORMAT = '_-* #,##0_-;-* #,##0_-;_-* "-"??_-;_-@_-'
-BASE_ALIGNMENT = Alignment(horizontal="center", vertical="center")
+BASE_ALIGNMENT = Alignment(horizontal="left", vertical="center")
 SUBTLE_TOTAL_FILL = PatternFill(start_color="E6E6E6", end_color="E6E6E6", fill_type="solid")
 THIN_BORDER = Border(
     left=Side(style="thin"),
@@ -213,11 +213,11 @@ def _apply_requested_cashflow_formatting(
             elif pay_cell.value == "AP":
                 pay_cell.fill = ap_fill
 
-    _apply_outside_border(ws, outflow_min_row, outflow_max_row, DESC_COL, max_col)
-    _apply_outside_border(ws, inflow_min_row, inflow_max_row, DESC_COL, max_col)
-    _apply_outside_border(ws, cash_pos_row, cash_pos_row, DESC_COL, max_col)
-    _apply_outside_border(ws, interest_cost_row, interest_cost_row, DESC_COL, max_col)
-    _apply_outside_border(ws, financing_min_row, financing_max_row, DESC_COL, TOTAL_COL)
+    _apply_outside_border(ws, outflow_min_row, outflow_max_row, CODE_COL, max_col)
+    _apply_outside_border(ws, inflow_min_row, inflow_max_row, CODE_COL, max_col)
+    _apply_outside_border(ws, cash_pos_row, cash_pos_row, CODE_COL, max_col)
+    _apply_outside_border(ws, interest_cost_row, interest_cost_row, CODE_COL, max_col)
+    _apply_outside_border(ws, financing_min_row, financing_max_row, CODE_COL, max_col)
 
 
 def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionParameters):
@@ -697,7 +697,7 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         ws,
         max_col=tax_credit_col,
         totals_rows={totals_row, cum_row, inflow_total_row, inflow_cum_row, fin_total_row},
-        outflow_min_row=DATA_START_ROW,
+        outflow_min_row=5,
         outflow_max_row=cum_row,
         inflow_min_row=inflow_header_row,
         inflow_max_row=inflow_cum_row,
@@ -1156,7 +1156,7 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         ws,
         max_col=tax_credit_col,
         totals_rows={sum_totals_row, sum_cum_row, sum_inflow_total_row, sum_inflow_cum_row, sum_fin_total_row},
-        outflow_min_row=DATA_START_ROW,
+        outflow_min_row=5,
         outflow_max_row=sum_cum_row,
         inflow_min_row=sum_inflow_hdr_row,
         inflow_max_row=sum_inflow_cum_row,
