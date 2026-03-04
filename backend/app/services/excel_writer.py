@@ -5,7 +5,6 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side, numbers
 from openpyxl.utils import get_column_letter
-from openpyxl.workbook.defined_name import DefinedName
 
 from app.models.cashflow import CashflowOutput
 from app.models.production import ProductionParameters
@@ -303,19 +302,34 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         cell.border = THIN_BORDER
 
     # Interest cost (2 rows below cumulative cash position)
-    # = ABS(cash_position) × InterestRate/52  — only when position is negative
-    # InterestRate is a named range defined in the Parameters sheet (adjustable)
+    # = ABS(cash_position) × rate × (days in period) / 365  — only when position is negative
+    # The rate lives in TOTAL_COL of interest_rate_row (directly below), so it's easy to adjust.
     interest_cost_row = cash_pos_row + 2
+    # Interest rate row sits immediately below the interest cost row.
+    # Defining it here so the interest cost formulas can reference it.
+    interest_rate_row = interest_cost_row + 1
+    rate_cell_ref = f"$C${interest_rate_row}"  # absolute ref to the rate value
+
     ws.cell(row=interest_cost_row, column=DESC_COL, value="INTEREST COST").font = Font(bold=True, size=11)
     ws.cell(row=interest_cost_row, column=DESC_COL).fill = INTEREST_FILL
     ws.cell(row=interest_cost_row, column=DESC_COL).border = THIN_BORDER
     for i in range(num_weeks):
         col = FIRST_WEEK_COL + i
         col_letter = get_column_letter(col)
+        # Days in this period = next week date − this week date.
+        # For the last week, mirror the previous interval (same logic, reversed).
+        if num_weeks == 1:
+            days_formula = "7"
+        elif i < num_weeks - 1:
+            next_col_letter = get_column_letter(col + 1)
+            days_formula = f"({next_col_letter}5-{col_letter}5)"
+        else:
+            prev_col_letter = get_column_letter(col - 1)
+            days_formula = f"({col_letter}5-{prev_col_letter}5)"
         cell = ws.cell(
             row=interest_cost_row,
             column=col,
-            value=f"=IF({col_letter}{cash_pos_row}<0,ABS({col_letter}{cash_pos_row})*InterestRate/52,0)",
+            value=f"=IF({col_letter}{cash_pos_row}<0,ABS({col_letter}{cash_pos_row})*{rate_cell_ref}*{days_formula}/365,0)",
         )
         cell.number_format = CURRENCY_FORMAT_TOTAL
         cell.font = Font(bold=True)
@@ -331,6 +345,16 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     interest_grand_cell.font = Font(bold=True)
     interest_grand_cell.fill = INTEREST_FILL
     interest_grand_cell.border = THIN_BORDER
+
+    # Interest rate row — label + editable rate value on the Cashflow sheet
+    ws.cell(row=interest_rate_row, column=DESC_COL, value="Annual Interest Rate").font = Font(
+        bold=True, size=10, italic=True
+    )
+    ws.cell(row=interest_rate_row, column=DESC_COL).border = THIN_BORDER
+    rate_value_cell = ws.cell(row=interest_rate_row, column=TOTAL_COL, value=0.065)
+    rate_value_cell.number_format = "0.00%"
+    rate_value_cell.font = Font(bold=True)
+    rate_value_cell.border = THIN_BORDER
 
     # Column widths
     ws.column_dimensions[get_column_letter(CODE_COL)].width = 10
@@ -402,12 +426,8 @@ def _write_summary_sheet(wb: Workbook, output: CashflowOutput, params: Productio
     ws.column_dimensions["B"].width = 18
 
 
-def _write_parameters_sheet(wb: Workbook, params: ProductionParameters) -> int:
-    """Write the Parameters sheet documenting the production schedule.
-
-    Returns the row number of the interest rate cell (column B) so the caller
-    can register it as a named range.
-    """
+def _write_parameters_sheet(wb: Workbook, params: ProductionParameters) -> None:
+    """Write the Parameters sheet documenting the production schedule."""
     ws = wb.create_sheet("Parameters")
 
     ws.cell(row=1, column=1, value="Production Parameters").font = TITLE_FONT
@@ -429,13 +449,6 @@ def _write_parameters_sheet(wb: Workbook, params: ProductionParameters) -> int:
         ws.cell(row=row, column=1, value=label).font = Font(bold=True)
         ws.cell(row=row, column=2, value=str(value))
         row += 1
-
-    # Interest rate — stored here so it can be referenced as a named range
-    ws.cell(row=row, column=1, value="Annual Interest Rate").font = Font(bold=True)
-    interest_rate_cell = ws.cell(row=row, column=2, value=0.065)
-    interest_rate_cell.number_format = "0.00%"
-    interest_rate_row = row
-    row += 1
 
     # Shooting blocks
     row += 1
@@ -480,8 +493,6 @@ def _write_parameters_sheet(wb: Workbook, params: ProductionParameters) -> int:
     ws.column_dimensions["E"].width = 15
     ws.column_dimensions["F"].width = 15
 
-    return interest_rate_row
-
 
 def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters) -> BytesIO:
     """Generate a complete cashflow Excel workbook.
@@ -492,15 +503,7 @@ def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters) -
 
     _write_main_sheet(wb, output, params)
     _write_summary_sheet(wb, output, params)
-    interest_rate_row = _write_parameters_sheet(wb, params)
-
-    # Create a workbook-level named range so the interest cost formulas in the
-    # Cashflow sheet can reference "InterestRate" — change the value in the
-    # Parameters sheet (column B of the "Annual Interest Rate" row) to update
-    # all interest calculations automatically.
-    wb.defined_names["InterestRate"] = DefinedName(
-        "InterestRate", attr_text=f"Parameters!$B${interest_rate_row}"
-    )
+    _write_parameters_sheet(wb, params)
 
     buffer = BytesIO()
     wb.save(buffer)
