@@ -117,6 +117,25 @@ SUMMARY_ACCOUNTS: list[tuple[str, str]] = [
 ]
 
 
+def _get_summary_code(code: str) -> str:
+    """Map a detail account code to its 4-digit parent summary code.
+
+    Budget codes may be stored without leading zeros (e.g. '100' instead of
+    '0100') so we zero-pad to 4 digits before matching against SUMMARY_ACCOUNTS.
+    Returns an empty string if no match is found.
+    """
+    padded = code.strip().zfill(4)
+    # Exact match first
+    for sc, _ in SUMMARY_ACCOUNTS:
+        if padded == sc:
+            return sc
+    # Prefix match for sub-codes (e.g. '010001' → '0100')
+    for sc, _ in SUMMARY_ACCOUNTS:
+        if padded.startswith(sc):
+            return sc
+    return ""
+
+
 def _get_phase_fill(label: str) -> PatternFill:
     """Return the fill color for a given phase label."""
     upper = label.upper()
@@ -133,6 +152,10 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
 
     num_weeks = len(output.weeks)
     last_week_col = FIRST_WEEK_COL + num_weeks - 1
+    # Helper column: summary code sits immediately after the last week column.
+    # Written as static text by Python so SUMIF in Summary CF always works,
+    # regardless of how the original budget stored numeric codes.
+    summary_code_col = FIRST_WEEK_COL + num_weeks
 
     # Row 1: Title
     ws.cell(row=1, column=1, value=f"{output.title} - Cashflow Forecast").font = TITLE_FONT
@@ -189,7 +212,15 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         cell.alignment = Alignment(horizontal="center")
         cell.border = THIN_BORDER
 
+    # Row 5: summary code helper column header
+    sc_hdr = ws.cell(row=5, column=summary_code_col, value="Smry Code")
+    sc_hdr.font = Font(bold=True, size=8, color="999999")
+    sc_hdr.alignment = Alignment(horizontal="center")
+    sc_hdr.border = THIN_BORDER
+
     # Data rows
+    first_data_col_letter = get_column_letter(FIRST_WEEK_COL)
+    last_data_col_letter = get_column_letter(last_week_col)
     for row_idx, row_data in enumerate(output.rows):
         excel_row = DATA_START_ROW + row_idx
 
@@ -197,8 +228,6 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         ws.cell(row=excel_row, column=DESC_COL, value=row_data.description).border = THIN_BORDER
 
         # Total column with SUM formula
-        first_data_col_letter = get_column_letter(FIRST_WEEK_COL)
-        last_data_col_letter = get_column_letter(last_week_col)
         total_cell = ws.cell(
             row=excel_row,
             column=TOTAL_COL,
@@ -216,6 +245,13 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
             cell.border = THIN_BORDER
             if amount and amount > 0:
                 cell.fill = NONZERO_FILL
+
+        # Summary code — Python-computed so it's always clean text regardless
+        # of how the original budget stored numeric codes
+        sc_val = _get_summary_code(row_data.code)
+        sc_cell = ws.cell(row=excel_row, column=summary_code_col, value=sc_val)
+        sc_cell.font = Font(size=8, color="999999")
+        sc_cell.border = THIN_BORDER
 
     # Weekly totals row
     totals_row = DATA_START_ROW + len(output.rows)
@@ -236,8 +272,6 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         cell.border = THIN_BORDER
 
     # Grand total for totals row
-    first_data_col_letter = get_column_letter(FIRST_WEEK_COL)
-    last_data_col_letter = get_column_letter(last_week_col)
     grand_total_cell = ws.cell(
         row=totals_row,
         column=TOTAL_COL,
@@ -288,8 +322,6 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     for row_idx, inflow_row in enumerate(output.cash_inflows):
         excel_row = inflow_data_start + row_idx
         ws.cell(row=excel_row, column=DESC_COL, value=inflow_row.label).border = THIN_BORDER
-        first_data_col_letter = get_column_letter(FIRST_WEEK_COL)
-        last_data_col_letter = get_column_letter(last_week_col)
         total_cell = ws.cell(
             row=excel_row,
             column=TOTAL_COL,
@@ -491,6 +523,7 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     ws.column_dimensions[get_column_letter(TOTAL_COL)].width = 15
     for i in range(num_weeks):
         ws.column_dimensions[get_column_letter(FIRST_WEEK_COL + i)].width = 12
+    ws.column_dimensions[get_column_letter(summary_code_col)].width = 9
 
     # Freeze panes: fix code/desc/total columns and header rows
     ws.freeze_panes = ws.cell(row=DATA_START_ROW, column=FIRST_WEEK_COL)
@@ -511,6 +544,8 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
     last_week_col = FIRST_WEEK_COL + num_weeks - 1
     first_data_col_letter = get_column_letter(FIRST_WEEK_COL)
     last_data_col_letter = get_column_letter(last_week_col)
+    # Summary code column in the Cashflow sheet (matches _write_main_sheet)
+    detail_summary_code_col_letter = get_column_letter(FIRST_WEEK_COL + num_weeks)
 
     # Mirror the detail sheet row positions (must stay in sync with _write_main_sheet)
     detail_totals_row       = DATA_START_ROW + len(output.rows)
@@ -594,9 +629,12 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         for i in range(num_weeks):
             col = FIRST_WEEK_COL + i
             col_letter = get_column_letter(col)
+            # SUMIF against the pre-computed summary code column (exact match).
+            # Using the helper column avoids all issues with numeric codes /
+            # leading-zero stripping that break wildcard matching on column A.
             cell = ws.cell(
                 row=excel_row, column=col,
-                value=f'=SUMIF({DETAIL}!$A:$A,"{code}*",{DETAIL}!{col_letter}:{col_letter})',
+                value=f'=SUMIF({DETAIL}!${detail_summary_code_col_letter}:${detail_summary_code_col_letter},"{code}",{DETAIL}!{col_letter}:{col_letter})',
             )
             cell.number_format = CURRENCY_FORMAT
             cell.border = THIN_BORDER
