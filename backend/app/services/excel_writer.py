@@ -35,6 +35,8 @@ TOTAL_FILL = PatternFill(start_color="D9E2F3", end_color="D9E2F3", fill_type="so
 NONZERO_FILL = PatternFill(start_color="F2F7F2", end_color="F2F7F2", fill_type="solid")     # Very light green
 INFLOW_HEADER_FILL = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")  # Light green
 INFLOW_TOTAL_FILL = PatternFill(start_color="A9D18E", end_color="A9D18E", fill_type="solid")   # Medium green
+CASH_POS_FILL = PatternFill(start_color="D9D2EA", end_color="D9D2EA", fill_type="solid")       # Light purple
+INTEREST_FILL = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")       # Light salmon/red
 
 DATA_START_ROW = 6
 CODE_COL = 1
@@ -280,6 +282,80 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         cell.font = Font(bold=True, italic=True)
         cell.border = THIN_BORDER
 
+    # Cumulative cash position (2 rows below cumulative inflow total)
+    # = cumulative inflows − cumulative outflows for each week
+    cash_pos_row = inflow_cum_row + 2
+    ws.cell(row=cash_pos_row, column=DESC_COL, value="CUMULATIVE CASH POSITION").font = Font(bold=True, size=11)
+    ws.cell(row=cash_pos_row, column=DESC_COL).fill = CASH_POS_FILL
+    ws.cell(row=cash_pos_row, column=DESC_COL).border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        col_letter = get_column_letter(col)
+        cell = ws.cell(
+            row=cash_pos_row,
+            column=col,
+            value=f"={col_letter}{inflow_cum_row}-{col_letter}{cum_row}",
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font = Font(bold=True)
+        cell.fill = CASH_POS_FILL
+        cell.border = THIN_BORDER
+
+    # Interest cost (2 rows below cumulative cash position)
+    # = ABS(cash_position) × rate × (days in period) / 365  — only when position is negative
+    # The rate lives in TOTAL_COL of interest_rate_row (directly below), so it's easy to adjust.
+    interest_cost_row = cash_pos_row + 2
+    # Interest rate row sits immediately below the interest cost row.
+    # Defining it here so the interest cost formulas can reference it.
+    interest_rate_row = interest_cost_row + 1
+    rate_cell_ref = f"$C${interest_rate_row}"  # absolute ref to the rate value
+
+    ws.cell(row=interest_cost_row, column=DESC_COL, value="INTEREST COST").font = Font(bold=True, size=11)
+    ws.cell(row=interest_cost_row, column=DESC_COL).fill = INTEREST_FILL
+    ws.cell(row=interest_cost_row, column=DESC_COL).border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        col_letter = get_column_letter(col)
+        # Days in this period = next week date − this week date.
+        # For the last week, mirror the previous interval (same logic, reversed).
+        if num_weeks == 1:
+            days_formula = "7"
+        elif i < num_weeks - 1:
+            next_col_letter = get_column_letter(col + 1)
+            days_formula = f"({next_col_letter}5-{col_letter}5)"
+        else:
+            prev_col_letter = get_column_letter(col - 1)
+            days_formula = f"({col_letter}5-{prev_col_letter}5)"
+        cell = ws.cell(
+            row=interest_cost_row,
+            column=col,
+            value=f"=IF({col_letter}{cash_pos_row}<0,ABS({col_letter}{cash_pos_row})*{rate_cell_ref}*{days_formula}/365,0)",
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font = Font(bold=True)
+        cell.fill = INTEREST_FILL
+        cell.border = THIN_BORDER
+    # Grand total: sum of all weekly interest costs
+    interest_grand_cell = ws.cell(
+        row=interest_cost_row,
+        column=TOTAL_COL,
+        value=f"=SUM({first_data_col_letter}{interest_cost_row}:{last_data_col_letter}{interest_cost_row})",
+    )
+    interest_grand_cell.number_format = CURRENCY_FORMAT_TOTAL
+    interest_grand_cell.font = Font(bold=True)
+    interest_grand_cell.fill = INTEREST_FILL
+    interest_grand_cell.border = THIN_BORDER
+
+    # Interest rate row — label + editable rate value on the Cashflow sheet
+    ws.cell(row=interest_rate_row, column=DESC_COL, value="Annual Interest Rate").font = Font(
+        bold=True, size=10, italic=True
+    )
+    ws.cell(row=interest_rate_row, column=DESC_COL).border = THIN_BORDER
+    rate_value_cell = ws.cell(row=interest_rate_row, column=TOTAL_COL, value=0.065)
+    rate_value_cell.number_format = "0.00%"
+    rate_value_cell.font = Font(bold=True)
+    rate_value_cell.border = THIN_BORDER
+
     # Column widths
     ws.column_dimensions[get_column_letter(CODE_COL)].width = 10
     ws.column_dimensions[get_column_letter(DESC_COL)].width = 35
@@ -350,7 +426,7 @@ def _write_summary_sheet(wb: Workbook, output: CashflowOutput, params: Productio
     ws.column_dimensions["B"].width = 18
 
 
-def _write_parameters_sheet(wb: Workbook, params: ProductionParameters):
+def _write_parameters_sheet(wb: Workbook, params: ProductionParameters) -> None:
     """Write the Parameters sheet documenting the production schedule."""
     ws = wb.create_sheet("Parameters")
 
