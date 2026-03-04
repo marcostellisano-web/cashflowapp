@@ -16,12 +16,16 @@ TITLE_FONT = Font(bold=True, size=14)
 SUBTITLE_FONT = Font(bold=True, size=10, color="666666")
 CURRENCY_FORMAT = '#,##0'
 CURRENCY_FORMAT_TOTAL = '#,##0'
+ACCOUNTING_NO_DECIMAL_FORMAT = '_-* #,##0_-;-* #,##0_-;_-* "-"??_-;_-@_-'
+BASE_ALIGNMENT = Alignment(horizontal="center", vertical="center")
+SUBTLE_TOTAL_FILL = PatternFill(start_color="E6E6E6", end_color="E6E6E6", fill_type="solid")
 THIN_BORDER = Border(
     left=Side(style="thin"),
     right=Side(style="thin"),
     top=Side(style="thin"),
     bottom=Side(style="thin"),
 )
+NO_BORDER = Border()
 
 # Phase colors
 PHASE_COLORS = {
@@ -143,6 +147,77 @@ def _get_phase_fill(label: str) -> PatternFill:
         if key in upper:
             return fill
     return PatternFill()  # No fill
+
+
+def _apply_outside_border(ws, min_row: int, max_row: int, min_col: int, max_col: int) -> None:
+    """Apply a thin outside border around a rectangular range."""
+    for row in range(min_row, max_row + 1):
+        for col in range(min_col, max_col + 1):
+            cell = ws.cell(row=row, column=col)
+            cell.border = Border(
+                left=Side(style="thin") if col == min_col else Side(style=None),
+                right=Side(style="thin") if col == max_col else Side(style=None),
+                top=Side(style="thin") if row == min_row else Side(style=None),
+                bottom=Side(style="thin") if row == max_row else Side(style=None),
+            )
+
+
+def _apply_requested_cashflow_formatting(
+    ws,
+    *,
+    max_col: int,
+    totals_rows: set[int],
+    outflow_min_row: int,
+    outflow_max_row: int,
+    inflow_min_row: int,
+    inflow_max_row: int,
+    cash_pos_row: int,
+    interest_cost_row: int,
+    financing_min_row: int,
+    financing_max_row: int,
+    interest_rate_row: int,
+    keep_paycycle_colors: bool,
+) -> None:
+    """Normalize sheet formatting to requested style for Cashflow outputs."""
+    for row in range(1, ws.max_row + 1):
+        for col in range(1, max_col + 1):
+            cell = ws.cell(row=row, column=col)
+            cell.font = Font(name="Calibri", size=10, bold=cell.font.bold)
+            cell.alignment = BASE_ALIGNMENT
+            cell.border = NO_BORDER
+            cell.fill = PatternFill()
+
+            if col == TOTAL_COL and row >= 5:
+                cell.font = Font(name="Calibri", size=10, bold=True)
+
+            if row in totals_rows:
+                cell.fill = SUBTLE_TOTAL_FILL
+                cell.font = Font(name="Calibri", size=10, bold=True)
+
+            if (
+                row >= DATA_START_ROW
+                and TOTAL_COL <= col <= max_col
+                and row != interest_rate_row
+                and cell.number_format != "DD-MMM-YYYY"
+                and cell.number_format != "0.00%"
+            ):
+                cell.number_format = ACCOUNTING_NO_DECIMAL_FORMAT
+
+    if keep_paycycle_colors:
+        payroll_fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
+        ap_fill = PatternFill(start_color="FFF3E0", end_color="FFF3E0", fill_type="solid")
+        for col in range(FIRST_WEEK_COL, max_col + 1):
+            pay_cell = ws.cell(row=3, column=col)
+            if pay_cell.value == "Payroll":
+                pay_cell.fill = payroll_fill
+            elif pay_cell.value == "AP":
+                pay_cell.fill = ap_fill
+
+    _apply_outside_border(ws, outflow_min_row, outflow_max_row, DESC_COL, max_col)
+    _apply_outside_border(ws, inflow_min_row, inflow_max_row, DESC_COL, max_col)
+    _apply_outside_border(ws, cash_pos_row, cash_pos_row, DESC_COL, max_col)
+    _apply_outside_border(ws, interest_cost_row, interest_cost_row, DESC_COL, max_col)
+    _apply_outside_border(ws, financing_min_row, financing_max_row, DESC_COL, TOTAL_COL)
 
 
 def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionParameters):
@@ -618,6 +693,22 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     fin_total_cell.fill = FINANCING_TOTAL_FILL
     fin_total_cell.border = THIN_BORDER
 
+    _apply_requested_cashflow_formatting(
+        ws,
+        max_col=tax_credit_col,
+        totals_rows={totals_row, cum_row, inflow_total_row, inflow_cum_row, fin_total_row},
+        outflow_min_row=DATA_START_ROW,
+        outflow_max_row=cum_row,
+        inflow_min_row=inflow_header_row,
+        inflow_max_row=inflow_cum_row,
+        cash_pos_row=cash_pos_row,
+        interest_cost_row=interest_cost_row,
+        financing_min_row=fin_interest_row,
+        financing_max_row=fin_total_row,
+        interest_rate_row=interest_rate_row,
+        keep_paycycle_colors=has_payroll,
+    )
+
     # Column widths
     ws.column_dimensions[get_column_letter(CODE_COL)].width = 10
     ws.column_dimensions[get_column_letter(DESC_COL)].width = 35
@@ -1060,6 +1151,22 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
     )
     c.number_format = CURRENCY_FORMAT_TOTAL
     c.font = Font(bold=True); c.fill = FINANCING_TOTAL_FILL; c.border = THIN_BORDER
+
+    _apply_requested_cashflow_formatting(
+        ws,
+        max_col=tax_credit_col,
+        totals_rows={sum_totals_row, sum_cum_row, sum_inflow_total_row, sum_inflow_cum_row, sum_fin_total_row},
+        outflow_min_row=DATA_START_ROW,
+        outflow_max_row=sum_cum_row,
+        inflow_min_row=sum_inflow_hdr_row,
+        inflow_max_row=sum_inflow_cum_row,
+        cash_pos_row=sum_cash_pos_row,
+        interest_cost_row=sum_interest_cost_row,
+        financing_min_row=sum_fin_interest_row,
+        financing_max_row=sum_fin_total_row,
+        interest_rate_row=sum_interest_rate_row,
+        keep_paycycle_colors=has_payroll,
+    )
 
     # ── Column widths and freeze panes ───────────────────────────────────────
     ws.column_dimensions[get_column_letter(CODE_COL)].width  = 10
