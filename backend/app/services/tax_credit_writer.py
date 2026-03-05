@@ -1,0 +1,449 @@
+"""Generate a formatted Tax Credit Filing Budget Excel workbook from a ParsedBudget."""
+
+from io import BytesIO
+
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+
+from app.models.budget import ParsedBudget
+
+# ---------------------------------------------------------------------------
+# Style constants
+# ---------------------------------------------------------------------------
+CURRENCY_FORMAT = '#,##0'
+
+_THIN = Side(style="thin")
+_THIN_BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
+_BOTTOM_BORDER = Border(bottom=_THIN)
+_NO_BORDER = Border()
+
+_BLACK_FILL = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
+_SECTION_HEADER_FILL = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+_LIGHT_GRAY_FILL = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+_TOTAL_FILL = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+_GRAND_TOTAL_FILL = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
+
+_WHITE_BOLD = Font(bold=True, color="FFFFFF", size=10)
+_BOLD = Font(bold=True, size=10)
+_NORMAL = Font(size=10)
+_TITLE_FONT = Font(bold=True, size=11)
+
+_CENTER = Alignment(horizontal="center", vertical="center")
+_LEFT = Alignment(horizontal="left", vertical="center")
+_RIGHT = Alignment(horizontal="right", vertical="center")
+
+# ---------------------------------------------------------------------------
+# CAVCO Topsheet account definitions
+# ---------------------------------------------------------------------------
+# Each entry is one of:
+#   ("XX.00", "Category name")          — a data row with an account code
+#   ("TOTAL", "label", "section_key")   — a section-total row
+#   ("HEADER", "label")                 — a section header label (gray)
+#   ("BLANK",)                          — an empty spacer row
+
+TOPSHEET_STRUCTURE: list[tuple] = [
+    # Above the line
+    ("01.00", "Story rights/Acquisitions"),
+    ("02.00", "Script"),
+    ("03.00", "Development costs"),
+    ("04.00", "Producer(s)"),
+    ("05.00", "Director(s)"),
+    ("06.00", "Stars"),
+    ("TOTAL", 'TOTAL "A" \u2013 ABOVE THE LINE', "A"),
+    # Section B
+    ("HEADER", '"B" \u2013 PRODUCTION'),
+    ("10.00", "Cast"),
+    ("11.00", "Background Performers (Extras)"),
+    ("12.00", "Production labour"),
+    ("13.00", "Production Design/Art Department labour"),
+    ("14.00", "Construction labour"),
+    ("15.00", "Set Dressing labour"),
+    ("16.00", "Props labour"),
+    ("17.00", "Special Effects labour"),
+    ("18.00", "Animal Wrangling labour"),
+    ("19.00", "Wardrobe labour"),
+    ("20.00", "Makeup/Hair labour"),
+    ("21.00", "Video Technical crew"),
+    ("22.00", "Camera labour"),
+    ("23.00", "Electrical labour"),
+    ("24.00", "Grip labour"),
+    ("25.00", "Production Sound labour"),
+    ("26.00", "Transportation labour"),
+    ("27.00", "Fringe benefits"),
+    ("28.00", "Production office expenses"),
+    ("29.00", "Studio expenses"),
+    ("30.00", "Location office expenses"),
+    ("31.00", "Location expenses"),
+    ("32.00", "Unit expenses"),
+    ("33.00", "Travel & Living expenses"),
+    ("34.00", "Transportation"),
+    ("35.00", "Construction materials"),
+    ("36.00", "Art supplies"),
+    ("37.00", "Set dressing"),
+    ("38.00", "Props"),
+    ("39.00", "Special effects"),
+    ("40.00", "Animals"),
+    ("41.00", "Wardrobe supplies"),
+    ("42.00", "Makeup/Hair supplies"),
+    ("43.00", "Videotape studio"),
+    ("44.00", "Mobile video unit"),
+    ("45.00", "Camera equipment"),
+    ("46.00", "Electrical equipment"),
+    ("47.00", "Grip equipment"),
+    ("48.00", "Sound equipment"),
+    ("49.00", "Second unit"),
+    ("50.00", "Video stock"),
+    ("51.00", "Production laboratory"),
+    ("52.00", "Voice recording \u2013 Animation"),
+    ("53.00", "Production unit \u2013 Animation"),
+    ("54.00", "Art & Design unit \u2013 Animation"),
+    ("55.00", "2D Animation unit"),
+    ("56.00", "3D Animation unit"),
+    ("57.00", "Live Animation (MOCAP) unit"),
+    ("58.00", "Fringe benefits \u2013 Animation"),
+    ("59.00", "Animation materials & supplies"),
+    ("TOTAL", 'TOTAL PRODUCTION "B"', "B"),
+    # Section C
+    ("HEADER", '"C" \u2013 POST-PRODUCTION'),
+    ("60.00", "Post Production - Edit labour"),
+    ("61.00", "Editing equipment"),
+    ("62.00", "Video post production (picture)"),
+    ("63.00", "Video post production (sound)"),
+    ("64.00", "Film post production (picture)"),
+    ("65.00", "Film post production (sound)"),
+    ("66.00", "Music"),
+    ("67.00", "Titles/Stock footage/Visual effects"),
+    ("68.00", "Versioning"),
+    ("69.00", "Amortization (series)"),
+    ("TOTAL", 'TOTAL POST-PRODUCTION "C"', "C"),
+    ("TOTAL_MULTI", 'TOTAL "B" + "C"\n(PRODUCTION AND POST PRODUCTION)', ("B", "C")),
+    # Section D
+    ("HEADER", '"D" \u2013 OTHER'),
+    ("70.00", "Unit publicity"),
+    ("71.00", "General expenses"),
+    ("72.00", "Indirect costs"),
+    ("TOTAL", 'TOTAL OTHER "D"', "D"),
+    ("TOTAL_MULTI", 'TOTAL "A" + "B" + "C" + "D"', ("A", "B", "C", "D")),
+    # Final items
+    ("80.00", "Contingency"),
+    ("81.00", "Completion guarantee"),
+    ("GRAND_TOTAL", "GRAND TOTAL"),
+]
+
+
+def _cavco_to_mm_prefix(cavco_code: str) -> str:
+    """Convert CAVCO code like '01.00' to 4-char account prefix '0100'."""
+    integer_part = cavco_code.split(".")[0]  # "01", "10", "80"
+    return integer_part + "00"              # "0100", "1000", "8000"
+
+
+def _get_account_total(budget: "ParsedBudget", cavco_code: str) -> float:
+    """Return the total for a CAVCO account code.
+
+    Prefers pre-aggregated topsheet_totals from the source file's Topsheet tab.
+    Falls back to summing matching line items when topsheet_totals is empty.
+    """
+    prefix = _cavco_to_mm_prefix(cavco_code)
+    if budget.topsheet_totals:
+        return budget.topsheet_totals.get(prefix, 0.0)
+    # Fallback: sum line items whose stripped code starts with the prefix
+    total = 0.0
+    for item in budget.line_items:
+        code = item.code.replace(".", "").replace(" ", "")
+        if code.startswith(prefix):
+            total += item.total
+    return total
+
+
+def _build_section_totals(budget: "ParsedBudget") -> dict[str, float]:
+    """Pre-compute section totals A, B, C, D for the topsheet."""
+    section_ranges = {
+        "A": [f"{n:02d}.00" for n in range(1, 7)],
+        "B": [f"{n:02d}.00" for n in range(10, 60)],
+        "C": [f"{n:02d}.00" for n in range(60, 70)],
+        "D": [f"{n:02d}.00" for n in range(70, 73)],
+    }
+    return {
+        section: sum(_get_account_total(budget, code) for code in codes)
+        for section, codes in section_ranges.items()
+    }
+
+
+# ---------------------------------------------------------------------------
+# Topsheet worksheet builder
+# ---------------------------------------------------------------------------
+
+def _write_topsheet(ws, budget: ParsedBudget, title: str) -> None:
+    ws.title = "Topsheet"
+
+    # Column widths
+    ws.column_dimensions["A"].width = 12
+    ws.column_dimensions["B"].width = 50
+    ws.column_dimensions["C"].width = 16
+
+    # ── Title row ──────────────────────────────────────────────────────────
+    ws.row_dimensions[1].height = 22
+    title_cell = ws.cell(row=1, column=1, value="Title")
+    title_cell.font = _BOLD
+    title_cell.alignment = _LEFT
+
+    value_cell = ws.cell(row=1, column=2, value=title)
+    value_cell.font = _TITLE_FONT
+    value_cell.alignment = _LEFT
+    value_cell.border = _BOTTOM_BORDER
+
+    ws.row_dimensions[2].height = 8  # spacer
+
+    # ── Column headers ─────────────────────────────────────────────────────
+    header_row = 3
+    ws.row_dimensions[header_row].height = 18
+    for col, label in enumerate(["Account", "Category", "Total"], start=1):
+        cell = ws.cell(row=header_row, column=col, value=label)
+        cell.font = _BOLD
+        cell.alignment = _CENTER if col != 2 else _LEFT
+        cell.border = _THIN_BORDER
+
+    # ── Pre-compute values ─────────────────────────────────────────────────
+    section_totals = _build_section_totals(budget)
+
+    # Grand total = sum of all sections + 80.00 + 81.00
+    grand_total = (
+        sum(section_totals.values())
+        + _get_account_total(budget, "80.00")
+        + _get_account_total(budget, "81.00")
+    )
+
+    # ── Data rows ──────────────────────────────────────────────────────────
+    current_row = header_row + 1
+
+    for entry in TOPSHEET_STRUCTURE:
+        kind = entry[0]
+        ws.row_dimensions[current_row].height = 16
+
+        if kind == "BLANK":
+            current_row += 1
+            continue
+
+        elif kind == "HEADER":
+            # Gray section header, spans A-C
+            label = entry[1]
+            ws.merge_cells(
+                start_row=current_row, start_column=1,
+                end_row=current_row, end_column=3,
+            )
+            cell = ws.cell(row=current_row, column=1, value=label)
+            cell.font = _BOLD
+            cell.fill = _SECTION_HEADER_FILL
+            cell.alignment = _LEFT
+            cell.border = _THIN_BORDER
+            current_row += 1
+
+        elif kind == "TOTAL":
+            label = entry[1]
+            section_key = entry[2]
+            amount = section_totals.get(section_key, 0.0)
+
+            # Black row, white bold text
+            for col in range(1, 4):
+                cell = ws.cell(row=current_row, column=col)
+                cell.fill = _BLACK_FILL
+                cell.border = _THIN_BORDER
+                cell.font = _WHITE_BOLD
+                if col == 1:
+                    cell.alignment = _LEFT
+                elif col == 2:
+                    cell.value = label
+                    cell.alignment = _LEFT
+                else:
+                    cell.value = amount
+                    cell.number_format = CURRENCY_FORMAT
+                    cell.alignment = _RIGHT
+            current_row += 1
+
+        elif kind == "TOTAL_MULTI":
+            label = entry[1]
+            section_keys = entry[2]
+            amount = sum(section_totals.get(k, 0.0) for k in section_keys)
+
+            ws.row_dimensions[current_row].height = 28
+            for col in range(1, 4):
+                cell = ws.cell(row=current_row, column=col)
+                cell.fill = _BLACK_FILL
+                cell.border = _THIN_BORDER
+                cell.font = _WHITE_BOLD
+                cell.alignment = Alignment(
+                    horizontal="left" if col <= 2 else "right",
+                    vertical="center",
+                    wrap_text=True,
+                )
+                if col == 2:
+                    cell.value = label
+                elif col == 3:
+                    cell.value = amount
+                    cell.number_format = CURRENCY_FORMAT
+                    cell.alignment = Alignment(
+                        horizontal="right", vertical="center", wrap_text=True
+                    )
+            current_row += 1
+
+        elif kind == "GRAND_TOTAL":
+            label = entry[1]
+            ws.row_dimensions[current_row].height = 18
+            for col in range(1, 4):
+                cell = ws.cell(row=current_row, column=col)
+                cell.fill = _BLACK_FILL
+                cell.border = _THIN_BORDER
+                cell.font = _WHITE_BOLD
+                if col == 2:
+                    cell.value = label
+                    cell.alignment = _LEFT
+                elif col == 3:
+                    cell.value = grand_total
+                    cell.number_format = CURRENCY_FORMAT
+                    cell.alignment = _RIGHT
+                else:
+                    cell.alignment = _LEFT
+            current_row += 1
+
+        else:
+            # Regular data row: ("XX.00", "Category name")
+            cavco_code = kind
+            label = entry[1]
+            amount = _get_account_total(budget, cavco_code)
+
+            row_fill = _LIGHT_GRAY_FILL if current_row % 2 == 0 else None
+
+            code_cell = ws.cell(row=current_row, column=1, value=cavco_code)
+            code_cell.font = _NORMAL
+            code_cell.alignment = _CENTER
+            code_cell.border = _THIN_BORDER
+            if row_fill:
+                code_cell.fill = row_fill
+
+            desc_cell = ws.cell(row=current_row, column=2, value=label)
+            desc_cell.font = _NORMAL
+            desc_cell.alignment = _LEFT
+            desc_cell.border = _THIN_BORDER
+            if row_fill:
+                desc_cell.fill = row_fill
+
+            amt_cell = ws.cell(row=current_row, column=3, value=amount)
+            amt_cell.font = _NORMAL
+            amt_cell.number_format = CURRENCY_FORMAT
+            amt_cell.alignment = _RIGHT
+            amt_cell.border = _THIN_BORDER
+            if row_fill:
+                amt_cell.fill = row_fill
+
+            current_row += 1
+
+    # Freeze panes below header row
+    ws.freeze_panes = "A4"
+
+
+# ---------------------------------------------------------------------------
+# Budget Lines detail worksheet builder
+# ---------------------------------------------------------------------------
+
+def _write_budget_lines(ws, budget: ParsedBudget) -> None:
+    ws.title = "Budget Lines"
+
+    ws.column_dimensions["A"].width = 16
+    ws.column_dimensions["B"].width = 55
+    ws.column_dimensions["C"].width = 16
+    ws.column_dimensions["D"].width = 20
+
+    # Header row
+    headers = ["Account Code", "Description", "Total", "CAVCO Category"]
+    ws.row_dimensions[1].height = 18
+    for col, label in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=label)
+        cell.font = _BOLD
+        cell.alignment = _CENTER if col != 2 else _LEFT
+        cell.border = _THIN_BORDER
+        cell.fill = _SECTION_HEADER_FILL
+
+    # Build a lookup: mm_prefix → CAVCO label for tooltip column
+    cavco_map: dict[str, str] = {}
+    for entry in TOPSHEET_STRUCTURE:
+        if len(entry) == 2 and entry[0] not in ("HEADER", "BLANK", "GRAND_TOTAL"):
+            cavco_code = entry[0]
+            cavco_label = entry[1]
+            mm_prefix = _cavco_to_mm_prefix(cavco_code)
+            cavco_map[mm_prefix] = f"{cavco_code} {cavco_label}"
+
+    # Sort line items by code
+    sorted_items = sorted(budget.line_items, key=lambda x: x.code)
+
+    for row_idx, item in enumerate(sorted_items, start=2):
+        ws.row_dimensions[row_idx].height = 15
+        row_fill = _LIGHT_GRAY_FILL if row_idx % 2 == 0 else None
+
+        clean_code = item.code.replace(".", "").replace(" ", "")
+        # Find matching CAVCO prefix (first 4 chars of clean code)
+        cavco_label = ""
+        for prefix, label in cavco_map.items():
+            if clean_code.startswith(prefix):
+                cavco_label = label
+                break
+
+        cells_data = [
+            (item.code, _CENTER),
+            (item.description, _LEFT),
+            (item.total, _RIGHT),
+            (cavco_label, _LEFT),
+        ]
+        for col, (value, align) in enumerate(cells_data, start=1):
+            cell = ws.cell(row=row_idx, column=col, value=value)
+            cell.font = _NORMAL
+            cell.alignment = align
+            cell.border = _THIN_BORDER
+            if row_fill:
+                cell.fill = row_fill
+            if col == 3:
+                cell.number_format = CURRENCY_FORMAT
+
+    # Total row
+    total_row = len(sorted_items) + 2
+    ws.row_dimensions[total_row].height = 18
+    for col in range(1, 5):
+        cell = ws.cell(row=total_row, column=col)
+        cell.fill = _BLACK_FILL
+        cell.border = _THIN_BORDER
+        cell.font = _WHITE_BOLD
+        if col == 2:
+            cell.value = "TOTAL"
+            cell.alignment = _LEFT
+        elif col == 3:
+            cell.value = budget.total_budget
+            cell.number_format = CURRENCY_FORMAT
+            cell.alignment = _RIGHT
+        else:
+            cell.alignment = _LEFT
+
+    ws.freeze_panes = "A2"
+
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
+
+def write_tax_credit_excel(budget: ParsedBudget, title: str) -> BytesIO:
+    """Build a two-tab Excel workbook for tax credit filing and return as BytesIO."""
+    wb = Workbook()
+
+    # Remove the default empty sheet
+    default_sheet = wb.active
+    wb.remove(default_sheet)
+
+    ws_topsheet = wb.create_sheet("Topsheet")
+    _write_topsheet(ws_topsheet, budget, title)
+
+    ws_lines = wb.create_sheet("Budget Lines")
+    _write_budget_lines(ws_lines, budget)
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer

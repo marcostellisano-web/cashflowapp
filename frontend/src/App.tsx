@@ -7,12 +7,13 @@ import ParametersUploader from './components/parameters/ParametersUploader';
 import ProductionForm from './components/parameters/ProductionForm';
 import CurveAssigner from './components/distribution/CurveAssigner';
 import DownloadButton from './components/output/DownloadButton';
+import TaxCreditOutput from './components/tax-credit/TaxCreditOutput';
 import type { ParsedBudget } from './types/budget';
 import type { ProductionParameters } from './types/production';
 import type { LineItemDistribution, CashflowOutput } from './types/cashflow';
 import { previewCashflow } from './lib/api';
 
-type AppMode = 'home' | 'cashflow';
+type AppMode = 'home' | 'cashflow' | 'taxcredit';
 
 export default function App() {
   const [mode, setMode] = useState<AppMode>('home');
@@ -69,7 +70,26 @@ export default function App() {
   };
 
   if (mode === 'home') {
-    return <HomePage onSelectCashflow={() => setMode('cashflow')} onBudgetParsed={handleBudgetParsed} initialBudget={budget} />;
+    return (
+      <HomePage
+        onSelectCashflow={() => setMode('cashflow')}
+        onSelectTaxCredit={() => setMode('taxcredit')}
+        onBudgetParsed={handleBudgetParsed}
+        initialBudget={budget}
+      />
+    );
+  }
+
+  if (mode === 'taxcredit') {
+    return (
+      <AppShell currentStep={-1} onHome={handleGoHome} hideSteps>
+        {!budget ? (
+          <BudgetUploader onParsed={handleBudgetParsed} />
+        ) : (
+          <TaxCreditOutput budget={budget} onBack={handleGoHome} />
+        )}
+      </AppShell>
+    );
   }
 
   return (
