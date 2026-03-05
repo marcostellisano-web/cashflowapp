@@ -9,3 +9,7 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 from app.main import app  # noqa: E402
+from app.database import init_db  # noqa: E402
+
+# Create tables on cold start (idempotent — safe to run every invocation)
+init_db()

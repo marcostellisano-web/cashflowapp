@@ -10,6 +10,7 @@ import os
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.pool import NullPool
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bible.db")
 
@@ -20,12 +21,18 @@ if DATABASE_URL.startswith("postgres://"):
 
 _is_sqlite = DATABASE_URL.startswith("sqlite")
 
-engine = create_engine(
-    DATABASE_URL,
-    # SQLite needs check_same_thread=False when used with FastAPI's threading model
-    connect_args={"check_same_thread": False} if _is_sqlite else {},
-    pool_pre_ping=True,
-)
+if _is_sqlite:
+    # SQLite: allow cross-thread usage (FastAPI runs handlers in threads)
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        pool_pre_ping=True,
+    )
+else:
+    # PostgreSQL on Vercel serverless: NullPool creates a fresh connection per
+    # request and closes it immediately, preventing connection exhaustion on
+    # platforms where processes don't persist between invocations.
+    engine = create_engine(DATABASE_URL, poolclass=NullPool)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
