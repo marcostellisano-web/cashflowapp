@@ -41,7 +41,7 @@ export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps
             Tax Credit Filing Budget
           </h2>
           <p className="text-sm text-gray-500">
-            Generate a CAVCO-formatted topsheet from your uploaded budget.
+            Generate a Telefilm-formatted topsheet from your uploaded budget.
           </p>
         </div>
         <button
@@ -87,13 +87,13 @@ export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps
           <li className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />
             <span>
-              <strong>Topsheet</strong> — CAVCO-standard accounts 01.00–81.00 with aggregated totals
+              <strong>Topsheet</strong> — Telefilm-standard accounts 01.00–81.00 with aggregated totals
             </span>
           </li>
           <li className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />
             <span>
-              <strong>Budget Lines</strong> — Full line-item detail showing each item mapped to its CAVCO category
+              <strong>Budget Lines</strong> — Full line-item detail showing each item mapped to its Telefilm category
             </span>
           </li>
         </ul>
