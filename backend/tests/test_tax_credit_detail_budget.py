@@ -88,3 +88,11 @@ def test_tax_credit_workbook_contains_detail_budget_tab_with_group_totals():
     assert ws["B3"].border.right is None or ws["B3"].border.right.style is None
     assert ws["A2"].border.left.style == "thin"
     assert ws["K3"].border.right.style == "thin"
+
+    # Header row uses light gray fill with only an outer box border
+    assert ws["A1"].fill.fgColor.rgb == "00F2F2F2"
+    assert ws["B1"].fill.fgColor.rgb == "00F2F2F2"
+    assert ws["A1"].border.left.style == "thin"
+    assert ws["B1"].border.left is None or ws["B1"].border.left.style is None
+    assert ws["B1"].border.right is None or ws["B1"].border.right.style is None
+    assert ws["K1"].border.right.style == "thin"

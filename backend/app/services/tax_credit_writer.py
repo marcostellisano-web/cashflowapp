@@ -468,8 +468,29 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
         cell = ws.cell(row=1, column=col, value=label)
         cell.font = _BOLD
         cell.alignment = _LEFT if col in (1, 2, 3) else _CENTER
-        cell.border = _THIN_BORDER
-        cell.fill = _SECTION_HEADER_FILL
+        cell.border = _NO_BORDER
+        cell.fill = _LIGHT_GRAY_FILL
+
+    for col in range(1, 12):
+        top_cell = ws.cell(row=1, column=col)
+        top_cell.border = Border(
+            left=top_cell.border.left,
+            right=top_cell.border.right,
+            top=_THIN,
+            bottom=_THIN,
+        )
+    ws.cell(row=1, column=1).border = Border(
+        left=_THIN,
+        right=ws.cell(row=1, column=1).border.right,
+        top=ws.cell(row=1, column=1).border.top,
+        bottom=ws.cell(row=1, column=1).border.bottom,
+    )
+    ws.cell(row=1, column=11).border = Border(
+        left=ws.cell(row=1, column=11).border.left,
+        right=_THIN,
+        top=ws.cell(row=1, column=11).border.top,
+        bottom=ws.cell(row=1, column=11).border.bottom,
+    )
 
     category_by_account: dict[str, str] = {}
     for item in budget.line_items:
