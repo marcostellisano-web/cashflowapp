@@ -63,3 +63,20 @@ def test_tax_credit_workbook_contains_detail_budget_tab_with_group_totals():
     total_values = [row[10] for row in values if isinstance(row[0], str) and "TOTAL" in row[0]]
     assert 1000 in total_values
     assert 500 in total_values
+
+    # Columns A/B/C should be left-justified for detail rows
+    assert ws["A3"].alignment.horizontal == "left"
+    assert ws["B3"].alignment.horizontal == "left"
+    assert ws["C3"].alignment.horizontal == "left"
+
+    # Add summary rows for total A/B/C/D
+    assert any(v == 'TOTAL "A" – ABOVE THE LINE' for v in flat_values)
+    assert any(v == 'TOTAL PRODUCTION "B"' for v in flat_values)
+    assert any(v == 'TOTAL POST-PRODUCTION "C"' for v in flat_values)
+    assert any(v == 'TOTAL OTHER "D"' for v in flat_values)
+
+    # Interior data cells are unbordered; only section outlines are bordered
+    assert ws["B3"].border.left is None or ws["B3"].border.left.style is None
+    assert ws["B3"].border.right is None or ws["B3"].border.right.style is None
+    assert ws["A2"].border.left.style == "thin"
+    assert ws["K3"].border.right.style == "thin"
