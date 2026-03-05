@@ -6,7 +6,6 @@ import BudgetPreview from './components/upload/BudgetPreview';
 import ParametersUploader from './components/parameters/ParametersUploader';
 import ProductionForm from './components/parameters/ProductionForm';
 import CurveAssigner from './components/distribution/CurveAssigner';
-import CashflowPreview from './components/output/CashflowPreview';
 import DownloadButton from './components/output/DownloadButton';
 import type { ParsedBudget } from './types/budget';
 import type { ProductionParameters } from './types/production';
@@ -114,42 +113,31 @@ export default function App() {
         />
       )}
 
-      {/* Step 3: Preview & Download */}
+      {/* Step 3: Download */}
       {step === 3 && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
-                Cashflow Preview
+                Download Cashflow
               </h2>
               <p className="text-sm text-gray-500">
-                Review the generated cashflow and download the Excel file.
+                Download the generated cashflow as an Excel file.
               </p>
             </div>
-            <div className="flex gap-2 items-center">
-              <button
-                onClick={() => setStep(2)}
-                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
-              >
-                Back
-              </button>
-              {budget && params && distributions.length > 0 && (
-                <DownloadButton
-                  budget={budget}
-                  parameters={params}
-                  distributions={distributions}
-                />
-              )}
-            </div>
+            <button
+              onClick={() => setStep(2)}
+              className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+            >
+              Back
+            </button>
           </div>
 
           {previewLoading && (
             <div className="flex items-center justify-center py-12">
               <div className="flex flex-col items-center gap-2">
                 <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full" />
-                <p className="text-sm text-gray-500">
-                  Generating cashflow preview...
-                </p>
+                <p className="text-sm text-gray-500">Calculating...</p>
               </div>
             </div>
           )}
@@ -160,7 +148,23 @@ export default function App() {
             </div>
           )}
 
-          {preview && <CashflowPreview output={preview} />}
+          {preview && (
+            <div className="flex flex-col items-center gap-6 py-8">
+              <div className="bg-white border border-gray-200 rounded-lg p-6 text-center">
+                <div className="text-sm text-gray-500 mb-1">Grand Total</div>
+                <div className="text-3xl font-bold text-gray-900">
+                  {new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(preview.grand_total)}
+                </div>
+              </div>
+              {budget && params && distributions.length > 0 && (
+                <DownloadButton
+                  budget={budget}
+                  parameters={params}
+                  distributions={distributions}
+                />
+              )}
+            </div>
+          )}
         </div>
       )}
     </AppShell>
