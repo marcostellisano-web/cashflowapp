@@ -425,12 +425,244 @@ def _write_budget_lines(ws, budget: ParsedBudget) -> None:
     ws.freeze_panes = "A2"
 
 
+
+def _normalize_account_code(code: str) -> str:
+    return code.replace(".", "").replace(" ", "").strip()
+
+
+def _topsheet_prefix_from_account(account: str) -> str:
+    clean = _normalize_account_code(account)
+    if len(clean) < 2 or not clean[:2].isdigit():
+        return ""
+    return f"{clean[:2]}00"
+
+
+def _format_topsheet_code(prefix: str) -> str:
+    if len(prefix) == 4 and prefix.isdigit():
+        return f"{prefix[:2]}.00"
+    return prefix
+
+
+def _topsheet_section_key_from_prefix(prefix: str) -> str | None:
+    if len(prefix) < 2 or not prefix[:2].isdigit():
+        return None
+    value = int(prefix[:2])
+    if 1 <= value <= 6:
+        return "A"
+    if 10 <= value <= 59:
+        return "B"
+    if 60 <= value <= 69:
+        return "C"
+    if 70 <= value <= 72:
+        return "D"
+    return None
+
+
+def _write_detail_budget(ws, budget: ParsedBudget) -> None:
+    ws.title = "Detail Budget"
+
+    headers = [
+        "Account",
+        "Account Description",
+        "Description",
+        "Amount",
+        "Unit",
+        "x",
+        "Unit 2",
+        "Currency",
+        "Rate",
+        "Unit 3",
+        "Subtotal",
+    ]
+
+    widths = [12, 34, 40, 10, 10, 6, 10, 10, 12, 10, 14]
+    for idx, width in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = width
+
+    for col, label in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=label)
+        cell.font = _BOLD
+        cell.alignment = _LEFT if col in (1, 2, 3) else _CENTER
+        cell.border = _THIN_BORDER
+        cell.fill = _SECTION_HEADER_FILL
+
+    category_by_account: dict[str, str] = {}
+    for item in budget.line_items:
+        category_by_account[_normalize_account_code(item.code)] = item.description
+
+    detail_rows = [r for r in budget.detail_rows if r.subtotal > 0]
+
+    topsheet_name_by_prefix = {
+        _cavco_to_mm_prefix(entry[0]): entry[1]
+        for entry in TOPSHEET_STRUCTURE
+        if len(entry) == 2 and entry[0] not in ("HEADER", "BLANK", "GRAND_TOTAL")
+    }
+
+    grouped: dict[str, list] = {}
+    for row in detail_rows:
+        prefix = _topsheet_prefix_from_account(row.account)
+        if not prefix:
+            continue
+        grouped.setdefault(prefix, []).append(row)
+
+    def _prefix_sort_key(prefix: str) -> tuple[int, str]:
+        if prefix.isdigit():
+            return (int(prefix), prefix)
+        return (9999, prefix)
+
+    def _set_outline_border(start_row: int, end_row: int) -> None:
+        for col in range(1, 12):
+            top_cell = ws.cell(row=start_row, column=col)
+            top_cell.border = Border(
+                left=top_cell.border.left,
+                right=top_cell.border.right,
+                top=_THIN,
+                bottom=top_cell.border.bottom,
+            )
+            bottom_cell = ws.cell(row=end_row, column=col)
+            bottom_cell.border = Border(
+                left=bottom_cell.border.left,
+                right=bottom_cell.border.right,
+                top=bottom_cell.border.top,
+                bottom=_THIN,
+            )
+        for row in range(start_row, end_row + 1):
+            left_cell = ws.cell(row=row, column=1)
+            left_cell.border = Border(
+                left=_THIN,
+                right=left_cell.border.right,
+                top=left_cell.border.top,
+                bottom=left_cell.border.bottom,
+            )
+            right_cell = ws.cell(row=row, column=11)
+            right_cell.border = Border(
+                left=right_cell.border.left,
+                right=_THIN,
+                top=right_cell.border.top,
+                bottom=right_cell.border.bottom,
+            )
+
+    def _write_section_level_total(row_idx: int, prefix: str, detail_start_row: int, detail_end_row: int) -> int:
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
+        total_label = ws.cell(row=row_idx, column=1, value=f"{_format_topsheet_code(prefix)} TOTAL")
+        total_label.font = _BOLD
+        total_label.alignment = _LEFT
+        total_label.fill = _LIGHT_GRAY_FILL
+
+        formula = f"=SUM(K{detail_start_row}:K{detail_end_row})" if detail_end_row >= detail_start_row else "=0"
+        total_value = ws.cell(row=row_idx, column=11, value=formula)
+        total_value.font = _BOLD
+        total_value.alignment = _RIGHT
+        total_value.fill = _LIGHT_GRAY_FILL
+        total_value.number_format = CURRENCY_FORMAT
+
+        return row_idx
+
+    def _write_section_group_total(row_idx: int, section_key: str, section_total_rows: list[int]) -> int:
+        labels = {
+            "A": 'TOTAL "A" – ABOVE THE LINE',
+            "B": 'TOTAL PRODUCTION "B"',
+            "C": 'TOTAL POST-PRODUCTION "C"',
+            "D": 'TOTAL OTHER "D"',
+        }
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
+        label_cell = ws.cell(row=row_idx, column=1, value=labels[section_key])
+        label_cell.font = _BOLD
+        label_cell.alignment = _LEFT
+        label_cell.fill = _LIGHT_GRAY_FILL
+
+        if section_total_rows:
+            refs = ",".join(f"K{r}" for r in section_total_rows)
+            formula = f"=SUM({refs})"
+        else:
+            formula = "=0"
+
+        amount_cell = ws.cell(row=row_idx, column=11, value=formula)
+        amount_cell.font = _BOLD
+        amount_cell.alignment = _RIGHT
+        amount_cell.fill = _LIGHT_GRAY_FILL
+        amount_cell.number_format = CURRENCY_FORMAT
+
+        _set_outline_border(row_idx, row_idx)
+        return row_idx
+
+    row_idx = 2
+    section_total_rows_by_group: dict[str, list[int]] = {"A": [], "B": [], "C": [], "D": []}
+
+    sorted_prefixes = sorted(grouped.keys(), key=_prefix_sort_key)
+    for idx, prefix in enumerate(sorted_prefixes):
+        section_start = row_idx
+
+        label = topsheet_name_by_prefix.get(prefix, "")
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=11)
+        section_cell = ws.cell(
+            row=row_idx,
+            column=1,
+            value=f"{_format_topsheet_code(prefix)}  {label}".strip(),
+        )
+        section_cell.font = _BOLD
+        section_cell.alignment = _LEFT
+        section_cell.fill = _LIGHT_GRAY_FILL
+        row_idx += 1
+
+        detail_start_row = row_idx
+        for detail in sorted(grouped[prefix], key=lambda r: (_normalize_account_code(r.account), r.description)):
+            normalized = _normalize_account_code(detail.account)
+            account_desc = category_by_account.get(normalized, "")
+
+            row_data = [
+                detail.account,
+                account_desc,
+                detail.description,
+                detail.amount,
+                detail.unit,
+                "x",
+                detail.unit2,
+                detail.currency,
+                detail.rate,
+                detail.unit3,
+                detail.subtotal,
+            ]
+
+            for col, value in enumerate(row_data, start=1):
+                cell = ws.cell(row=row_idx, column=col, value=value)
+                cell.font = _NORMAL
+                cell.border = _NO_BORDER
+                if col in (1, 2, 3):
+                    cell.alignment = _LEFT
+                elif col in (4, 11):
+                    cell.alignment = _RIGHT
+                else:
+                    cell.alignment = _CENTER
+                if col in (4, 9, 11) and isinstance(value, (int, float)):
+                    cell.number_format = CURRENCY_FORMAT
+            row_idx += 1
+
+        detail_end_row = row_idx - 1
+        section_total_row = _write_section_level_total(row_idx, prefix, detail_start_row, detail_end_row)
+        _set_outline_border(section_start, section_total_row)
+
+        section_key = _topsheet_section_key_from_prefix(prefix)
+        if section_key is not None:
+            section_total_rows_by_group[section_key].append(section_total_row)
+
+        row_idx += 1
+
+        next_prefix = sorted_prefixes[idx + 1] if idx + 1 < len(sorted_prefixes) else None
+        next_section_key = _topsheet_section_key_from_prefix(next_prefix) if next_prefix else None
+        if section_key is not None and section_key != next_section_key:
+            _write_section_group_total(row_idx, section_key, section_total_rows_by_group[section_key])
+            row_idx += 2
+
+    ws.freeze_panes = "A2"
+
+
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
 def write_tax_credit_excel(budget: ParsedBudget, title: str) -> BytesIO:
-    """Build a two-tab Excel workbook for tax credit filing and return as BytesIO."""
+    """Build a tax credit filing workbook and return as BytesIO."""
     wb = Workbook()
 
     # Remove the default empty sheet
@@ -442,6 +674,9 @@ def write_tax_credit_excel(budget: ParsedBudget, title: str) -> BytesIO:
 
     ws_lines = wb.create_sheet("Budget Lines")
     _write_budget_lines(ws_lines, budget)
+
+    ws_detail = wb.create_sheet("Detail Budget")
+    _write_detail_budget(ws_detail, budget)
 
     buffer = BytesIO()
     wb.save(buffer)

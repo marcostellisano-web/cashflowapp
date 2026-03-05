@@ -20,6 +20,20 @@ class BudgetLineItem(BaseModel):
     account_group: str | None = None
 
 
+class BudgetDetailRow(BaseModel):
+    """A single detail row from the uploaded budget's Account Details sheet."""
+
+    account: str
+    description: str
+    amount: float | None = None
+    unit: str | None = None
+    unit2: str | None = None
+    currency: str | None = None
+    rate: float | None = None
+    unit3: str | None = None
+    subtotal: float = 0.0
+
+
 class ParsedBudget(BaseModel):
     """Result of parsing the uploaded Excel budget file."""
 
@@ -30,3 +44,5 @@ class ParsedBudget(BaseModel):
     # Pre-aggregated totals keyed by 4-digit account code (e.g. "0100", "1200")
     # extracted from the source file's "Topsheet" tab when present.
     topsheet_totals: dict[str, float] = {}
+    # Detail rows extracted from the source file's "Account Details" tab when present.
+    detail_rows: list[BudgetDetailRow] = []
