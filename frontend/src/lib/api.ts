@@ -111,3 +111,19 @@ export async function deleteCustomBibleEntry(code: string): Promise<void> {
     throw new Error(err.detail || 'Failed to delete custom bible entry');
   }
 }
+
+export async function generateTaxCreditExcel(
+  budget: ParsedBudget,
+  title: string,
+): Promise<Blob> {
+  const res = await fetch(`${BASE}/tax-credit/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ budget, title }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Generation failed');
+  }
+  return res.blob();
+}

@@ -4,11 +4,12 @@ import type { ParsedBudget } from '../types/budget';
 
 interface HomePageProps {
   onSelectCashflow: () => void;
+  onSelectTaxCredit: () => void;
   onBudgetParsed: (budget: ParsedBudget) => void;
   initialBudget?: ParsedBudget | null;
 }
 
-export default function HomePage({ onSelectCashflow, onBudgetParsed, initialBudget = null }: HomePageProps) {
+export default function HomePage({ onSelectCashflow, onSelectTaxCredit, onBudgetParsed, initialBudget = null }: HomePageProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [parsedBudget, setParsedBudget] = useState<ParsedBudget | null>(initialBudget);
@@ -261,17 +262,16 @@ export default function HomePage({ onSelectCashflow, onBudgetParsed, initialBudg
             </div>
           </button>
 
-          {/* Tax Credit Filing Budget Card — coming soon */}
-          <div className="relative text-left bg-white border border-gray-100 rounded-2xl p-8 shadow-sm opacity-60 cursor-not-allowed">
-            {/* Coming Soon Badge */}
-            <span className="absolute top-4 right-4 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
-              Coming soon
-            </span>
-
+          {/* Tax Credit Filing Budget Card — active */}
+          <button
+            onClick={onSelectTaxCredit}
+            className="group text-left bg-white border border-gray-200 rounded-2xl p-8 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+          >
             <div className="flex items-start justify-between mb-6">
-              <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center">
+              {/* Icon */}
+              <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
                 <svg
-                  className="w-6 h-6 text-gray-400"
+                  className="w-6 h-6 text-emerald-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -284,17 +284,48 @@ export default function HomePage({ onSelectCashflow, onBudgetParsed, initialBudg
                   />
                 </svg>
               </div>
+              {/* Arrow */}
+              <svg
+                className="w-5 h-5 text-gray-300 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
             </div>
 
-            <h3 className="text-xl font-semibold text-gray-500 mb-2">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
               Tax Credit Filing Budget
             </h3>
-            <p className="text-sm text-gray-400 leading-relaxed">
+            <p className="text-sm text-gray-500 leading-relaxed">
               Produce a structured budget output formatted for tax credit
               applications. Automatically categorise expenditure against
-              eligible spend criteria.
+              CAVCO-standard eligible spend criteria.
             </p>
-          </div>
+
+            <div className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 group-hover:text-emerald-700">
+              Get started
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 7l5 5m0 0l-5 5m5-5H6"
+                />
+              </svg>
+            </div>
+          </button>
         </div>
       </main>
     </div>
