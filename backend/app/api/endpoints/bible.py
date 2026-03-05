@@ -1,6 +1,9 @@
+import io
 from datetime import datetime, timezone
 
+import openpyxl
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -101,3 +104,69 @@ def delete_custom_bible_entry(code: str, db: Session = Depends(get_db)):
     if row:
         db.delete(row)
         db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Export — merged bible as Excel
+# ---------------------------------------------------------------------------
+
+@router.get("/bible/export")
+def export_bible(db: Session = Depends(get_db)):
+    """Download the full bible (official + custom overrides) as an Excel file."""
+    # Build merged map: official first, custom entries override by code
+    merged: dict[str, BibleEntry] = {e.account_code: e for e in DEFAULT_BIBLE.entries}
+    for row in db.query(DBEntry).order_by(DBEntry.account_code).all():
+        merged[row.account_code] = BibleEntry(
+            account_code=row.account_code,
+            description=row.description,
+            timing_pattern=row.timing_pattern,
+            timing_title=row.timing_title,
+            timing_details=row.timing_details,
+            is_custom=True,
+        )
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Timing Bible"
+
+    headers = ["Account Code", "Description", "Timing Pattern", "Timing Title", "Timing Details", "Source"]
+    ws.append(headers)
+
+    # Bold header row
+    from openpyxl.styles import Font, PatternFill, Alignment
+    header_fill = PatternFill(start_color="1E40AF", end_color="1E40AF", fill_type="solid")
+    for col, cell in enumerate(ws[1], 1):
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    custom_fill = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
+
+    for entry in sorted(merged.values(), key=lambda e: e.account_code):
+        ws.append([
+            entry.account_code,
+            entry.description,
+            entry.timing_pattern,
+            entry.timing_title,
+            entry.timing_details,
+            "custom" if entry.is_custom else "official",
+        ])
+        if entry.is_custom:
+            for cell in ws[ws.max_row]:
+                cell.fill = custom_fill
+
+    # Auto-fit column widths
+    for col in ws.columns:
+        max_len = max((len(str(cell.value or "")) for cell in col), default=0)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 60)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"timing_bible_{datetime.now(timezone.utc).strftime('%Y%m%d')}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

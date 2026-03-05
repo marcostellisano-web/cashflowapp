@@ -11,7 +11,6 @@ import {
   getTimingBible,
   getCustomBible,
   upsertCustomBibleEntry,
-  deleteCustomBibleEntry,
 } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 
@@ -199,34 +198,10 @@ export default function CurveAssigner({
     }
   };
 
-  const removeFromBible = async (code: string) => {
-    try {
-      await deleteCustomBibleEntry(code);
-      setBibleMap((prev) => {
-        const next = { ...prev };
-        delete next[code];
-        return next;
-      });
-      setDistributions((prev) =>
-        prev.map((d) =>
-          d.budget_code === code
-            ? { ...d, timing_pattern_override: undefined, auto_assigned: true }
-            : d,
-        ),
-      );
-    } catch {
-      // Silently ignore — entry remains until page reload
-    }
-  };
 
   const autoCount = distributions.filter((d) => d.auto_assigned).length;
   const manualCount = distributions.length - autoCount;
-  const bibleCount = budget.line_items.filter(
-    (li) => bibleMap[li.code] && !bibleMap[li.code].is_custom,
-  ).length;
-  const customCount = budget.line_items.filter(
-    (li) => bibleMap[li.code]?.is_custom,
-  ).length;
+  const bibleCount = budget.line_items.filter((li) => !!bibleMap[li.code]).length;
 
   if (loading) {
     return (
@@ -265,14 +240,6 @@ export default function CurveAssigner({
                 {', '}
               </>
             )}
-            {customCount > 0 && (
-              <>
-                <span className="text-teal-600 font-medium">
-                  {customCount} custom
-                </span>
-                {', '}
-              </>
-            )}
             <span className="font-medium">{manualCount} manual</span>,{' '}
             <span className="text-amber-600 font-medium">
               {autoCount} auto-assigned
@@ -280,6 +247,14 @@ export default function CurveAssigner({
           </p>
         </div>
         <div className="flex gap-2">
+          <a
+            href="/api/bible/export"
+            download
+            className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 flex items-center gap-1"
+            title="Download the full timing bible as Excel"
+          >
+            ↓ Bible
+          </a>
           <button
             type="button"
             onClick={onBack}
@@ -315,9 +290,7 @@ export default function CurveAssigner({
                 if (!dist) return null;
 
                 const bible = bibleMap[item.code];
-                const isCustomBible = !!bible?.is_custom;
                 const isOverridden =
-                  !isCustomBible &&
                   !!bible &&
                   !dist.auto_assigned &&
                   !!dist.timing_pattern_override &&
@@ -338,15 +311,13 @@ export default function CurveAssigner({
                     className={
                       isOverridden
                         ? 'bg-purple-50/50'
-                        : isCustomBible
-                          ? 'bg-teal-50/50'
-                          : bible
-                            ? 'bg-blue-50/50'
-                            : isInPatternMode
-                              ? 'bg-orange-50/30'
-                              : dist.auto_assigned
-                                ? 'bg-amber-50/50'
-                                : 'hover:bg-gray-50'
+                        : bible
+                          ? 'bg-blue-50/50'
+                          : isInPatternMode
+                            ? 'bg-orange-50/30'
+                            : dist.auto_assigned
+                              ? 'bg-amber-50/50'
+                              : 'hover:bg-gray-50'
                     }
                   >
                     <td className="px-3 py-1.5 font-mono text-gray-600 text-xs">{item.code}</td>
@@ -359,11 +330,7 @@ export default function CurveAssigner({
                         <div>
                           <span
                             className={`text-xs font-medium ${
-                              isOverridden
-                                ? 'text-purple-700'
-                                : isCustomBible
-                                  ? 'text-teal-700'
-                                  : 'text-blue-700'
+                              isOverridden ? 'text-purple-700' : 'text-blue-700'
                             }`}
                           >
                             {effectiveTitle ?? bible.timing_title}
@@ -374,15 +341,6 @@ export default function CurveAssigner({
                                 was: {bible.timing_title}
                               </p>
                             )}
-                          {isCustomBible && (
-                            <button
-                              onClick={() => removeFromBible(item.code)}
-                              className="block text-[10px] text-teal-500 hover:text-red-500 leading-tight mt-0.5"
-                              title="Remove this code from the custom bible"
-                            >
-                              Remove from Bible
-                            </button>
-                          )}
                         </div>
                       ) : isInPatternMode ? (
                         <span
@@ -484,8 +442,6 @@ export default function CurveAssigner({
                     <td className="px-3 py-1.5 text-center">
                       {isOverridden ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Override</span>
-                      ) : isCustomBible ? (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">Custom</span>
                       ) : bible ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Bible</span>
                       ) : dist.auto_assigned ? (
