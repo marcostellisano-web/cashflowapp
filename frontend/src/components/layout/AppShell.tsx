@@ -17,9 +17,18 @@ interface AppShellProps {
   onHome: () => void;
   children: React.ReactNode;
   hideSteps?: boolean;
+  headerTitle?: string;
+  headerSubtitle?: string;
 }
 
-export default function AppShell({ currentStep, onHome, children, hideSteps = false }: AppShellProps) {
+export default function AppShell({
+  currentStep,
+  onHome,
+  children,
+  hideSteps = false,
+  headerTitle = 'Cashflow',
+  headerSubtitle = 'Generator',
+}: AppShellProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -40,9 +49,9 @@ export default function AppShell({ currentStep, onHome, children, hideSteps = fa
 
           {/* Tagline */}
           <p className="text-right text-xl text-gray-400 font-light tracking-wide leading-snug flex-shrink-0">
-            Cashflow
+            {headerTitle}
             <br />
-            <span className="text-blue-600 font-semibold">Generator</span>
+            <span className="text-blue-600 font-semibold">{headerSubtitle}</span>
           </p>
         </div>
       </header>

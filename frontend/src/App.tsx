@@ -82,7 +82,13 @@ export default function App() {
 
   if (mode === 'taxcredit') {
     return (
-      <AppShell currentStep={-1} onHome={handleGoHome} hideSteps>
+      <AppShell
+        currentStep={-1}
+        onHome={handleGoHome}
+        hideSteps
+        headerTitle="Tax Credit Filing"
+        headerSubtitle="Budget"
+      >
         {!budget ? (
           <BudgetUploader onParsed={handleBudgetParsed} />
         ) : (

@@ -306,7 +306,7 @@ export default function HomePage({ onSelectCashflow, onSelectTaxCredit, onBudget
             <p className="text-sm text-gray-500 leading-relaxed">
               Produce a structured budget output formatted for tax credit
               applications. Automatically categorise expenditure against
-              CAVCO-standard eligible spend criteria.
+              Telefilm-standard eligible spend criteria.
             </p>
 
             <div className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 group-hover:text-emerald-700">
