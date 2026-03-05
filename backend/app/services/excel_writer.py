@@ -1310,6 +1310,100 @@ def _write_parameters_sheet(wb: Workbook, params: ProductionParameters) -> None:
     ws.column_dimensions["F"].width = 15
 
 
+def _write_vertical_cf_sheet(wb: Workbook, output: CashflowOutput) -> None:
+    """Write the 'Vertical CF' sheet — one row per week, formula-linked to Cashflow."""
+    DETAIL = "Cashflow"
+    ws = wb.create_sheet("Vertical CF")
+
+    num_weeks = len(output.weeks)
+    # Weekly totals row in the Cashflow sheet (mirrors _write_main_sheet)
+    totals_row = DATA_START_ROW + len(output.rows)
+
+    BLACK_FILL = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
+    WHITE_BOLD = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+    CENTER = Alignment(horizontal="center", vertical="center")
+    RIGHT = Alignment(horizontal="right", vertical="center")
+
+    # Dollar-sign accounting format: "$ 22,928" / "$ (22,928)" / "$ -"
+    DOLLAR_FMT = '_($* #,##0_);_($* (#,##0);_($* "-"??_);_(@_)'
+
+    # ── Rows 1-2: title / subtitle ────────────────────────────────────────────
+    ws.cell(row=1, column=1, value=output.title).font = TITLE_FONT
+    ws.cell(row=2, column=1, value="PRODUCTION CASHFLOW").font = Font(
+        name="Calibri", size=11, bold=True
+    )
+
+    # ── Row 4: "Tax credits:" label on black, spanning Ontario + Federal cols ─
+    for col in range(1, 7):
+        ws.cell(row=4, column=col).fill = BLACK_FILL
+    tax_cell = ws.cell(row=4, column=4, value="Tax credits:")
+    tax_cell.font = WHITE_BOLD
+    tax_cell.fill = BLACK_FILL
+    tax_cell.alignment = CENTER
+    ws.merge_cells(start_row=4, start_column=4, end_row=4, end_column=5)
+
+    # ── Row 5: column headers on black ───────────────────────────────────────
+    headers = [
+        ("Week", RIGHT),
+        ("Date", CENTER),
+        ("Weekly Cash Out", CENTER),
+        ("Ontario", CENTER),
+        ("Federal", CENTER),
+        ("Distribution\nAdvance", CENTER),
+    ]
+    for col, (text, align) in enumerate(headers, 1):
+        cell = ws.cell(row=5, column=col, value=text)
+        cell.font = WHITE_BOLD
+        cell.fill = BLACK_FILL
+        cell.alignment = Alignment(
+            horizontal=align.horizontal, vertical="center", wrap_text=True
+        )
+    ws.row_dimensions[4].height = 18
+    ws.row_dimensions[5].height = 28
+
+    # ── Data rows: one per week ───────────────────────────────────────────────
+    for i in range(num_weeks):
+        excel_row = 6 + i
+        col_letter = get_column_letter(FIRST_WEEK_COL + i)
+
+        # Week number
+        cell = ws.cell(row=excel_row, column=1, value=i + 1)
+        cell.alignment = RIGHT
+
+        # Date — linked from Cashflow row 5
+        cell = ws.cell(row=excel_row, column=2, value=f"={DETAIL}!{col_letter}5")
+        cell.number_format = "DD-MMM-YY"
+        cell.alignment = CENTER
+
+        # Weekly Cash Out — linked from Cashflow weekly totals row
+        cell = ws.cell(
+            row=excel_row, column=3,
+            value=f"={DETAIL}!{col_letter}{totals_row}",
+        )
+        cell.number_format = DOLLAR_FMT
+
+        # Ontario tax credit — always blank (zero not displayed)
+        ws.cell(row=excel_row, column=4)
+
+        # Federal tax credit — always blank
+        ws.cell(row=excel_row, column=5)
+
+        # Distribution Advance = Tax Credits − Weekly Cash Out = 0 − C
+        cell = ws.cell(
+            row=excel_row, column=6,
+            value=f"=D{excel_row}+E{excel_row}-C{excel_row}",
+        )
+        cell.number_format = DOLLAR_FMT
+
+    # ── Column widths ─────────────────────────────────────────────────────────
+    ws.column_dimensions["A"].width = 8
+    ws.column_dimensions["B"].width = 14
+    ws.column_dimensions["C"].width = 18
+    ws.column_dimensions["D"].width = 16
+    ws.column_dimensions["E"].width = 16
+    ws.column_dimensions["F"].width = 22
+
+
 def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters) -> BytesIO:
     """Generate a complete cashflow Excel workbook.
 
@@ -1319,6 +1413,7 @@ def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters) -
 
     _write_main_sheet(wb, output, params)
     _write_summary_cf_sheet(wb, output, params)
+    _write_vertical_cf_sheet(wb, output)
     _write_summary_sheet(wb, output, params)
     _write_parameters_sheet(wb, params)
 
