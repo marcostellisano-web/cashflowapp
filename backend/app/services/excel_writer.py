@@ -191,8 +191,12 @@ def _apply_requested_cashflow_formatting(
                 cell.font = Font(name="Calibri", size=10, bold=True)
 
             if row in totals_rows:
-                cell.fill = SUBTLE_TOTAL_FILL
-                cell.font = Font(name="Calibri", size=10, bold=True)
+                # Financing summary rows only span DESC+TOTAL cols — no week data
+                if financing_min_row <= row <= financing_max_row and col > TOTAL_COL:
+                    pass
+                else:
+                    cell.fill = SUBTLE_TOTAL_FILL
+                    cell.font = Font(name="Calibri", size=10, bold=True)
 
             if (
                 row >= DATA_START_ROW
@@ -217,7 +221,7 @@ def _apply_requested_cashflow_formatting(
     _apply_outside_border(ws, inflow_min_row, inflow_max_row, CODE_COL, max_col)
     _apply_outside_border(ws, cash_pos_row, cash_pos_row, CODE_COL, max_col)
     _apply_outside_border(ws, interest_cost_row, interest_cost_row, CODE_COL, max_col)
-    _apply_outside_border(ws, financing_min_row, financing_max_row, CODE_COL, max_col)
+    _apply_outside_border(ws, financing_min_row, financing_max_row, CODE_COL, TOTAL_COL)
 
 
 def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionParameters):
