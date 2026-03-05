@@ -1,12 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { BibleEntry } from '../../types/bible';
-import type { ParsedBudget } from '../../types/budget';
+import type { BudgetLineItem, ParsedBudget } from '../../types/budget';
 import type {
   LineItemDistribution,
   PhaseAssignment,
   CurveType,
 } from '../../types/cashflow';
 import { getDefaultDistributions, getTimingBible } from '../../lib/api';
+import {
+  getCustomBibleEntries,
+  saveCustomBibleEntry,
+  removeCustomBibleEntry,
+} from '../../lib/customBible';
 import { formatCurrency } from '../../lib/utils';
 
 const PHASES: { value: PhaseAssignment; label: string }[] = [
@@ -49,24 +54,49 @@ export default function CurveAssigner({
   const [loading, setLoading] = useState(
     !savedDistributions || savedDistributions.length === 0,
   );
+  const [patternModeRows, setPatternModeRows] = useState<Set<string>>(new Set());
+  const [savedToast, setSavedToast] = useState<string | null>(null);
 
   // Load bible + defaults on mount
   useEffect(() => {
+    const customEntries = getCustomBibleEntries();
+
     // Always load bible for display purposes
     getTimingBible()
       .then((bible) => {
         const map: Record<string, BibleEntry> = {};
         bible.entries.forEach((e) => { map[e.account_code] = e; });
+        // Merge custom entries on top (they override official entries for same code)
+        customEntries.forEach((e) => { map[e.account_code] = e; });
         setBibleMap(map);
       })
-      .catch(() => {}); // Bible is optional for display
+      .catch(() => {
+        // Even if official bible fails, load custom entries so they still work
+        const map: Record<string, BibleEntry> = {};
+        customEntries.forEach((e) => { map[e.account_code] = e; });
+        setBibleMap(map);
+      });
 
     if (savedDistributions && savedDistributions.length > 0) return;
 
     const codes = budget.line_items.map((li) => li.code);
     getDefaultDistributions(codes)
       .then((defaults) => {
-        setDistributions(defaults);
+        // For any code that has a custom bible entry, apply its timing pattern as an override
+        const customMap: Record<string, string> = {};
+        customEntries.forEach((e) => { customMap[e.account_code] = e.timing_pattern; });
+
+        const updated = defaults.map((d) => {
+          if (customMap[d.budget_code]) {
+            return {
+              ...d,
+              timing_pattern_override: customMap[d.budget_code],
+              auto_assigned: false,
+            };
+          }
+          return d;
+        });
+        setDistributions(updated);
       })
       .catch(() => {
         // Fallback: all flat/full_span
@@ -120,9 +150,77 @@ export default function CurveAssigner({
     setDistributions(updated);
   };
 
+  const enterPatternMode = (code: string) => {
+    setPatternModeRows((prev) => new Set(prev).add(code));
+  };
+
+  const exitPatternMode = (idx: number, code: string) => {
+    setPatternModeRows((prev) => {
+      const next = new Set(prev);
+      next.delete(code);
+      return next;
+    });
+    // Clear any unsaved timing override
+    setDistributions((prev) => {
+      const updated = [...prev];
+      if (updated[idx]) {
+        updated[idx] = { ...updated[idx], timing_pattern_override: undefined };
+      }
+      return updated;
+    });
+  };
+
+  const saveToBible = (item: BudgetLineItem, dist: LineItemDistribution) => {
+    if (!dist.timing_pattern_override) return;
+    const pattern = dist.timing_pattern_override;
+    const optionInfo = timingOptions.find((o) => o.pattern === pattern);
+    const entry: BibleEntry = {
+      account_code: item.code,
+      description: item.description,
+      timing_pattern: pattern,
+      timing_title: optionInfo?.title ?? pattern,
+      timing_details: optionInfo?.details ?? '',
+      is_custom: true,
+    };
+    saveCustomBibleEntry(entry);
+    // Update live bibleMap so the row immediately renders as a custom bible entry
+    setBibleMap((prev) => ({ ...prev, [item.code]: entry }));
+    // Exit pattern-mode for this row (it's now a custom bible entry)
+    setPatternModeRows((prev) => {
+      const next = new Set(prev);
+      next.delete(item.code);
+      return next;
+    });
+    // Show brief confirmation toast
+    setSavedToast(item.code);
+    setTimeout(() => setSavedToast(null), 2500);
+  };
+
+  const removeFromBible = (code: string) => {
+    removeCustomBibleEntry(code);
+    setBibleMap((prev) => {
+      const next = { ...prev };
+      delete next[code];
+      return next;
+    });
+    // Reset that code's distribution back to auto-assigned (phase/curve)
+    setDistributions((prev) =>
+      prev.map((d) =>
+        d.budget_code === code
+          ? { ...d, timing_pattern_override: undefined, auto_assigned: true }
+          : d,
+      ),
+    );
+  };
+
   const autoCount = distributions.filter((d) => d.auto_assigned).length;
   const manualCount = distributions.length - autoCount;
-  const bibleCount = budget.line_items.filter((li) => bibleMap[li.code]).length;
+  const bibleCount = budget.line_items.filter(
+    (li) => bibleMap[li.code] && !bibleMap[li.code].is_custom,
+  ).length;
+  const customCount = budget.line_items.filter(
+    (li) => bibleMap[li.code]?.is_custom,
+  ).length;
 
   if (loading) {
     return (
@@ -134,6 +232,13 @@ export default function CurveAssigner({
 
   return (
     <div className="space-y-4">
+      {/* Save-to-Bible confirmation toast */}
+      {savedToast && (
+        <div className="fixed top-4 right-4 z-50 bg-teal-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
+          Code {savedToast} saved to Bible
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">
@@ -145,6 +250,14 @@ export default function CurveAssigner({
               <>
                 <span className="text-blue-600 font-medium">
                   {bibleCount} bible-driven
+                </span>
+                {', '}
+              </>
+            )}
+            {customCount > 0 && (
+              <>
+                <span className="text-teal-600 font-medium">
+                  {customCount} custom
                 </span>
                 {', '}
               </>
@@ -201,12 +314,26 @@ export default function CurveAssigner({
               {budget.line_items.map((item, idx) => {
                 const dist = distributions[idx];
                 if (!dist) return null;
+
                 const bible = bibleMap[item.code];
-                const isOverridden = bible && !dist.auto_assigned;
-                const effectivePattern = dist.timing_pattern_override ?? bible?.timing_pattern;
+                const isCustomBible = !!bible?.is_custom;
+                // isOverridden: official bible entry where user has changed the pattern
+                const isOverridden =
+                  !isCustomBible &&
+                  !!bible &&
+                  !dist.auto_assigned &&
+                  !!dist.timing_pattern_override &&
+                  dist.timing_pattern_override !== bible.timing_pattern;
+                const effectivePattern =
+                  dist.timing_pattern_override ?? bible?.timing_pattern;
                 const effectiveTitle = effectivePattern
                   ? (patternTitles[effectivePattern] ?? bible?.timing_title)
                   : undefined;
+                // Row is in "assign timing pattern" mode if it has no bible entry yet
+                // and the user has clicked "→ Assign timing pattern" or already has an override set
+                const isInPatternMode =
+                  !bible &&
+                  (patternModeRows.has(item.code) || !!dist.timing_pattern_override);
 
                 return (
                   <tr
@@ -214,11 +341,15 @@ export default function CurveAssigner({
                     className={
                       isOverridden
                         ? 'bg-purple-50/50'
-                        : bible
-                          ? 'bg-blue-50/50'
-                          : dist.auto_assigned
-                            ? 'bg-amber-50/50'
-                            : 'hover:bg-gray-50'
+                        : isCustomBible
+                          ? 'bg-teal-50/50'
+                          : bible
+                            ? 'bg-blue-50/50'
+                            : isInPatternMode
+                              ? 'bg-orange-50/30'
+                              : dist.auto_assigned
+                                ? 'bg-amber-50/50'
+                                : 'hover:bg-gray-50'
                     }
                   >
                     <td className="px-3 py-1.5 font-mono text-gray-600 text-xs">
@@ -230,27 +361,57 @@ export default function CurveAssigner({
                     <td className="px-3 py-1.5 text-right font-mono text-xs">
                       {formatCurrency(item.total)}
                     </td>
+
+                    {/* Timing column */}
                     <td className="px-3 py-1.5">
                       {bible ? (
                         <div>
-                          <span className={`text-xs font-medium ${isOverridden ? 'text-purple-700' : 'text-blue-700'}`}>
+                          <span
+                            className={`text-xs font-medium ${
+                              isOverridden
+                                ? 'text-purple-700'
+                                : isCustomBible
+                                  ? 'text-teal-700'
+                                  : 'text-blue-700'
+                            }`}
+                          >
                             {effectiveTitle ?? bible.timing_title}
                           </span>
-                          {isOverridden && dist.timing_pattern_override !== bible.timing_pattern && (
-                            <p className="text-[10px] text-purple-400 leading-tight mt-0.5">
-                              was: {bible.timing_title}
-                            </p>
+                          {isOverridden &&
+                            dist.timing_pattern_override !== bible.timing_pattern && (
+                              <p className="text-[10px] text-purple-400 leading-tight mt-0.5">
+                                was: {bible.timing_title}
+                              </p>
+                            )}
+                          {isCustomBible && (
+                            <button
+                              onClick={() => removeFromBible(item.code)}
+                              className="block text-[10px] text-teal-500 hover:text-red-500 leading-tight mt-0.5"
+                              title="Remove this code from your custom bible"
+                            >
+                              Remove from Bible
+                            </button>
                           )}
                         </div>
+                      ) : isInPatternMode ? (
+                        <span
+                          className={`text-xs font-medium ${
+                            effectivePattern ? 'text-orange-700' : 'text-gray-400 italic'
+                          }`}
+                        >
+                          {effectiveTitle ?? 'Select pattern…'}
+                        </span>
                       ) : (
                         <span className="text-xs text-gray-400 italic">
                           No bible rule
                         </span>
                       )}
                     </td>
+
+                    {/* Phase / Curve column */}
                     <td className="px-3 py-1.5">
                       {bible ? (
-                        // Bible row: show a dropdown of all bible timing options
+                        // Bible row (official or custom): timing pattern dropdown
                         <select
                           value={dist.timing_pattern_override ?? bible.timing_pattern}
                           onChange={(e) =>
@@ -264,42 +425,92 @@ export default function CurveAssigner({
                             </option>
                           ))}
                         </select>
+                      ) : isInPatternMode ? (
+                        // Pattern-assignment mode: timing dropdown + Save to Bible
+                        <div className="space-y-1">
+                          <select
+                            value={dist.timing_pattern_override ?? ''}
+                            onChange={(e) =>
+                              updateDist(idx, 'timing_pattern_override', e.target.value)
+                            }
+                            className="w-full border border-orange-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-orange-400"
+                          >
+                            <option value="">Select timing pattern…</option>
+                            {timingOptions.map((opt) => (
+                              <option key={opt.pattern} value={opt.pattern}>
+                                {opt.title}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => saveToBible(item, dist)}
+                              disabled={!dist.timing_pattern_override}
+                              className="flex-1 text-[11px] px-2 py-1 bg-teal-600 text-white rounded hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+                              title="Save this code → timing pattern to your Bible for future sessions"
+                            >
+                              Save to Bible
+                            </button>
+                            <button
+                              onClick={() => exitPatternMode(idx, item.code)}
+                              className="text-[11px] px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 text-gray-500"
+                              title="Cancel and go back to phase/curve"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
                       ) : (
-                        // Non-bible row: phase + curve dropdowns
-                        <div className="flex gap-1">
-                          <select
-                            value={dist.phase}
-                            onChange={(e) =>
-                              updateDist(idx, 'phase', e.target.value)
-                            }
-                            className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
+                        // Default non-bible row: phase + curve dropdowns
+                        <div>
+                          <div className="flex gap-1">
+                            <select
+                              value={dist.phase}
+                              onChange={(e) =>
+                                updateDist(idx, 'phase', e.target.value)
+                              }
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
+                            >
+                              {PHASES.map((p) => (
+                                <option key={p.value} value={p.value}>
+                                  {p.label}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              value={dist.curve}
+                              onChange={(e) =>
+                                updateDist(idx, 'curve', e.target.value)
+                              }
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
+                            >
+                              {CURVES.map((c) => (
+                                <option key={c.value} value={c.value}>
+                                  {c.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <button
+                            onClick={() => enterPatternMode(item.code)}
+                            className="text-[10px] text-teal-600 hover:text-teal-800 mt-0.5 block"
+                            title="Assign a bible timing pattern to this code"
                           >
-                            {PHASES.map((p) => (
-                              <option key={p.value} value={p.value}>
-                                {p.label}
-                              </option>
-                            ))}
-                          </select>
-                          <select
-                            value={dist.curve}
-                            onChange={(e) =>
-                              updateDist(idx, 'curve', e.target.value)
-                            }
-                            className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-500"
-                          >
-                            {CURVES.map((c) => (
-                              <option key={c.value} value={c.value}>
-                                {c.label}
-                              </option>
-                            ))}
-                          </select>
+                            → Assign timing pattern
+                          </button>
                         </div>
                       )}
                     </td>
+
+                    {/* Status column */}
                     <td className="px-3 py-1.5 text-center">
                       {isOverridden ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
                           Override
+                        </span>
+                      ) : isCustomBible ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">
+                          Custom
                         </span>
                       ) : bible ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
