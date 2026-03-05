@@ -6,7 +6,7 @@ from typing import BinaryIO
 import openpyxl
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.models.budget import BudgetCategory, BudgetLineItem, ParsedBudget
+from app.models.budget import BudgetCategory, BudgetDetailRow, BudgetLineItem, ParsedBudget
 
 # Keywords used to detect header rows (case-insensitive)
 CODE_HEADERS = {
@@ -27,6 +27,22 @@ PREFERRED_SHEETS = ["categories", "top sheet", "budget summary", "budget", "summ
 
 # Sheet name variants that contain the pre-aggregated CAVCO topsheet totals
 TOPSHEET_NAMES = {"topsheet", "top sheet", "top-sheet", "budget topsheet"}
+
+
+DETAIL_SHEET_NAMES = {"account details", "account detail"}
+
+_DETAIL_HEADERS = {
+    "account": {"account", "acct", "code", "account #", "account no", "account number"},
+    "description": {"description", "desc", "detail"},
+    "amount": {"amount", "no.", "no", "number"},
+    "unit": {"unit"},
+    "x": {"x", "*"},
+    "unit2": {"unit 2", "unit2", "units"},
+    "currency": {"currency", "cur"},
+    "rate": {"rate", "rate/amt", "amt", "rate/amount"},
+    "unit3": {"unit 3", "unit3"},
+    "subtotal": {"subtotal", "sub total", "sub-total", "total"},
+}
 
 
 def _find_budget_sheet(wb: openpyxl.Workbook) -> Worksheet:
@@ -228,6 +244,94 @@ def _parse_topsheet_tab(wb: openpyxl.Workbook) -> dict[str, float]:
     return totals
 
 
+
+
+def _find_sheet_by_name_variants(wb: openpyxl.Workbook, variants: set[str]) -> Worksheet | None:
+    sheet_names_lower = {name.lower().strip(): name for name in wb.sheetnames}
+    for variant in variants:
+        if variant in sheet_names_lower:
+            return wb[sheet_names_lower[variant]]
+    for lowered, real in sheet_names_lower.items():
+        if any(v in lowered for v in variants):
+            return wb[real]
+    return None
+
+
+def _detect_detail_headers(ws: Worksheet, max_scan_rows: int = 20) -> tuple[int, dict[str, int]] | None:
+    for row_idx in range(1, min(max_scan_rows + 1, (ws.max_row or 0) + 1)):
+        columns: dict[str, int] = {}
+        for col_idx in range(1, min(ws.max_column + 1, 40)):
+            val = ws.cell(row=row_idx, column=col_idx).value
+            if val is None:
+                continue
+            token = str(val).strip().lower()
+            for key, variants in _DETAIL_HEADERS.items():
+                if token in variants and key not in columns:
+                    columns[key] = col_idx
+        if columns.get("account") and columns.get("description") and columns.get("subtotal"):
+            return row_idx, columns
+    return None
+
+
+def _parse_account_details_tab(wb: openpyxl.Workbook) -> list[BudgetDetailRow]:
+    ws = _find_sheet_by_name_variants(wb, DETAIL_SHEET_NAMES)
+    if ws is None:
+        return []
+
+    detected = _detect_detail_headers(ws)
+    if detected is None:
+        return []
+
+    header_row, col_map = detected
+    rows: list[BudgetDetailRow] = []
+    for row_idx in range(header_row + 1, (ws.max_row or 0) + 1):
+        account_val = ws.cell(row=row_idx, column=col_map["account"]).value
+        desc_val = ws.cell(row=row_idx, column=col_map["description"]).value
+        subtotal_val = ws.cell(row=row_idx, column=col_map["subtotal"]).value
+
+        if account_val is None and desc_val is None and subtotal_val is None:
+            continue
+
+        account = str(account_val or "").strip()
+        desc = str(desc_val or "").strip()
+        subtotal = _parse_amount(subtotal_val) or 0.0
+
+        if not account or subtotal <= 0:
+            continue
+
+        def _txt(col_name: str) -> str | None:
+            col = col_map.get(col_name)
+            if not col:
+                return None
+            val = ws.cell(row=row_idx, column=col).value
+            if val is None:
+                return None
+            text = str(val).strip()
+            return text or None
+
+        def _num(col_name: str) -> float | None:
+            col = col_map.get(col_name)
+            if not col:
+                return None
+            return _parse_amount(ws.cell(row=row_idx, column=col).value)
+
+        rows.append(
+            BudgetDetailRow(
+                account=account,
+                description=desc,
+                amount=_num("amount"),
+                unit=_txt("unit"),
+                unit2=_txt("unit2"),
+                currency=_txt("currency"),
+                rate=_num("rate"),
+                unit3=_txt("unit3"),
+                subtotal=subtotal,
+            )
+        )
+
+    return rows
+
+
 def parse_budget_excel(file: BinaryIO, filename: str = "uploaded.xlsx") -> ParsedBudget:
     """Parse a Movie Magic Budgeting Excel export into a ParsedBudget.
 
@@ -292,6 +396,7 @@ def parse_budget_excel(file: BinaryIO, filename: str = "uploaded.xlsx") -> Parse
         )
 
     topsheet_totals = _parse_topsheet_tab(wb)
+    detail_rows = _parse_account_details_tab(wb)
     wb.close()
 
     total_budget = sum(item.total for item in line_items)
@@ -302,4 +407,5 @@ def parse_budget_excel(file: BinaryIO, filename: str = "uploaded.xlsx") -> Parse
         source_filename=filename,
         warnings=warnings,
         topsheet_totals=topsheet_totals,
+        detail_rows=detail_rows,
     )
