@@ -25,6 +25,9 @@ SKIP_KEYWORDS = {"total", "subtotal", "sub-total", "sub total", "grand total"}
 # Sheet names to look for (in order of priority)
 PREFERRED_SHEETS = ["categories", "top sheet", "budget summary", "budget", "summary"]
 
+# Sheet name variants that contain the pre-aggregated CAVCO topsheet totals
+TOPSHEET_NAMES = {"topsheet", "top sheet", "top-sheet", "budget topsheet"}
+
 
 def _find_budget_sheet(wb: openpyxl.Workbook) -> Worksheet:
     """Find the most likely budget sheet in the workbook."""
@@ -156,6 +159,75 @@ def _parse_amount(value) -> float | None:
     return None
 
 
+def _parse_topsheet_tab(wb: openpyxl.Workbook) -> dict[str, float]:
+    """Find and parse the Topsheet tab, returning a {account_code: total} dict.
+
+    The sheet is expected to have columns: Account, Category Description,
+    [Fringe], [Original], Total, [Variance].  We identify the "Total" column
+    by scanning the header row for the word "total" and use the first numeric
+    4-digit code column as the account key.
+
+    Returns an empty dict if no matching sheet or data is found.
+    """
+    sheet_names_lower = {name.lower().strip(): name for name in wb.sheetnames}
+    ws = None
+    for variant in TOPSHEET_NAMES:
+        if variant in sheet_names_lower:
+            ws = wb[sheet_names_lower[variant]]
+            break
+    if ws is None:
+        return {}
+
+    # Scan first 10 rows for a header row containing "total"
+    total_col: int | None = None
+    account_col: int | None = None
+    header_row_idx: int | None = None
+
+    for row_idx in range(1, min(11, (ws.max_row or 0) + 1)):
+        row_texts = {}
+        for col_idx in range(1, min(ws.max_column + 1, 20)):
+            val = ws.cell(row=row_idx, column=col_idx).value
+            if val is not None:
+                row_texts[col_idx] = str(val).strip().lower()
+
+        # Require at least "account" (or similar) and "total" in the same row
+        has_account = any(t in CODE_HEADERS or "account" in t for t in row_texts.values())
+        total_cols = [c for c, t in row_texts.items() if t == "total"]
+        if has_account and total_cols:
+            header_row_idx = row_idx
+            total_col = total_cols[-1]  # pick the rightmost "total" if multiple
+            # Account column: first column whose header is in CODE_HEADERS
+            for c, t in row_texts.items():
+                if t in CODE_HEADERS or "account" in t:
+                    account_col = c
+                    break
+            break
+
+    if header_row_idx is None or total_col is None or account_col is None:
+        # Fallback: assume account in col 1, total in col 5
+        header_row_idx = 1
+        account_col = 1
+        total_col = 5
+
+    totals: dict[str, float] = {}
+    for row_idx in range(header_row_idx + 1, (ws.max_row or 0) + 1):
+        acct_val = ws.cell(row=row_idx, column=account_col).value
+        total_val = ws.cell(row=row_idx, column=total_col).value
+
+        if acct_val is None:
+            continue
+        acct_str = str(acct_val).strip().replace("'", "").replace("`", "")
+        # Must be exactly 4 numeric digits (e.g. "0100", "2200")
+        if not acct_str.isdigit() or len(acct_str) != 4:
+            continue
+
+        amount = _parse_amount(total_val)
+        if amount is not None:
+            totals[acct_str] = amount
+
+    return totals
+
+
 def parse_budget_excel(file: BinaryIO, filename: str = "uploaded.xlsx") -> ParsedBudget:
     """Parse a Movie Magic Budgeting Excel export into a ParsedBudget.
 
@@ -219,6 +291,7 @@ def parse_budget_excel(file: BinaryIO, filename: str = "uploaded.xlsx") -> Parse
             )
         )
 
+    topsheet_totals = _parse_topsheet_tab(wb)
     wb.close()
 
     total_budget = sum(item.total for item in line_items)
@@ -228,4 +301,5 @@ def parse_budget_excel(file: BinaryIO, filename: str = "uploaded.xlsx") -> Parse
         total_budget=total_budget,
         source_filename=filename,
         warnings=warnings,
+        topsheet_totals=topsheet_totals,
     )

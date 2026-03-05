@@ -133,40 +133,41 @@ TOPSHEET_STRUCTURE: list[tuple] = [
 
 
 def _cavco_to_mm_prefix(cavco_code: str) -> str:
-    """Convert CAVCO code like '01.00' to Movie Magic 4-char prefix '0100'."""
+    """Convert CAVCO code like '01.00' to 4-char account prefix '0100'."""
     integer_part = cavco_code.split(".")[0]  # "01", "10", "80"
     return integer_part + "00"              # "0100", "1000", "8000"
 
 
-def _sum_budget_for_prefix(line_items: list, prefix: str) -> float:
-    """Sum all budget line items whose code starts with the given 4-char prefix."""
+def _get_account_total(budget: "ParsedBudget", cavco_code: str) -> float:
+    """Return the total for a CAVCO account code.
+
+    Prefers pre-aggregated topsheet_totals from the source file's Topsheet tab.
+    Falls back to summing matching line items when topsheet_totals is empty.
+    """
+    prefix = _cavco_to_mm_prefix(cavco_code)
+    if budget.topsheet_totals:
+        return budget.topsheet_totals.get(prefix, 0.0)
+    # Fallback: sum line items whose stripped code starts with the prefix
     total = 0.0
-    for item in line_items:
+    for item in budget.line_items:
         code = item.code.replace(".", "").replace(" ", "")
         if code.startswith(prefix):
             total += item.total
     return total
 
 
-def _build_section_totals(
-    line_items: list,
-) -> dict[str, float]:
+def _build_section_totals(budget: "ParsedBudget") -> dict[str, float]:
     """Pre-compute section totals A, B, C, D for the topsheet."""
     section_ranges = {
         "A": [f"{n:02d}.00" for n in range(1, 7)],
-        "B": [f"{n:02d}.00" for n in list(range(10, 60))],
+        "B": [f"{n:02d}.00" for n in range(10, 60)],
         "C": [f"{n:02d}.00" for n in range(60, 70)],
         "D": [f"{n:02d}.00" for n in range(70, 73)],
     }
-    totals: dict[str, float] = {}
-    for section, codes in section_ranges.items():
-        section_total = 0.0
-        for code in codes:
-            section_total += _sum_budget_for_prefix(
-                line_items, _cavco_to_mm_prefix(code)
-            )
-        totals[section] = section_total
-    return totals
+    return {
+        section: sum(_get_account_total(budget, code) for code in codes)
+        for section, codes in section_ranges.items()
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -204,13 +205,13 @@ def _write_topsheet(ws, budget: ParsedBudget, title: str) -> None:
         cell.border = _THIN_BORDER
 
     # ── Pre-compute values ─────────────────────────────────────────────────
-    section_totals = _build_section_totals(budget.line_items)
+    section_totals = _build_section_totals(budget)
 
     # Grand total = sum of all sections + 80.00 + 81.00
     grand_total = (
         sum(section_totals.values())
-        + _sum_budget_for_prefix(budget.line_items, "8000")
-        + _sum_budget_for_prefix(budget.line_items, "8100")
+        + _get_account_total(budget, "80.00")
+        + _get_account_total(budget, "81.00")
     )
 
     # ── Data rows ──────────────────────────────────────────────────────────
@@ -309,8 +310,7 @@ def _write_topsheet(ws, budget: ParsedBudget, title: str) -> None:
             # Regular data row: ("XX.00", "Category name")
             cavco_code = kind
             label = entry[1]
-            mm_prefix = _cavco_to_mm_prefix(cavco_code)
-            amount = _sum_budget_for_prefix(budget.line_items, mm_prefix)
+            amount = _get_account_total(budget, cavco_code)
 
             row_fill = _LIGHT_GRAY_FILL if current_row % 2 == 0 else None
 

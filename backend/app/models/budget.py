@@ -27,3 +27,6 @@ class ParsedBudget(BaseModel):
     total_budget: float
     source_filename: str
     warnings: list[str] = []
+    # Pre-aggregated totals keyed by 4-digit account code (e.g. "0100", "1200")
+    # extracted from the source file's "Topsheet" tab when present.
+    topsheet_totals: dict[str, float] = {}
