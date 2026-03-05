@@ -267,6 +267,14 @@ export default function CurveAssigner({
           </p>
         </div>
         <div className="flex gap-2">
+          <a
+            href="/api/bible/export"
+            download
+            className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 flex items-center gap-1"
+            title="Download the full timing bible as Excel"
+          >
+            ↓ Bible
+          </a>
           <button
             type="button"
             onClick={onBack}
