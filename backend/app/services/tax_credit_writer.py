@@ -528,8 +528,72 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
             )
 
     row_idx = 2
+    section_total_rows_by_prefix: dict[str, int] = {}
+
+    section_group_end_prefixes = {
+        "A": 600,
+        "B": 5900,
+        "C": 6900,
+        "D": 7200,
+    }
+    group_labels = {
+        "A": 'TOTAL "A" – ABOVE THE LINE',
+        "B": 'TOTAL PRODUCTION "B"',
+        "C": 'TOTAL POST-PRODUCTION "C"',
+        "D": 'TOTAL OTHER "D"',
+    }
+    emitted_groups: set[str] = set()
+
+    def _emit_group_total(group_key: str) -> None:
+        nonlocal row_idx
+        if group_key in emitted_groups:
+            return
+
+        min_prefix = {
+            "A": 100,
+            "B": 1000,
+            "C": 6000,
+            "D": 7000,
+        }[group_key]
+        max_prefix = section_group_end_prefixes[group_key]
+
+        rows_for_group = [
+            row
+            for prefix, row in section_total_rows_by_prefix.items()
+            if prefix.isdigit() and min_prefix <= int(prefix) <= max_prefix
+        ]
+        rows_for_group.sort()
+
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
+        label_cell = ws.cell(row=row_idx, column=1, value=group_labels[group_key])
+        label_cell.font = _BOLD
+        label_cell.alignment = _LEFT
+        label_cell.fill = _LIGHT_GRAY_FILL
+
+        if rows_for_group:
+            amount_formula = f"=SUM({','.join(f'K{r}' for r in rows_for_group)})"
+        else:
+            amount_formula = "=0"
+
+        amount_cell = ws.cell(row=row_idx, column=11, value=amount_formula)
+        amount_cell.font = _BOLD
+        amount_cell.alignment = _RIGHT
+        amount_cell.fill = _LIGHT_GRAY_FILL
+        amount_cell.number_format = CURRENCY_FORMAT
+
+        _set_outline_border(row_idx, row_idx)
+        row_idx += 2
+        emitted_groups.add(group_key)
 
     for prefix in sorted(grouped.keys(), key=_prefix_sort_key):
+        if prefix.isdigit():
+            prefix_num = int(prefix)
+            for group_key in ("A", "B", "C", "D"):
+                if group_key in emitted_groups:
+                    continue
+                if prefix_num > section_group_end_prefixes[group_key]:
+                    _emit_group_total(group_key)
+
         section_start = row_idx
 
         label = topsheet_name_by_prefix.get(prefix, "")
@@ -544,7 +608,7 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
         section_cell.fill = _LIGHT_GRAY_FILL
         row_idx += 1
 
-        section_total = 0.0
+        section_detail_start = row_idx
         for detail in sorted(grouped[prefix], key=lambda r: (_normalize_account_code(r.account), r.description)):
             normalized = _normalize_account_code(detail.account)
             account_desc = category_by_account.get(normalized, "")
@@ -576,8 +640,9 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
                 if col in (4, 9, 11) and isinstance(value, (int, float)):
                     cell.number_format = CURRENCY_FORMAT
 
-            section_total += detail.subtotal
             row_idx += 1
+
+        section_detail_end = row_idx - 1
 
         ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
         total_label = ws.cell(row=row_idx, column=1, value=f"{_format_topsheet_code(prefix)} TOTAL")
@@ -585,39 +650,19 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
         total_label.alignment = _LEFT
         total_label.fill = _LIGHT_GRAY_FILL
 
-        total_value = ws.cell(row=row_idx, column=11, value=section_total)
+        total_formula = f"=SUM(K{section_detail_start}:K{section_detail_end})"
+        total_value = ws.cell(row=row_idx, column=11, value=total_formula)
         total_value.font = _BOLD
         total_value.alignment = _RIGHT
         total_value.fill = _LIGHT_GRAY_FILL
         total_value.number_format = CURRENCY_FORMAT
+        section_total_rows_by_prefix[prefix] = row_idx
 
         _set_outline_border(section_start, row_idx)
         row_idx += 2
 
-    section_totals = _build_section_totals(budget)
-    totals_start = row_idx
-    totals_rows = [
-        ('TOTAL "A" – ABOVE THE LINE', "A"),
-        ('TOTAL PRODUCTION "B"', "B"),
-        ('TOTAL POST-PRODUCTION "C"', "C"),
-        ('TOTAL OTHER "D"', "D"),
-    ]
-    for label, key in totals_rows:
-        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
-        label_cell = ws.cell(row=row_idx, column=1, value=label)
-        label_cell.font = _BOLD
-        label_cell.alignment = _LEFT
-        label_cell.fill = _LIGHT_GRAY_FILL
-
-        amount_cell = ws.cell(row=row_idx, column=11, value=section_totals.get(key, 0.0))
-        amount_cell.font = _BOLD
-        amount_cell.alignment = _RIGHT
-        amount_cell.fill = _LIGHT_GRAY_FILL
-        amount_cell.number_format = CURRENCY_FORMAT
-        row_idx += 1
-
-    if row_idx > totals_start:
-        _set_outline_border(totals_start, row_idx - 1)
+    for group_key in ("A", "B", "C", "D"):
+        _emit_group_total(group_key)
 
     ws.freeze_panes = "A2"
 

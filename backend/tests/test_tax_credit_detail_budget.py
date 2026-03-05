@@ -48,7 +48,7 @@ def test_tax_credit_workbook_contains_detail_budget_tab_with_group_totals():
     )
 
     output = write_tax_credit_excel(budget, "Test")
-    wb = openpyxl.load_workbook(output, data_only=True)
+    wb = openpyxl.load_workbook(output, data_only=False)
 
     assert "Detail Budget" in wb.sheetnames
     ws = wb["Detail Budget"]
@@ -60,20 +60,28 @@ def test_tax_credit_workbook_contains_detail_budget_tab_with_group_totals():
     assert any("03.00" in v for v in flat_values)
     assert "Should skip" not in flat_values
 
-    total_values = [row[10] for row in values if isinstance(row[0], str) and "TOTAL" in row[0]]
-    assert 1000 in total_values
-    assert 500 in total_values
+    row_0200_total = next(i for i, row in enumerate(values, start=1) if row[0] == "02.00 TOTAL")
+    row_0300_total = next(i for i, row in enumerate(values, start=1) if row[0] == "03.00 TOTAL")
+    assert values[row_0200_total - 1][10] == f"=SUM(K{row_0200_total - 1}:K{row_0200_total - 1})"
+    assert values[row_0300_total - 1][10] == f"=SUM(K{row_0300_total - 1}:K{row_0300_total - 1})"
+
+    total_a_row = next(i for i, row in enumerate(values, start=1) if row[0] == "TOTAL \"A\" – ABOVE THE LINE")
+    total_a_formula = values[total_a_row - 1][10]
+    assert total_a_formula == f"=SUM(K{row_0200_total},K{row_0300_total})"
 
     # Columns A/B/C should be left-justified for detail rows
     assert ws["A3"].alignment.horizontal == "left"
     assert ws["B3"].alignment.horizontal == "left"
     assert ws["C3"].alignment.horizontal == "left"
 
-    # Add summary rows for total A/B/C/D
+    # Group totals are inserted after their section groups and use formulas
     assert any(v == 'TOTAL "A" – ABOVE THE LINE' for v in flat_values)
     assert any(v == 'TOTAL PRODUCTION "B"' for v in flat_values)
     assert any(v == 'TOTAL POST-PRODUCTION "C"' for v in flat_values)
     assert any(v == 'TOTAL OTHER "D"' for v in flat_values)
+
+    section_03_total_row = next(i for i, row in enumerate(values, start=1) if row[0] == "03.00 TOTAL")
+    assert total_a_row == section_03_total_row + 2
 
     # Interior data cells are unbordered; only section outlines are bordered
     assert ws["B3"].border.left is None or ws["B3"].border.left.style is None
