@@ -127,6 +127,7 @@ class BibleEntry(BaseModel):
     timing_pattern: TimingPattern
     timing_details: str  # Human-readable description of the timing rule
     timing_title: str  # Category label (e.g. "Full Payroll", "Travel")
+    is_custom: bool = False  # True for user-saved entries stored in the database
 
 
 class TimingBible(BaseModel):

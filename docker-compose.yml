@@ -5,6 +5,11 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+    environment:
+      # SQLite by default — file is stored at ./backend/bible.db on the host.
+      # For Vercel/production, set this to a PostgreSQL URL:
+      #   DATABASE_URL=postgresql://user:pass@host/dbname
+      - DATABASE_URL=sqlite:///./bible.db
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:

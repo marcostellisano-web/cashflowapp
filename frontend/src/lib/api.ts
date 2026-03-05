@@ -80,3 +80,34 @@ export async function uploadParameters(file: File): Promise<ProductionParameters
 export function getParametersTemplateUrl(): string {
   return `${BASE}/upload/parameters/template`;
 }
+
+export async function getCustomBible(): Promise<import('../types/bible').BibleEntry[]> {
+  const res = await fetch(`${BASE}/bible/custom`);
+  if (!res.ok) throw new Error('Failed to get custom bible');
+  return res.json();
+}
+
+export async function upsertCustomBibleEntry(
+  entry: import('../types/bible').BibleEntry,
+): Promise<import('../types/bible').BibleEntry> {
+  const res = await fetch(`${BASE}/bible/custom/${encodeURIComponent(entry.account_code)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(entry),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to save custom bible entry');
+  }
+  return res.json();
+}
+
+export async function deleteCustomBibleEntry(code: string): Promise<void> {
+  const res = await fetch(`${BASE}/bible/custom/${encodeURIComponent(code)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to delete custom bible entry');
+  }
+}

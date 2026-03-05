@@ -24,3 +24,6 @@ Thumbs.db
 # Env
 .env
 .env.local
+
+# SQLite database created at runtime (use DATABASE_URL for production)
+backend/bible.db
