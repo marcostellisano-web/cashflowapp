@@ -11,7 +11,6 @@ import {
   getTimingBible,
   getCustomBible,
   upsertCustomBibleEntry,
-  deleteCustomBibleEntry,
 } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 
@@ -199,25 +198,6 @@ export default function CurveAssigner({
     }
   };
 
-  const removeFromBible = async (code: string) => {
-    try {
-      await deleteCustomBibleEntry(code);
-      setBibleMap((prev) => {
-        const next = { ...prev };
-        delete next[code];
-        return next;
-      });
-      setDistributions((prev) =>
-        prev.map((d) =>
-          d.budget_code === code
-            ? { ...d, timing_pattern_override: undefined, auto_assigned: true }
-            : d,
-        ),
-      );
-    } catch {
-      // Silently ignore — entry remains until page reload
-    }
-  };
 
   const autoCount = distributions.filter((d) => d.auto_assigned).length;
   const manualCount = distributions.length - autoCount;
