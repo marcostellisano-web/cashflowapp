@@ -443,6 +443,12 @@ def _format_topsheet_code(prefix: str) -> str:
     return prefix
 
 
+def _prefix_sort_key(prefix: str) -> tuple[int, str]:
+    if prefix.isdigit():
+        return (int(prefix), prefix)
+    return (9999, prefix)
+
+
 def _write_detail_budget(ws, budget: ParsedBudget) -> None:
     ws.title = "Detail Budget"
 
@@ -510,11 +516,6 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
         if not prefix:
             continue
         grouped.setdefault(prefix, []).append(row)
-
-    def _prefix_sort_key(prefix: str) -> tuple[int, str]:
-        if prefix.isdigit():
-            return (int(prefix), prefix)
-        return (9999, prefix)
 
     def _set_outline_border(start_row: int, end_row: int) -> None:
         for col in range(1, 12):
@@ -689,6 +690,300 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Breakout Budget worksheet builder
+# ---------------------------------------------------------------------------
+
+_PERCENTAGE_FORMAT = '0.00%'
+
+# Maps account prefix numeric range to a group label for the Groups column
+def _derive_group_label(prefix: str) -> str:
+    """Return the A/B/C/D group label for a given 4-digit prefix (e.g. '0200')."""
+    if not prefix.isdigit():
+        return ""
+    n = int(prefix)
+    if 100 <= n <= 600:
+        return 'A \u2013 Above the Line'
+    elif 1000 <= n <= 5900:
+        return 'B \u2013 Production'
+    elif 6000 <= n <= 6900:
+        return 'C \u2013 Post-Production'
+    elif 7000 <= n <= 7200:
+        return 'D \u2013 Other'
+    return ""
+
+
+def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
+    """Generate the Breakout Budget tab.
+
+    Columns:
+      A: Account
+      B: Account Description (from line_items / categories)
+      C: Description
+      D: Agg%
+      E: Groups  (derived A/B/C/D label)
+      F: Currency
+      G: Subtotal
+      H: Fringes  (= G × D, for rows that are not "total fringes" and have an Agg%)
+      I: Grand Total (= G + H)
+    """
+    ws.title = "Breakout Budget"
+
+    headers = [
+        "Account",
+        "Account Description",
+        "Description",
+        "Agg%",
+        "Groups",
+        "Currency",
+        "Subtotal",
+        "Fringes",
+        "Grand Total",
+    ]
+    num_cols = len(headers)
+
+    widths = [12, 34, 40, 8, 28, 10, 14, 14, 14]
+    for idx, width in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = width
+
+    # ── Header row ──────────────────────────────────────────────────────────
+    for col, label in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=label)
+        cell.font = _BOLD
+        cell.alignment = _LEFT if col in (1, 2, 3, 5) else _CENTER
+        cell.border = _NO_BORDER
+        cell.fill = _LIGHT_GRAY_FILL
+
+    # Outer border on header row (left edge col 1, right edge col 9, top/bottom all)
+    for col in range(1, num_cols + 1):
+        c = ws.cell(row=1, column=col)
+        c.border = Border(
+            left=c.border.left,
+            right=c.border.right,
+            top=_THIN,
+            bottom=_THIN,
+        )
+    ws.cell(row=1, column=1).border = Border(
+        left=_THIN,
+        right=ws.cell(row=1, column=1).border.right,
+        top=ws.cell(row=1, column=1).border.top,
+        bottom=ws.cell(row=1, column=1).border.bottom,
+    )
+    ws.cell(row=1, column=num_cols).border = Border(
+        left=ws.cell(row=1, column=num_cols).border.left,
+        right=_THIN,
+        top=ws.cell(row=1, column=num_cols).border.top,
+        bottom=ws.cell(row=1, column=num_cols).border.bottom,
+    )
+
+    # ── Build category lookup ────────────────────────────────────────────────
+    category_by_account: dict[str, str] = {}
+    for item in budget.line_items:
+        category_by_account[_normalize_account_code(item.code)] = item.description
+
+    # ── Filter & group detail rows ───────────────────────────────────────────
+    # Exclude zero-subtotal rows and "Total Fringes" rows (fringes are calculated in col H)
+    detail_rows = [
+        r for r in budget.detail_rows
+        if r.subtotal > 0 and "total fringes" not in r.description.lower()
+    ]
+
+    topsheet_name_by_prefix = {
+        _cavco_to_mm_prefix(entry[0]): entry[1]
+        for entry in TOPSHEET_STRUCTURE
+        if len(entry) == 2 and entry[0] not in ("HEADER", "BLANK", "GRAND_TOTAL")
+    }
+
+    grouped: dict[str, list] = {}
+    for row in detail_rows:
+        prefix = _topsheet_prefix_from_account(row.account)
+        if not prefix:
+            continue
+        grouped.setdefault(prefix, []).append(row)
+
+    # ── Outline border helper (9 columns) ───────────────────────────────────
+    def _set_outline_border_bb(start_row: int, end_row: int) -> None:
+        for col in range(1, num_cols + 1):
+            top_cell = ws.cell(row=start_row, column=col)
+            top_cell.border = Border(
+                left=top_cell.border.left,
+                right=top_cell.border.right,
+                top=_THIN,
+                bottom=top_cell.border.bottom,
+            )
+            bottom_cell = ws.cell(row=end_row, column=col)
+            bottom_cell.border = Border(
+                left=bottom_cell.border.left,
+                right=bottom_cell.border.right,
+                top=bottom_cell.border.top,
+                bottom=_THIN,
+            )
+        for row in range(start_row, end_row + 1):
+            left_cell = ws.cell(row=row, column=1)
+            left_cell.border = Border(
+                left=_THIN,
+                right=left_cell.border.right,
+                top=left_cell.border.top,
+                bottom=left_cell.border.bottom,
+            )
+            right_cell = ws.cell(row=row, column=num_cols)
+            right_cell.border = Border(
+                left=right_cell.border.left,
+                right=_THIN,
+                top=right_cell.border.top,
+                bottom=right_cell.border.bottom,
+            )
+
+    # ── Group totals logic ───────────────────────────────────────────────────
+    row_idx = 2
+    section_total_rows_by_prefix: dict[str, int] = {}
+
+    section_group_end_prefixes = {
+        "A": 600,
+        "B": 5900,
+        "C": 6900,
+        "D": 7200,
+    }
+    group_labels = {
+        "A": 'TOTAL "A" \u2013 ABOVE THE LINE',
+        "B": 'TOTAL PRODUCTION "B"',
+        "C": 'TOTAL POST-PRODUCTION "C"',
+        "D": 'TOTAL OTHER "D"',
+    }
+    emitted_groups: set[str] = set()
+
+    def _emit_group_total_bb(group_key: str) -> None:
+        nonlocal row_idx
+        if group_key in emitted_groups:
+            return
+
+        min_prefix = {"A": 100, "B": 1000, "C": 6000, "D": 7000}[group_key]
+        max_prefix = section_group_end_prefixes[group_key]
+
+        rows_for_group = [
+            row
+            for prefix, row in section_total_rows_by_prefix.items()
+            if prefix.isdigit() and min_prefix <= int(prefix) <= max_prefix
+        ]
+        rows_for_group.sort()
+
+        # Merge A-F for the label
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=6)
+        label_cell = ws.cell(row=row_idx, column=1, value=group_labels[group_key])
+        label_cell.font = _BOLD
+        label_cell.alignment = _LEFT
+        label_cell.fill = _LIGHT_GRAY_FILL
+
+        if rows_for_group:
+            subtotal_formula  = f"=SUM({','.join(f'G{r}' for r in rows_for_group)})"
+            fringes_formula   = f"=SUM({','.join(f'H{r}' for r in rows_for_group)})"
+            grandtotal_formula = f"=SUM({','.join(f'I{r}' for r in rows_for_group)})"
+        else:
+            subtotal_formula = fringes_formula = grandtotal_formula = "=0"
+
+        for col, formula in zip((7, 8, 9), (subtotal_formula, fringes_formula, grandtotal_formula)):
+            c = ws.cell(row=row_idx, column=col, value=formula)
+            c.font = _BOLD
+            c.alignment = _RIGHT
+            c.fill = _LIGHT_GRAY_FILL
+            c.number_format = CURRENCY_FORMAT
+
+        _set_outline_border_bb(row_idx, row_idx)
+        row_idx += 2
+        emitted_groups.add(group_key)
+
+    # ── Main iteration over prefix groups ───────────────────────────────────
+    for prefix in sorted(grouped.keys(), key=_prefix_sort_key):
+        if prefix.isdigit():
+            prefix_num = int(prefix)
+            for group_key in ("A", "B", "C", "D"):
+                if group_key in emitted_groups:
+                    continue
+                if prefix_num > section_group_end_prefixes[group_key]:
+                    _emit_group_total_bb(group_key)
+
+        section_start = row_idx
+        label = topsheet_name_by_prefix.get(prefix, "")
+
+        # Section header (merged across all columns)
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=num_cols)
+        section_cell = ws.cell(
+            row=row_idx,
+            column=1,
+            value=f"{_format_topsheet_code(prefix)}  {label}".strip(),
+        )
+        section_cell.font = _BOLD
+        section_cell.alignment = _LEFT
+        section_cell.fill = _LIGHT_GRAY_FILL
+        row_idx += 1
+
+        section_detail_start = row_idx
+
+        for detail in sorted(grouped[prefix], key=lambda r: (_normalize_account_code(r.account), r.description)):
+            normalized = _normalize_account_code(detail.account)
+            account_desc = category_by_account.get(normalized, "")
+            # Use the Groups value from the source Excel; fall back to derived A/B/C/D label
+            group_label = detail.groups if detail.groups else _derive_group_label(prefix)
+
+            # Determine if this row should have fringes calculated
+            is_fringes_row = detail.agg is not None and detail.agg > 0
+
+            # Col G = Subtotal value
+            subtotal_col = f"G{row_idx}"
+            agg_col = f"D{row_idx}"
+
+            row_data = [
+                (detail.account,   _LEFT,   None),
+                (account_desc,     _LEFT,   None),
+                (detail.description, _LEFT, None),
+                (detail.agg,       _CENTER, _PERCENTAGE_FORMAT),
+                (group_label,      _LEFT,   None),
+                (detail.currency,  _CENTER, None),
+                (detail.subtotal,  _RIGHT,  CURRENCY_FORMAT),
+                # Fringes: formula if eligible, else 0
+                (f"={subtotal_col}*{agg_col}" if is_fringes_row else 0, _RIGHT, CURRENCY_FORMAT),
+                # Grand Total: subtotal + fringes
+                (f"=G{row_idx}+H{row_idx}", _RIGHT, CURRENCY_FORMAT),
+            ]
+
+            for col, (value, align, num_fmt) in enumerate(row_data, start=1):
+                cell = ws.cell(row=row_idx, column=col, value=value)
+                cell.font = _NORMAL
+                cell.border = _NO_BORDER
+                cell.alignment = align
+                if num_fmt:
+                    cell.number_format = num_fmt
+
+            row_idx += 1
+
+        section_detail_end = row_idx - 1
+
+        # Prefix total row
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=6)
+        total_label_cell = ws.cell(row=row_idx, column=1, value=f"{_format_topsheet_code(prefix)} TOTAL")
+        total_label_cell.font = _BOLD
+        total_label_cell.alignment = _LEFT
+        total_label_cell.fill = _LIGHT_GRAY_FILL
+
+        for col, letter in zip((7, 8, 9), ("G", "H", "I")):
+            formula = f"=SUM({letter}{section_detail_start}:{letter}{section_detail_end})"
+            c = ws.cell(row=row_idx, column=col, value=formula)
+            c.font = _BOLD
+            c.alignment = _RIGHT
+            c.fill = _LIGHT_GRAY_FILL
+            c.number_format = CURRENCY_FORMAT
+
+        section_total_rows_by_prefix[prefix] = row_idx
+        _set_outline_border_bb(section_start, row_idx)
+        row_idx += 2
+
+    # Emit any remaining group totals
+    for group_key in ("A", "B", "C", "D"):
+        _emit_group_total_bb(group_key)
+
+    ws.freeze_panes = "A2"
+
+
+# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
@@ -708,6 +1003,9 @@ def write_tax_credit_excel(budget: ParsedBudget, title: str) -> BytesIO:
 
     ws_detail = wb.create_sheet("Detail Budget")
     _write_detail_budget(ws_detail, budget)
+
+    ws_breakout = wb.create_sheet("Breakout Budget")
+    _write_breakout_budget(ws_breakout, budget)
 
     buffer = BytesIO()
     wb.save(buffer)
