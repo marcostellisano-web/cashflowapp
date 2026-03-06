@@ -686,6 +686,27 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
     for group_key in ("A", "B", "C", "D"):
         _emit_group_total(group_key)
 
+    # ── Grand Total row ──────────────────────────────────────────────────────
+    all_section_rows = sorted(section_total_rows_by_prefix.values())
+    ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
+    gt_label = ws.cell(row=row_idx, column=1, value="GRAND TOTAL")
+    gt_label.font = _WHITE_BOLD
+    gt_label.alignment = _LEFT
+    gt_label.fill = _GRAND_TOTAL_FILL
+
+    if all_section_rows:
+        refs = ",".join(f"K{r}" for r in all_section_rows)
+        gt_val = ws.cell(row=row_idx, column=11, value=f"=SUM({refs})")
+    else:
+        gt_val = ws.cell(row=row_idx, column=11, value=0)
+    gt_val.font = _WHITE_BOLD
+    gt_val.alignment = _RIGHT
+    gt_val.fill = _GRAND_TOTAL_FILL
+    gt_val.number_format = CURRENCY_FORMAT
+
+    for col in range(1, 12):
+        ws.cell(row=row_idx, column=col).border = _THIN_BORDER
+
     ws.freeze_panes = "A2"
 
 
@@ -1011,6 +1032,41 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
     # Emit any remaining group totals
     for group_key in ("A", "B", "C", "D"):
         _emit_group_total_bb(group_key)
+
+    # ── Grand Total row ──────────────────────────────────────────────────────
+    all_section_rows = sorted(section_total_rows_by_prefix.values())
+    ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=6)
+    gt_label = ws.cell(row=row_idx, column=1, value="GRAND TOTAL")
+    gt_label.font = _WHITE_BOLD
+    gt_label.alignment = _LEFT
+    gt_label.fill = _GRAND_TOTAL_FILL
+
+    if all_section_rows:
+        for col, letter in zip((7, 8, 9), ("G", "H", "I")):
+            refs = ",".join(f"{letter}{r}" for r in all_section_rows)
+            c = ws.cell(row=row_idx, column=col, value=f"=SUM({refs})")
+            c.font = _WHITE_BOLD
+            c.alignment = _RIGHT
+            c.fill = _GRAND_TOTAL_FILL
+            c.number_format = CURRENCY_FORMAT
+        for cur, col in currency_col_map.items():
+            letter = get_column_letter(col)
+            refs = ",".join(f"{letter}{r}" for r in all_section_rows)
+            c = ws.cell(row=row_idx, column=col, value=f"=SUM({refs})")
+            c.font = _WHITE_BOLD
+            c.alignment = _RIGHT
+            c.fill = _GRAND_TOTAL_FILL
+            c.number_format = CURRENCY_FORMAT
+    else:
+        for col in range(7, num_cols + 1):
+            c = ws.cell(row=row_idx, column=col, value=0)
+            c.font = _WHITE_BOLD
+            c.alignment = _RIGHT
+            c.fill = _GRAND_TOTAL_FILL
+            c.number_format = CURRENCY_FORMAT
+
+    for col in range(1, num_cols + 1):
+        ws.cell(row=row_idx, column=col).border = _THIN_BORDER
 
     ws.freeze_panes = "A2"
 
