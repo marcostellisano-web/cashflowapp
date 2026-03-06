@@ -715,65 +715,22 @@ def _derive_group_label(prefix: str) -> str:
 def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
     """Generate the Breakout Budget tab.
 
-    Columns:
+    Fixed columns (A–I):
       A: Account
       B: Account Description (from line_items / categories)
       C: Description
       D: Agg%
-      E: Groups  (derived A/B/C/D label)
+      E: Groups  (from source Excel, or derived A/B/C/D label)
       F: Currency
       G: Subtotal
-      H: Fringes  (= G × D, for rows that are not "total fringes" and have an Agg%)
+      H: Fringes  (= G × D for rows with an Agg%)
       I: Grand Total (= G + H)
+
+    Dynamic columns (J onward):
+      One "XXX Grand Total" column per distinct currency found in the data.
+      Each data row fills its matching currency column with =I{row}; others are 0.
     """
     ws.title = "Breakout Budget"
-
-    headers = [
-        "Account",
-        "Account Description",
-        "Description",
-        "Agg%",
-        "Groups",
-        "Currency",
-        "Subtotal",
-        "Fringes",
-        "Grand Total",
-    ]
-    num_cols = len(headers)
-
-    widths = [12, 34, 40, 8, 28, 10, 14, 14, 14]
-    for idx, width in enumerate(widths, start=1):
-        ws.column_dimensions[get_column_letter(idx)].width = width
-
-    # ── Header row ──────────────────────────────────────────────────────────
-    for col, label in enumerate(headers, start=1):
-        cell = ws.cell(row=1, column=col, value=label)
-        cell.font = _BOLD
-        cell.alignment = _LEFT if col in (1, 2, 3, 5) else _CENTER
-        cell.border = _NO_BORDER
-        cell.fill = _LIGHT_GRAY_FILL
-
-    # Outer border on header row (left edge col 1, right edge col 9, top/bottom all)
-    for col in range(1, num_cols + 1):
-        c = ws.cell(row=1, column=col)
-        c.border = Border(
-            left=c.border.left,
-            right=c.border.right,
-            top=_THIN,
-            bottom=_THIN,
-        )
-    ws.cell(row=1, column=1).border = Border(
-        left=_THIN,
-        right=ws.cell(row=1, column=1).border.right,
-        top=ws.cell(row=1, column=1).border.top,
-        bottom=ws.cell(row=1, column=1).border.bottom,
-    )
-    ws.cell(row=1, column=num_cols).border = Border(
-        left=ws.cell(row=1, column=num_cols).border.left,
-        right=_THIN,
-        top=ws.cell(row=1, column=num_cols).border.top,
-        bottom=ws.cell(row=1, column=num_cols).border.bottom,
-    )
 
     # ── Build category lookup ────────────────────────────────────────────────
     category_by_account: dict[str, str] = {}
@@ -786,6 +743,64 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         r for r in budget.detail_rows
         if r.subtotal > 0 and "total fringes" not in r.description.lower()
     ]
+
+    # ── Discover distinct currencies (sorted) ────────────────────────────────
+    seen_currencies: list[str] = []
+    for r in detail_rows:
+        cur = (r.currency or "").strip().upper()
+        if cur and cur not in seen_currencies:
+            seen_currencies.append(cur)
+    seen_currencies.sort()
+
+    # Column indices for each currency grand-total column (1-based)
+    # Fixed columns A-I = 1-9; currency columns start at 10
+    currency_col_map: dict[str, int] = {
+        cur: 9 + i + 1 for i, cur in enumerate(seen_currencies)
+    }
+
+    # ── Headers & widths ─────────────────────────────────────────────────────
+    headers = [
+        "Account",
+        "Account Description",
+        "Description",
+        "Agg%",
+        "Groups",
+        "Currency",
+        "Subtotal",
+        "Fringes",
+        "Grand Total",
+    ] + [f"{cur} Grand Total" for cur in seen_currencies]
+
+    num_cols = len(headers)
+    widths = [12, 34, 40, 8, 28, 10, 14, 14, 14] + [16] * len(seen_currencies)
+
+    for idx, width in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = width
+
+    # ── Header row ──────────────────────────────────────────────────────────
+    for col, label in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=label)
+        cell.font = _BOLD
+        cell.alignment = _LEFT if col in (1, 2, 3, 5) else _CENTER
+        cell.border = _NO_BORDER
+        cell.fill = _LIGHT_GRAY_FILL
+
+    # Outer border on header row
+    for col in range(1, num_cols + 1):
+        c = ws.cell(row=1, column=col)
+        c.border = Border(left=c.border.left, right=c.border.right, top=_THIN, bottom=_THIN)
+    ws.cell(row=1, column=1).border = Border(
+        left=_THIN,
+        right=ws.cell(row=1, column=1).border.right,
+        top=ws.cell(row=1, column=1).border.top,
+        bottom=ws.cell(row=1, column=1).border.bottom,
+    )
+    ws.cell(row=1, column=num_cols).border = Border(
+        left=ws.cell(row=1, column=num_cols).border.left,
+        right=_THIN,
+        top=ws.cell(row=1, column=num_cols).border.top,
+        bottom=ws.cell(row=1, column=num_cols).border.bottom,
+    )
 
     topsheet_name_by_prefix = {
         _cavco_to_mm_prefix(entry[0]): entry[1]
@@ -800,49 +815,36 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             continue
         grouped.setdefault(prefix, []).append(row)
 
-    # ── Outline border helper (9 columns) ───────────────────────────────────
+    # ── Outline border helper ────────────────────────────────────────────────
     def _set_outline_border_bb(start_row: int, end_row: int) -> None:
         for col in range(1, num_cols + 1):
             top_cell = ws.cell(row=start_row, column=col)
             top_cell.border = Border(
-                left=top_cell.border.left,
-                right=top_cell.border.right,
-                top=_THIN,
-                bottom=top_cell.border.bottom,
+                left=top_cell.border.left, right=top_cell.border.right,
+                top=_THIN, bottom=top_cell.border.bottom,
             )
             bottom_cell = ws.cell(row=end_row, column=col)
             bottom_cell.border = Border(
-                left=bottom_cell.border.left,
-                right=bottom_cell.border.right,
-                top=bottom_cell.border.top,
-                bottom=_THIN,
+                left=bottom_cell.border.left, right=bottom_cell.border.right,
+                top=bottom_cell.border.top, bottom=_THIN,
             )
         for row in range(start_row, end_row + 1):
             left_cell = ws.cell(row=row, column=1)
             left_cell.border = Border(
-                left=_THIN,
-                right=left_cell.border.right,
-                top=left_cell.border.top,
-                bottom=left_cell.border.bottom,
+                left=_THIN, right=left_cell.border.right,
+                top=left_cell.border.top, bottom=left_cell.border.bottom,
             )
             right_cell = ws.cell(row=row, column=num_cols)
             right_cell.border = Border(
-                left=right_cell.border.left,
-                right=_THIN,
-                top=right_cell.border.top,
-                bottom=right_cell.border.bottom,
+                left=right_cell.border.left, right=_THIN,
+                top=right_cell.border.top, bottom=right_cell.border.bottom,
             )
 
     # ── Group totals logic ───────────────────────────────────────────────────
     row_idx = 2
     section_total_rows_by_prefix: dict[str, int] = {}
 
-    section_group_end_prefixes = {
-        "A": 600,
-        "B": 5900,
-        "C": 6900,
-        "D": 7200,
-    }
+    section_group_end_prefixes = {"A": 600, "B": 5900, "C": 6900, "D": 7200}
     group_labels = {
         "A": 'TOTAL "A" \u2013 ABOVE THE LINE',
         "B": 'TOTAL PRODUCTION "B"',
@@ -859,12 +861,11 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         min_prefix = {"A": 100, "B": 1000, "C": 6000, "D": 7000}[group_key]
         max_prefix = section_group_end_prefixes[group_key]
 
-        rows_for_group = [
+        rows_for_group = sorted(
             row
             for prefix, row in section_total_rows_by_prefix.items()
             if prefix.isdigit() and min_prefix <= int(prefix) <= max_prefix
-        ]
-        rows_for_group.sort()
+        )
 
         # Merge A-F for the label
         ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=6)
@@ -874,13 +875,30 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         label_cell.fill = _LIGHT_GRAY_FILL
 
         if rows_for_group:
-            subtotal_formula  = f"=SUM({','.join(f'G{r}' for r in rows_for_group)})"
-            fringes_formula   = f"=SUM({','.join(f'H{r}' for r in rows_for_group)})"
-            grandtotal_formula = f"=SUM({','.join(f'I{r}' for r in rows_for_group)})"
+            refs_g = ','.join(f'G{r}' for r in rows_for_group)
+            refs_h = ','.join(f'H{r}' for r in rows_for_group)
+            refs_i = ','.join(f'I{r}' for r in rows_for_group)
+            subtotal_formula   = f"=SUM({refs_g})"
+            fringes_formula    = f"=SUM({refs_h})"
+            grandtotal_formula = f"=SUM({refs_i})"
         else:
             subtotal_formula = fringes_formula = grandtotal_formula = "=0"
 
         for col, formula in zip((7, 8, 9), (subtotal_formula, fringes_formula, grandtotal_formula)):
+            c = ws.cell(row=row_idx, column=col, value=formula)
+            c.font = _BOLD
+            c.alignment = _RIGHT
+            c.fill = _LIGHT_GRAY_FILL
+            c.number_format = CURRENCY_FORMAT
+
+        # Currency grand total columns
+        for cur, col in currency_col_map.items():
+            letter = get_column_letter(col)
+            if rows_for_group:
+                refs = ','.join(f'{letter}{r}' for r in rows_for_group)
+                formula = f"=SUM({refs})"
+            else:
+                formula = "=0"
             c = ws.cell(row=row_idx, column=col, value=formula)
             c.font = _BOLD
             c.alignment = _RIGHT
@@ -921,27 +939,21 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         for detail in sorted(grouped[prefix], key=lambda r: (_normalize_account_code(r.account), r.description)):
             normalized = _normalize_account_code(detail.account)
             account_desc = category_by_account.get(normalized, "")
-            # Use the Groups value from the source Excel; fall back to derived A/B/C/D label
             group_label = detail.groups if detail.groups else _derive_group_label(prefix)
-
-            # Determine if this row should have fringes calculated
             is_fringes_row = detail.agg is not None and detail.agg > 0
 
-            # Col G = Subtotal value
             subtotal_col = f"G{row_idx}"
             agg_col = f"D{row_idx}"
 
             row_data = [
-                (detail.account,   _LEFT,   None),
-                (account_desc,     _LEFT,   None),
-                (detail.description, _LEFT, None),
-                (detail.agg,       _CENTER, _PERCENTAGE_FORMAT),
-                (group_label,      _LEFT,   None),
-                (detail.currency,  _CENTER, None),
-                (detail.subtotal,  _RIGHT,  CURRENCY_FORMAT),
-                # Fringes: formula if eligible, else 0
+                (detail.account,     _LEFT,   None),
+                (account_desc,       _LEFT,   None),
+                (detail.description, _LEFT,   None),
+                (detail.agg,         _CENTER, _PERCENTAGE_FORMAT),
+                (group_label,        _LEFT,   None),
+                (detail.currency,    _CENTER, None),
+                (detail.subtotal,    _RIGHT,  CURRENCY_FORMAT),
                 (f"={subtotal_col}*{agg_col}" if is_fringes_row else 0, _RIGHT, CURRENCY_FORMAT),
-                # Grand Total: subtotal + fringes
                 (f"=G{row_idx}+H{row_idx}", _RIGHT, CURRENCY_FORMAT),
             ]
 
@@ -952,6 +964,16 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
                 cell.alignment = align
                 if num_fmt:
                     cell.number_format = num_fmt
+
+            # Currency grand total columns: =I{row} if matching currency, else 0
+            row_currency = (detail.currency or "").strip().upper()
+            for cur, col in currency_col_map.items():
+                value = f"=I{row_idx}" if row_currency == cur else 0
+                c = ws.cell(row=row_idx, column=col, value=value)
+                c.font = _NORMAL
+                c.border = _NO_BORDER
+                c.alignment = _RIGHT
+                c.number_format = CURRENCY_FORMAT
 
             row_idx += 1
 
@@ -965,6 +987,16 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         total_label_cell.fill = _LIGHT_GRAY_FILL
 
         for col, letter in zip((7, 8, 9), ("G", "H", "I")):
+            formula = f"=SUM({letter}{section_detail_start}:{letter}{section_detail_end})"
+            c = ws.cell(row=row_idx, column=col, value=formula)
+            c.font = _BOLD
+            c.alignment = _RIGHT
+            c.fill = _LIGHT_GRAY_FILL
+            c.number_format = CURRENCY_FORMAT
+
+        # Currency grand total columns for this section total
+        for cur, col in currency_col_map.items():
+            letter = get_column_letter(col)
             formula = f"=SUM({letter}{section_detail_start}:{letter}{section_detail_end})"
             c = ws.cell(row=row_idx, column=col, value=formula)
             c.font = _BOLD
