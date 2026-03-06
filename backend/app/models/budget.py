@@ -32,6 +32,8 @@ class BudgetDetailRow(BaseModel):
     rate: float | None = None
     unit3: str | None = None
     subtotal: float = 0.0
+    # Fringe/aggregate percentage from the "Agg" column in Account Details (e.g. 0.15 = 15%)
+    agg: float | None = None
 
 
 class ParsedBudget(BaseModel):
