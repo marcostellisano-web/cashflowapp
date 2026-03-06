@@ -43,6 +43,7 @@ _DETAIL_HEADERS = {
     "unit3": {"unit 3", "unit3"},
     "subtotal": {"subtotal", "sub total", "sub-total", "total"},
     "agg": {"agg", "agg%", "agg %", "aggregate", "fringe%", "fringe %", "fringe rate"},
+    "groups": {"groups", "group", "group code", "grp", "grp."},
 }
 
 
@@ -328,6 +329,7 @@ def _parse_account_details_tab(wb: openpyxl.Workbook) -> list[BudgetDetailRow]:
                 unit3=_txt("unit3"),
                 subtotal=subtotal,
                 agg=_num("agg"),
+                groups=_txt("groups"),
             )
         )
 

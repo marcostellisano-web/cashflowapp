@@ -781,7 +781,11 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         category_by_account[_normalize_account_code(item.code)] = item.description
 
     # ── Filter & group detail rows ───────────────────────────────────────────
-    detail_rows = [r for r in budget.detail_rows if r.subtotal > 0]
+    # Exclude zero-subtotal rows and "Total Fringes" rows (fringes are calculated in col H)
+    detail_rows = [
+        r for r in budget.detail_rows
+        if r.subtotal > 0 and "total fringes" not in r.description.lower()
+    ]
 
     topsheet_name_by_prefix = {
         _cavco_to_mm_prefix(entry[0]): entry[1]
@@ -917,14 +921,11 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         for detail in sorted(grouped[prefix], key=lambda r: (_normalize_account_code(r.account), r.description)):
             normalized = _normalize_account_code(detail.account)
             account_desc = category_by_account.get(normalized, "")
-            group_label = _derive_group_label(prefix)
+            # Use the Groups value from the source Excel; fall back to derived A/B/C/D label
+            group_label = detail.groups if detail.groups else _derive_group_label(prefix)
 
             # Determine if this row should have fringes calculated
-            is_fringes_row = (
-                "total fringes" not in detail.description.lower()
-                and detail.agg is not None
-                and detail.agg > 0
-            )
+            is_fringes_row = detail.agg is not None and detail.agg > 0
 
             # Col G = Subtotal value
             subtotal_col = f"G{row_idx}"
