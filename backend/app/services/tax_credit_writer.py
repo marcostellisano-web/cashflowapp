@@ -750,6 +750,9 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
     Dynamic columns (J onward):
       One "XXX Grand Total" column per distinct currency found in the data.
       Each data row fills its matching currency column with =I{row}; others are 0.
+
+    Final dynamic column:
+      Internals – shows =I{row} for rows whose Group (col E) is "Internal OH", else 0.
     """
     ws.title = "Breakout Budget"
 
@@ -779,6 +782,9 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         cur: 9 + i + 1 for i, cur in enumerate(seen_currencies)
     }
 
+    # "Internals" column comes after all currency columns
+    internals_col: int = 9 + len(seen_currencies) + 1
+
     # ── Headers & widths ─────────────────────────────────────────────────────
     headers = [
         "Account",
@@ -790,10 +796,10 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         "Subtotal",
         "Fringes",
         "Grand Total",
-    ] + [f"{cur} Grand Total" for cur in seen_currencies]
+    ] + [f"{cur} Grand Total" for cur in seen_currencies] + ["Internals"]
 
     num_cols = len(headers)
-    widths = [12, 34, 40, 8, 28, 10, 14, 14, 14] + [16] * len(seen_currencies)
+    widths = [12, 34, 40, 8, 28, 10, 14, 14, 14] + [16] * len(seen_currencies) + [16]
 
     for idx, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = width
@@ -926,6 +932,19 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.fill = _LIGHT_GRAY_FILL
             c.number_format = CURRENCY_FORMAT
 
+        # Internals column for group total
+        internals_letter = get_column_letter(internals_col)
+        if rows_for_group:
+            refs = ','.join(f'{internals_letter}{r}' for r in rows_for_group)
+            internals_formula = f"=SUM({refs})"
+        else:
+            internals_formula = "=0"
+        c = ws.cell(row=row_idx, column=internals_col, value=internals_formula)
+        c.font = _BOLD
+        c.alignment = _RIGHT
+        c.fill = _LIGHT_GRAY_FILL
+        c.number_format = CURRENCY_FORMAT
+
         _set_outline_border_bb(row_idx, row_idx)
         row_idx += 2
         emitted_groups.add(group_key)
@@ -996,6 +1015,14 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
                 c.alignment = _RIGHT
                 c.number_format = CURRENCY_FORMAT
 
+            # Internals column: =I{row} if group is "Internal OH", else 0
+            internals_value = f"=I{row_idx}" if group_label.strip() == "Internal OH" else 0
+            c = ws.cell(row=row_idx, column=internals_col, value=internals_value)
+            c.font = _NORMAL
+            c.border = _NO_BORDER
+            c.alignment = _RIGHT
+            c.number_format = CURRENCY_FORMAT
+
             row_idx += 1
 
         section_detail_end = row_idx - 1
@@ -1024,6 +1051,15 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.alignment = _RIGHT
             c.fill = _LIGHT_GRAY_FILL
             c.number_format = CURRENCY_FORMAT
+
+        # Internals column for this section total
+        internals_letter = get_column_letter(internals_col)
+        formula = f"=SUM({internals_letter}{section_detail_start}:{internals_letter}{section_detail_end})"
+        c = ws.cell(row=row_idx, column=internals_col, value=formula)
+        c.font = _BOLD
+        c.alignment = _RIGHT
+        c.fill = _LIGHT_GRAY_FILL
+        c.number_format = CURRENCY_FORMAT
 
         section_total_rows_by_prefix[prefix] = row_idx
         _set_outline_border_bb(section_start, row_idx)
@@ -1057,6 +1093,14 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.alignment = _RIGHT
             c.fill = _GRAND_TOTAL_FILL
             c.number_format = CURRENCY_FORMAT
+        # Internals column for grand total
+        internals_letter = get_column_letter(internals_col)
+        refs = ",".join(f"{internals_letter}{r}" for r in all_section_rows)
+        c = ws.cell(row=row_idx, column=internals_col, value=f"=SUM({refs})")
+        c.font = _WHITE_BOLD
+        c.alignment = _RIGHT
+        c.fill = _GRAND_TOTAL_FILL
+        c.number_format = CURRENCY_FORMAT
     else:
         for col in range(7, num_cols + 1):
             c = ws.cell(row=row_idx, column=col, value=0)
