@@ -1015,8 +1015,8 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
                 c.alignment = _RIGHT
                 c.number_format = CURRENCY_FORMAT
 
-            # Internals column: =I{row} if group is "Internal OH", else 0
-            internals_value = f"=I{row_idx}" if group_label.strip() == "Internal OH" else 0
+            # Internals column: if "Internal OH" appears anywhere in the Groups cell (E), return grand total
+            internals_value = f'=IF(ISNUMBER(SEARCH("Internal OH",E{row_idx})),I{row_idx},0)'
             c = ws.cell(row=row_idx, column=internals_col, value=internals_value)
             c.font = _NORMAL
             c.border = _NO_BORDER
