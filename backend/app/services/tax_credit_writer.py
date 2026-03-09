@@ -1364,18 +1364,21 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
                 if isinstance(bval, float):
                     c.number_format = _PERCENTAGE_FORMAT
 
-            # Foreign column: "FOR" if currency is not CAD (or CA), else blank
-            row_currency = (detail.currency or "").strip().upper()
-            foreign_value = "FOR" if row_currency and row_currency not in {"CAD", "CA"} else None
-            c = ws.cell(row=row_idx, column=foreign_col, value=foreign_value)
+            # Foreign column: Excel IF formula – "FOR" when currency (col F) is not CAD/CA/blank
+            foreign_formula = (
+                f'=IF(AND(F{row_idx}<>"",F{row_idx}<>"CAD",F{row_idx}<>"CA"),"FOR","")'
+            )
+            c = ws.cell(row=row_idx, column=foreign_col, value=foreign_formula)
             c.font = _NORMAL
             c.border = _NO_BORDER
             c.alignment = _CENTER
 
             # ── Bible calc columns: IF formulas referencing the basis columns ──
             np_l, pl_l, fl_l, psl_l, sp_l, fsl_l = basis_letters
+            for_l = get_column_letter(foreign_col)
             calc_formulas = [
-                f'=IF({np_l}{row_idx}="OUT",I{row_idx},0)',
+                # Non-Provincial Spend: triggered by either "OUT" (bible) or "FOR" (foreign currency)
+                f'=IF(OR({np_l}{row_idx}="OUT",{for_l}{row_idx}="FOR"),I{row_idx},0)',
                 f'=IF({pl_l}{row_idx}>0,I{row_idx}*{pl_l}{row_idx},0)',
                 f'=IF({fl_l}{row_idx}>0,I{row_idx}*{fl_l}{row_idx},0)',
                 f'=IF({psl_l}{row_idx}>0,I{row_idx}*{psl_l}{row_idx},0)',
