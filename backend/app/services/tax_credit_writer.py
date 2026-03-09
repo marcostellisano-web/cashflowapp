@@ -716,6 +716,227 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
 
 _PERCENTAGE_FORMAT = '0.00%'
 
+# ---------------------------------------------------------------------------
+# Breakout Budget bible
+# ---------------------------------------------------------------------------
+# Maps 4-digit account code to a 6-tuple:
+#   (non_prov_out, prov_labour, fed_labour, prov_svc_labour, svc_property, fed_svc_labour)
+#
+#   non_prov_out  – True  → entire Grand Total is Non-Provincial Spend
+#   others        – float → that fraction of Grand Total qualifies for the column
+#                   0.0  → not eligible (blank or explicit "-" in source bible)
+BREAKOUT_BIBLE: dict[str, tuple] = {
+    "0201": (False, 0.65, 0.65, 0.10, 0.0, 0.10),
+    "0220": (False, 1.00, 1.00, 0.10, 0.0, 0.10),
+    "0225": (False, 1.00, 1.00, 0.0,  0.0, 1.00),
+    "0227": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "0295": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "0301": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "0395": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "0401": (False, 0.58, 1.00, 0.58, 0.0, 1.00),
+    "0405": (False, 0.58, 1.00, 0.58, 0.0, 1.00),
+    "0407": (False, 0.65, 0.65, 0.65, 0.0, 0.65),
+    "0408": (False, 0.65, 0.65, 0.65, 0.0, 0.65),
+    "0410": (False, 0.65, 0.65, 0.65, 0.0, 0.65),
+    "0415": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "0417": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "0460": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "0465": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "0501": (False, 0.65, 0.65, 0.65, 0.0, 0.65),
+    "0560": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "0565": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "0660": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "0665": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "1001": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1010": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1025": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1070": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "1075": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "1090": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "1092": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "1095": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "1110": (False, 1.00, 1.00, 0.0,  0.0, 1.00),
+    "1170": (False, 1.00, 1.00, 0.0,  0.0, 1.00),
+    "1201": (False, 0.80, 0.85, 0.80, 0.0, 0.85),
+    "1205": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1210": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1215": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1220": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1223": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1228": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1235": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1240": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1243": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1245": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1248": (False, 0.85, 0.85, 0.85, 0.0, 0.85),
+    "1250": (False, 0.85, 0.90, 0.85, 0.0, 0.90),
+    "1252": (False, 0.85, 0.90, 0.85, 0.0, 0.90),
+    "1261": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1262": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1270": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1301": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1310": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1312": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1320": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1335": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1350": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1420": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1425": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1501": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1505": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1510": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1515": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1530": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1601": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1610": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1693": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "1701": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1710": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1905": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1910": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "1993": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "2001": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2010": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2060": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2070": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2093": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "2101": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2110": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2112": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2170": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2201": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2205": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2210": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2211": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2212": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2250": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2260": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "2265": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "2270": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2301": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2310": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2320": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2350": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2401": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2410": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2501": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2801": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "2810": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "2815": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "2820": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "2830": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "2835": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "2840": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "2901": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "2905": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "2955": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3105": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3106": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3110": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3150": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "3152": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "3160": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "3195": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3201": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3210": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3215": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3218": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3225": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3245": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3301": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "3310": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "3320": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "3330": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3335": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3350": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "3395": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "3401": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3405": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3430": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3440": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3445": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3447": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3510": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3515": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3545": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3710": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3730": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3740": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3810": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3830": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3850": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3910": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "3930": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4110": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4130": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4140": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4148": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4210": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4212": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4222": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4240": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4510": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4512": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4515": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4525": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4530": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4595": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4610": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4612": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4630": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4710": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4712": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4795": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4810": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4812": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4816": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4828": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "4830": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "5001": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "6001": (False, 0.75, 0.75, 0.75, 0.0, 0.75),
+    "6002": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "6003": (False, 0.75, 0.75, 0.75, 0.0, 0.75),
+    "6010": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "6012": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "6020": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "6042": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "6070": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "6101": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "6110": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "6215": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "6221": (False, 0.13, 0.13, 0.13, 0.0, 0.13),
+    "6240": (False, 0.13, 0.13, 0.13, 0.0, 0.13),
+    "6260": (False, 0.13, 0.13, 0.13, 0.0, 0.13),
+    "6264": (False, 0.13, 0.13, 0.13, 0.0, 0.13),
+    "6310": (False, 0.13, 0.13, 0.0,  0.0, 0.13),
+    "6325": (False, 0.13, 0.13, 0.0,  0.0, 0.13),
+    "6610": (False, 1.00, 1.00, 1.00, 0.0, 1.00),
+    "6670": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "6695": (True,  1.00, 0.0,  0.0,  0.0, 1.00),
+    "6701": (False, 0.13, 0.13, 0.0,  0.0, 0.13),
+    "6710": (False, 0.13, 0.13, 0.0,  0.0, 0.13),
+    "6730": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "6795": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "6801": (False, 0.13, 0.13, 0.13, 0.0, 0.13),
+    "6890": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "6892": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "7001": (True,  1.00, 0.0,  0.0,  0.0, 1.00),
+    "7025": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "7040": (True,  1.00, 0.0,  0.0,  0.0, 1.00),
+    "7095": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "7101": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "7110": (True,  0.65, 0.0,  0.0,  0.0, 0.65),
+    "7120": (True,  1.00, 0.0,  0.0,  0.0, 1.00),
+    "7125": (True,  1.00, 0.0,  0.0,  0.0, 1.00),
+    "7130": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "7201": (False, 0.37, 0.70, 0.0,  0.0, 0.70),
+    "7210": (True,  1.00, 0.0,  0.0,  0.0, 1.00),
+    "7220": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "7230": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+    "7295": (True,  0.0,  0.0,  0.0,  0.0, 0.0),
+    "8001": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
+}
+
 # Maps account prefix numeric range to a group label for the Groups column
 def _derive_group_label(prefix: str) -> str:
     """Return the A/B/C/D group label for a given 4-digit prefix (e.g. '0200')."""
@@ -786,6 +1007,31 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
     internals_col: int = 9 + len(seen_currencies) + 1
     # "Meals" column comes after Internals
     meals_col: int = internals_col + 1
+    # Six "basis" columns – show raw BREAKOUT_BIBLE treatment per row
+    #   Non-Prov: text "OUT" or blank; others: decimal percentage or blank
+    non_prov_basis_col: int      = meals_col + 1
+    prov_labour_basis_col: int   = meals_col + 2
+    fed_labour_basis_col: int    = meals_col + 3
+    prov_svc_basis_col: int      = meals_col + 4
+    svc_property_basis_col: int  = meals_col + 5
+    fed_svc_basis_col: int       = meals_col + 6
+    basis_cols: list[int] = [
+        non_prov_basis_col, prov_labour_basis_col, fed_labour_basis_col,
+        prov_svc_basis_col, svc_property_basis_col, fed_svc_basis_col,
+    ]
+    # Six "calc" columns – dollar amounts via IF formulas referencing basis cols
+    non_prov_calc_col: int      = meals_col + 7
+    prov_labour_calc_col: int   = meals_col + 8
+    fed_labour_calc_col: int    = meals_col + 9
+    prov_svc_calc_col: int      = meals_col + 10
+    svc_property_calc_col: int  = meals_col + 11
+    fed_svc_calc_col: int       = meals_col + 12
+    calc_cols: list[int] = [
+        non_prov_calc_col, prov_labour_calc_col, fed_labour_calc_col,
+        prov_svc_calc_col, svc_property_calc_col, fed_svc_calc_col,
+    ]
+    # Pre-compute column letters once (used in per-row formula strings)
+    basis_letters = [get_column_letter(c) for c in basis_cols]
 
     # ── Headers & widths ─────────────────────────────────────────────────────
     headers = [
@@ -798,10 +1044,33 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         "Subtotal",
         "Fringes",
         "Grand Total",
-    ] + [f"{cur} Grand Total" for cur in seen_currencies] + ["Internals", "Meals"]
+    ] + [f"{cur} Grand Total" for cur in seen_currencies] + [
+        "Internals",
+        "Meals",
+        # Basis columns – show raw BREAKOUT_BIBLE treatment (auditable inputs)
+        "Non-Prov",
+        "Prov Labour %",
+        "Fed Labour %",
+        "Prov Svc Labour %",
+        "Svc Property %",
+        "Fed Svc Labour %",
+        # Calc columns – dollar amounts via IF formulas referencing basis cols
+        "Non-Provincial Spend",
+        "Provincial Labour",
+        "Federal Labour",
+        "Provincial Services Labour",
+        "Services Property",
+        "Federal Services Labour",
+    ]
 
     num_cols = len(headers)
-    widths = [12, 34, 40, 8, 28, 10, 14, 14, 14] + [16] * len(seen_currencies) + [16, 14]
+    widths = (
+        [12, 34, 40, 8, 28, 10, 14, 14, 14]
+        + [16] * len(seen_currencies)
+        + [16, 14]                       # Internals, Meals
+        + [10, 13, 13, 16, 13, 16]       # 6 basis cols
+        + [22, 20, 18, 26, 20, 24]       # 6 calc cols
+    )
 
     for idx, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = width
@@ -960,6 +1229,25 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.fill = _LIGHT_GRAY_FILL
         c.number_format = CURRENCY_FORMAT
 
+        # Bible basis cols: blank at aggregate rows (% not meaningful)
+        for bcol in basis_cols:
+            c = ws.cell(row=row_idx, column=bcol, value=None)
+            c.fill = _LIGHT_GRAY_FILL
+
+        # Bible calc cols: SUM of section total rows
+        for ccol in calc_cols:
+            cletter = get_column_letter(ccol)
+            if rows_for_group:
+                refs = ','.join(f'{cletter}{r}' for r in rows_for_group)
+                cformula = f"=SUM({refs})"
+            else:
+                cformula = "=0"
+            c = ws.cell(row=row_idx, column=ccol, value=cformula)
+            c.font = _BOLD
+            c.alignment = _RIGHT
+            c.fill = _LIGHT_GRAY_FILL
+            c.number_format = CURRENCY_FORMAT
+
         _set_outline_border_bb(row_idx, row_idx)
         row_idx += 2
         emitted_groups.add(group_key)
@@ -1050,6 +1338,47 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.alignment = _RIGHT
             c.number_format = CURRENCY_FORMAT
 
+            # ── Bible basis columns: visible raw treatment from BREAKOUT_BIBLE ──
+            # Non-Prov: text "OUT" or blank; others: decimal percentage or blank
+            bible_entry = BREAKOUT_BIBLE.get(normalized)
+            if bible_entry:
+                non_prov_out, pl, fl, psl, sp, fsl = bible_entry
+                raw_basis = [
+                    "OUT" if non_prov_out else None,
+                    pl   if pl  > 0 else None,
+                    fl   if fl  > 0 else None,
+                    psl  if psl > 0 else None,
+                    sp   if sp  > 0 else None,
+                    fsl  if fsl > 0 else None,
+                ]
+            else:
+                raw_basis = [None, None, None, None, None, None]
+
+            for bcol, bval in zip(basis_cols, raw_basis):
+                c = ws.cell(row=row_idx, column=bcol, value=bval)
+                c.font = _NORMAL
+                c.border = _NO_BORDER
+                c.alignment = _CENTER
+                if isinstance(bval, float):
+                    c.number_format = _PERCENTAGE_FORMAT
+
+            # ── Bible calc columns: IF formulas referencing the basis columns ──
+            np_l, pl_l, fl_l, psl_l, sp_l, fsl_l = basis_letters
+            calc_formulas = [
+                f'=IF({np_l}{row_idx}="OUT",I{row_idx},0)',
+                f'=IF({pl_l}{row_idx}>0,I{row_idx}*{pl_l}{row_idx},0)',
+                f'=IF({fl_l}{row_idx}>0,I{row_idx}*{fl_l}{row_idx},0)',
+                f'=IF({psl_l}{row_idx}>0,I{row_idx}*{psl_l}{row_idx},0)',
+                f'=IF({sp_l}{row_idx}>0,I{row_idx}*{sp_l}{row_idx},0)',
+                f'=IF({fsl_l}{row_idx}>0,I{row_idx}*{fsl_l}{row_idx},0)',
+            ]
+            for ccol, cval in zip(calc_cols, calc_formulas):
+                c = ws.cell(row=row_idx, column=ccol, value=cval)
+                c.font = _NORMAL
+                c.border = _NO_BORDER
+                c.alignment = _RIGHT
+                c.number_format = CURRENCY_FORMAT
+
             row_idx += 1
 
         section_detail_end = row_idx - 1
@@ -1096,6 +1425,21 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.alignment = _RIGHT
         c.fill = _LIGHT_GRAY_FILL
         c.number_format = CURRENCY_FORMAT
+
+        # Bible basis cols: blank at aggregate rows
+        for bcol in basis_cols:
+            c = ws.cell(row=row_idx, column=bcol, value=None)
+            c.fill = _LIGHT_GRAY_FILL
+
+        # Bible calc cols: SUM of detail rows in this section
+        for ccol in calc_cols:
+            cletter = get_column_letter(ccol)
+            formula = f"=SUM({cletter}{section_detail_start}:{cletter}{section_detail_end})"
+            c = ws.cell(row=row_idx, column=ccol, value=formula)
+            c.font = _BOLD
+            c.alignment = _RIGHT
+            c.fill = _LIGHT_GRAY_FILL
+            c.number_format = CURRENCY_FORMAT
 
         section_total_rows_by_prefix[prefix] = row_idx
         _set_outline_border_bb(section_start, row_idx)
@@ -1145,6 +1489,21 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.alignment = _RIGHT
         c.fill = _GRAND_TOTAL_FILL
         c.number_format = CURRENCY_FORMAT
+        # Bible basis cols: blank on grand total row
+        for bcol in basis_cols:
+            c = ws.cell(row=row_idx, column=bcol, value=None)
+            c.font = _WHITE_BOLD
+            c.fill = _GRAND_TOTAL_FILL
+
+        # Bible calc cols: SUM of section total rows
+        for ccol in calc_cols:
+            cletter = get_column_letter(ccol)
+            refs = ",".join(f"{cletter}{r}" for r in all_section_rows)
+            c = ws.cell(row=row_idx, column=ccol, value=f"=SUM({refs})")
+            c.font = _WHITE_BOLD
+            c.alignment = _RIGHT
+            c.fill = _GRAND_TOTAL_FILL
+            c.number_format = CURRENCY_FORMAT
     else:
         for col in range(7, num_cols + 1):
             c = ws.cell(row=row_idx, column=col, value=0)
