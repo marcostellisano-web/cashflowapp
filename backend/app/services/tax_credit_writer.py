@@ -1038,10 +1038,10 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.alignment = _RIGHT
             c.number_format = CURRENCY_FORMAT
 
-            # Meals column: account in {2840,3201,3215,3320} OR "Diem" in Description (col C)
+            # Meals column: account in {2840,3201,3210,3215,3320} OR "Diem" in Description (col C)
             meals_value = (
                 f'=IF(OR(ISNUMBER(SEARCH("Diem",C{row_idx})),'
-                f'A{row_idx}="2840",A{row_idx}="3201",A{row_idx}="3215",A{row_idx}="3320"),'
+                f'A{row_idx}="2840",A{row_idx}="3201",A{row_idx}="3210",A{row_idx}="3215",A{row_idx}="3320"),'
                 f'I{row_idx},0)'
             )
             c = ws.cell(row=row_idx, column=meals_col, value=meals_value)
