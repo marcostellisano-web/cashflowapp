@@ -784,6 +784,8 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
 
     # "Internals" column comes after all currency columns
     internals_col: int = 9 + len(seen_currencies) + 1
+    # "Meals" column comes after Internals
+    meals_col: int = internals_col + 1
 
     # ── Headers & widths ─────────────────────────────────────────────────────
     headers = [
@@ -796,10 +798,10 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         "Subtotal",
         "Fringes",
         "Grand Total",
-    ] + [f"{cur} Grand Total" for cur in seen_currencies] + ["Internals"]
+    ] + [f"{cur} Grand Total" for cur in seen_currencies] + ["Internals", "Meals"]
 
     num_cols = len(headers)
-    widths = [12, 34, 40, 8, 28, 10, 14, 14, 14] + [16] * len(seen_currencies) + [16]
+    widths = [12, 34, 40, 8, 28, 10, 14, 14, 14] + [16] * len(seen_currencies) + [16, 14]
 
     for idx, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = width
@@ -945,6 +947,19 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.fill = _LIGHT_GRAY_FILL
         c.number_format = CURRENCY_FORMAT
 
+        # Meals column for group total
+        meals_letter = get_column_letter(meals_col)
+        if rows_for_group:
+            refs = ','.join(f'{meals_letter}{r}' for r in rows_for_group)
+            meals_formula = f"=SUM({refs})"
+        else:
+            meals_formula = "=0"
+        c = ws.cell(row=row_idx, column=meals_col, value=meals_formula)
+        c.font = _BOLD
+        c.alignment = _RIGHT
+        c.fill = _LIGHT_GRAY_FILL
+        c.number_format = CURRENCY_FORMAT
+
         _set_outline_border_bb(row_idx, row_idx)
         row_idx += 2
         emitted_groups.add(group_key)
@@ -1023,6 +1038,18 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.alignment = _RIGHT
             c.number_format = CURRENCY_FORMAT
 
+            # Meals column: account in {2840,3201,3215,3320} OR "Diem" in Description (col C)
+            meals_value = (
+                f'=IF(OR(ISNUMBER(SEARCH("Diem",C{row_idx})),'
+                f'A{row_idx}="2840",A{row_idx}="3201",A{row_idx}="3215",A{row_idx}="3320"),'
+                f'I{row_idx},0)'
+            )
+            c = ws.cell(row=row_idx, column=meals_col, value=meals_value)
+            c.font = _NORMAL
+            c.border = _NO_BORDER
+            c.alignment = _RIGHT
+            c.number_format = CURRENCY_FORMAT
+
             row_idx += 1
 
         section_detail_end = row_idx - 1
@@ -1056,6 +1083,15 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         internals_letter = get_column_letter(internals_col)
         formula = f"=SUM({internals_letter}{section_detail_start}:{internals_letter}{section_detail_end})"
         c = ws.cell(row=row_idx, column=internals_col, value=formula)
+        c.font = _BOLD
+        c.alignment = _RIGHT
+        c.fill = _LIGHT_GRAY_FILL
+        c.number_format = CURRENCY_FORMAT
+
+        # Meals column for this section total
+        meals_letter = get_column_letter(meals_col)
+        formula = f"=SUM({meals_letter}{section_detail_start}:{meals_letter}{section_detail_end})"
+        c = ws.cell(row=row_idx, column=meals_col, value=formula)
         c.font = _BOLD
         c.alignment = _RIGHT
         c.fill = _LIGHT_GRAY_FILL
@@ -1097,6 +1133,14 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         internals_letter = get_column_letter(internals_col)
         refs = ",".join(f"{internals_letter}{r}" for r in all_section_rows)
         c = ws.cell(row=row_idx, column=internals_col, value=f"=SUM({refs})")
+        c.font = _WHITE_BOLD
+        c.alignment = _RIGHT
+        c.fill = _GRAND_TOTAL_FILL
+        c.number_format = CURRENCY_FORMAT
+        # Meals column for grand total
+        meals_letter = get_column_letter(meals_col)
+        refs = ",".join(f"{meals_letter}{r}" for r in all_section_rows)
+        c = ws.cell(row=row_idx, column=meals_col, value=f"=SUM({refs})")
         c.font = _WHITE_BOLD
         c.alignment = _RIGHT
         c.fill = _GRAND_TOTAL_FILL
