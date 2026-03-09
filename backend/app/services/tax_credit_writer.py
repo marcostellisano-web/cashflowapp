@@ -1010,22 +1010,23 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
     # Six "basis" columns – show raw BREAKOUT_BIBLE treatment per row
     #   Non-Prov: text "OUT" or blank; others: decimal percentage or blank
     non_prov_basis_col: int      = meals_col + 1
-    prov_labour_basis_col: int   = meals_col + 2
-    fed_labour_basis_col: int    = meals_col + 3
-    prov_svc_basis_col: int      = meals_col + 4
-    svc_property_basis_col: int  = meals_col + 5
-    fed_svc_basis_col: int       = meals_col + 6
+    foreign_col: int             = meals_col + 2   # "FOR" when currency is not CAD/CA
+    prov_labour_basis_col: int   = meals_col + 3
+    fed_labour_basis_col: int    = meals_col + 4
+    prov_svc_basis_col: int      = meals_col + 5
+    svc_property_basis_col: int  = meals_col + 6
+    fed_svc_basis_col: int       = meals_col + 7
     basis_cols: list[int] = [
         non_prov_basis_col, prov_labour_basis_col, fed_labour_basis_col,
         prov_svc_basis_col, svc_property_basis_col, fed_svc_basis_col,
     ]
     # Six "calc" columns – dollar amounts via IF formulas referencing basis cols
-    non_prov_calc_col: int      = meals_col + 7
-    prov_labour_calc_col: int   = meals_col + 8
-    fed_labour_calc_col: int    = meals_col + 9
-    prov_svc_calc_col: int      = meals_col + 10
-    svc_property_calc_col: int  = meals_col + 11
-    fed_svc_calc_col: int       = meals_col + 12
+    non_prov_calc_col: int      = meals_col + 8
+    prov_labour_calc_col: int   = meals_col + 9
+    fed_labour_calc_col: int    = meals_col + 10
+    prov_svc_calc_col: int      = meals_col + 11
+    svc_property_calc_col: int  = meals_col + 12
+    fed_svc_calc_col: int       = meals_col + 13
     calc_cols: list[int] = [
         non_prov_calc_col, prov_labour_calc_col, fed_labour_calc_col,
         prov_svc_calc_col, svc_property_calc_col, fed_svc_calc_col,
@@ -1049,6 +1050,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         "Meals",
         # Basis columns – show raw BREAKOUT_BIBLE treatment (auditable inputs)
         "Non-Prov",
+        "Foreign",
         "Prov Labour %",
         "Fed Labour %",
         "Prov Svc Labour %",
@@ -1067,8 +1069,8 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
     widths = (
         [12, 34, 40, 8, 28, 10, 14, 14, 14]
         + [16] * len(seen_currencies)
-        + [16, 14]                       # Internals, Meals
-        + [10, 13, 13, 16, 13, 16]       # 6 basis cols
+        + [16, 14]                          # Internals, Meals
+        + [10, 10, 13, 13, 16, 13, 16]   # Non-Prov, Foreign, 5 basis % cols
         + [22, 20, 18, 26, 20, 24]       # 6 calc cols
     )
 
@@ -1229,8 +1231,8 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.fill = _LIGHT_GRAY_FILL
         c.number_format = CURRENCY_FORMAT
 
-        # Bible basis cols: blank at aggregate rows (% not meaningful)
-        for bcol in basis_cols:
+        # Bible basis cols + Foreign: blank at aggregate rows (% not meaningful)
+        for bcol in [foreign_col] + basis_cols:
             c = ws.cell(row=row_idx, column=bcol, value=None)
             c.fill = _LIGHT_GRAY_FILL
 
@@ -1362,6 +1364,14 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
                 if isinstance(bval, float):
                     c.number_format = _PERCENTAGE_FORMAT
 
+            # Foreign column: "FOR" if currency is not CAD (or CA), else blank
+            row_currency = (detail.currency or "").strip().upper()
+            foreign_value = "FOR" if row_currency and row_currency not in {"CAD", "CA"} else None
+            c = ws.cell(row=row_idx, column=foreign_col, value=foreign_value)
+            c.font = _NORMAL
+            c.border = _NO_BORDER
+            c.alignment = _CENTER
+
             # ── Bible calc columns: IF formulas referencing the basis columns ──
             np_l, pl_l, fl_l, psl_l, sp_l, fsl_l = basis_letters
             calc_formulas = [
@@ -1426,8 +1436,8 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.fill = _LIGHT_GRAY_FILL
         c.number_format = CURRENCY_FORMAT
 
-        # Bible basis cols: blank at aggregate rows
-        for bcol in basis_cols:
+        # Bible basis cols + Foreign: blank at aggregate rows
+        for bcol in [foreign_col] + basis_cols:
             c = ws.cell(row=row_idx, column=bcol, value=None)
             c.fill = _LIGHT_GRAY_FILL
 
@@ -1489,8 +1499,8 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.alignment = _RIGHT
         c.fill = _GRAND_TOTAL_FILL
         c.number_format = CURRENCY_FORMAT
-        # Bible basis cols: blank on grand total row
-        for bcol in basis_cols:
+        # Bible basis cols + Foreign: blank on grand total row
+        for bcol in [foreign_col] + basis_cols:
             c = ws.cell(row=row_idx, column=bcol, value=None)
             c.font = _WHITE_BOLD
             c.fill = _GRAND_TOTAL_FILL
