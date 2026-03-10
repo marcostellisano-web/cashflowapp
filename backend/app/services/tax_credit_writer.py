@@ -1125,6 +1125,18 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
     for idx, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = width
 
+    # ── Column groups (collapsed by default, expandable) ─────────────────────
+    _HIDDEN_GROUPS = [
+        [4, 5],           # D–E:   Agg%, Groups
+        [15, 16],         # O–P:   Fed Svc Labour %, Federal Services Labour
+        [22, 23, 24, 25], # V–Y:   Prov Svc Labour %, Svc Property %, Provincial Services Labour, Services Property
+    ]
+    for group in _HIDDEN_GROUPS:
+        for col in group:
+            cd = ws.column_dimensions[get_column_letter(col)]
+            cd.outlineLevel = 1
+            cd.hidden = True
+
     # ── Header row ──────────────────────────────────────────────────────────
     for col, label in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col, value=label)
