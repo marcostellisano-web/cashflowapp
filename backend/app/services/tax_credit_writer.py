@@ -1026,10 +1026,12 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
     fed_labour_calc_col: int    = meals_col + 10
     prov_svc_calc_col: int      = meals_col + 11
     svc_property_calc_col: int  = meals_col + 12
-    fed_svc_calc_col: int       = meals_col + 13
+    fed_svc_calc_col: int            = meals_col + 13
+    foreign_spend_calc_col: int      = meals_col + 14
     calc_cols: list[int] = [
         non_prov_calc_col, prov_labour_calc_col, fed_labour_calc_col,
         prov_svc_calc_col, svc_property_calc_col, fed_svc_calc_col,
+        foreign_spend_calc_col,
     ]
     # Pre-compute column letters once (used in per-row formula strings)
     basis_letters = [get_column_letter(c) for c in basis_cols]
@@ -1063,6 +1065,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         "Provincial Services Labour",
         "Services Property",
         "Federal Services Labour",
+        "Foreign Spend",
     ]
 
     num_cols = len(headers)
@@ -1071,7 +1074,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         + [16] * len(seen_currencies)
         + [16, 14]                          # Internals, Meals
         + [10, 10, 13, 13, 16, 13, 16]   # Non-Prov, Foreign, 5 basis % cols
-        + [22, 20, 18, 26, 20, 24]       # 6 calc cols
+        + [22, 20, 18, 26, 20, 24, 18]  # 6 calc cols + Foreign Spend
     )
 
     for idx, width in enumerate(widths, start=1):
@@ -1384,6 +1387,8 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
                 f'=IF({psl_l}{row_idx}>0,I{row_idx}*{psl_l}{row_idx},0)',
                 f'=IF({sp_l}{row_idx}>0,I{row_idx}*{sp_l}{row_idx},0)',
                 f'=IF({fsl_l}{row_idx}>0,I{row_idx}*{fsl_l}{row_idx},0)',
+                # Foreign Spend: Grand Total when the Foreign column reads "FOR"
+                f'=IF({for_l}{row_idx}="FOR",I{row_idx},0)',
             ]
             for ccol, cval in zip(calc_cols, calc_formulas):
                 c = ws.cell(row=row_idx, column=ccol, value=cval)
