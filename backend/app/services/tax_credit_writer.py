@@ -970,25 +970,26 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
       H: Fringes  (= G × D for rows with an Agg%)
       I: Grand Total (= G + H)
 
-    Fixed analysis columns (J–Z, columns 10–25):
+    Fixed analysis columns (J–Z, columns 10–26):
       J  (10): Foreign              – "FOR" when currency is not CAD/CA
       K  (11): Foreign Spend        – Grand Total if Foreign = "FOR"
-      L  (12): Fed Labour %         – basis %
-      M  (13): Federal Labour       – calc $
-      N  (14): Fed Svc Labour %     – basis %
-      O  (15): Federal Svc Labour   – calc $
-      P  (16): Non-Prov             – "OUT" when account is non-provincial
-      Q  (17): Non-Provincial Spend – calc $
-      R  (18): Prov Labour %        – basis %
-      S  (19): Provincial Labour    – calc $
-      T  (20): Prov Svc Labour %    – basis %
-      U  (21): Svc Property %       – basis %
-      V  (22): Provincial Svc Labour– calc $
-      W  (23): Services Property    – calc $
-      X  (24): Internals            – Grand Total for Internal OH rows
-      Y  (25): Meals                – Grand Total for meal/per-diem rows
+      L  (12): Canadian Spend       – Grand Total minus Foreign Spend
+      M  (13): Fed Labour %         – basis %
+      N  (14): Federal Labour       – calc $
+      O  (15): Fed Svc Labour %     – basis %
+      P  (16): Federal Svc Labour   – calc $
+      Q  (17): Non-Prov             – "OUT" when account is non-provincial
+      R  (18): Non-Provincial Spend – calc $
+      S  (19): Prov Labour %        – basis %
+      T  (20): Provincial Labour    – calc $
+      U  (21): Prov Svc Labour %    – basis %
+      V  (22): Svc Property %       – basis %
+      W  (23): Provincial Svc Labour– calc $
+      X  (24): Services Property    – calc $
+      Y  (25): Internals            – Grand Total for Internal OH rows
+      Z  (26): Meals                – Grand Total for meal/per-diem rows
 
-    Dynamic currency columns (26+):
+    Dynamic currency columns (27+):
       One "XXX Grand Total" column per distinct currency found in the data.
     """
     ws.title = "Breakout Budget"
@@ -1013,45 +1014,47 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             seen_currencies.append(cur)
     seen_currencies.sort()
 
-    # Fixed analysis columns (A–I = 1–9; analysis columns 10–25; currencies at end)
+    # Fixed analysis columns (A–I = 1–9; analysis columns 10–26; currencies at end)
     #
     # 10: Foreign              – "FOR" indicator
     # 11: Foreign Spend        – Grand Total when Foreign = "FOR"
-    # 12: Fed Labour %         – basis %
-    # 13: Federal Labour       – calc $
-    # 14: Fed Svc Labour %     – basis %
-    # 15: Federal Svc Labour   – calc $
-    # 16: Non-Prov             – "OUT" indicator
-    # 17: Non-Provincial Spend – calc $
-    # 18: Prov Labour %        – basis %
-    # 19: Provincial Labour    – calc $
-    # 20: Prov Svc Labour %    – basis %
-    # 21: Svc Property %       – basis %
-    # 22: Provincial Svc Labour– calc $
-    # 23: Services Property    – calc $
-    # 24: Internals            – Grand Total for Internal OH rows
-    # 25: Meals                – Grand Total for meal/per-diem rows
-    # 26+: one column per distinct currency
-    foreign_col: int             = 10
-    foreign_spend_calc_col: int  = 11
-    fed_labour_basis_col: int    = 12
-    fed_labour_calc_col: int     = 13
-    fed_svc_basis_col: int       = 14
-    fed_svc_calc_col: int        = 15
-    non_prov_basis_col: int      = 16
-    non_prov_calc_col: int       = 17
-    prov_labour_basis_col: int   = 18
-    prov_labour_calc_col: int    = 19
-    prov_svc_basis_col: int      = 20
-    svc_property_basis_col: int  = 21
-    prov_svc_calc_col: int       = 22
-    svc_property_calc_col: int   = 23
-    internals_col: int           = 24
-    meals_col: int               = 25
+    # 12: Canadian Spend       – Grand Total minus Foreign Spend
+    # 13: Fed Labour %         – basis %
+    # 14: Federal Labour       – calc $
+    # 15: Fed Svc Labour %     – basis %
+    # 16: Federal Svc Labour   – calc $
+    # 17: Non-Prov             – "OUT" indicator
+    # 18: Non-Provincial Spend – calc $
+    # 19: Prov Labour %        – basis %
+    # 20: Provincial Labour    – calc $
+    # 21: Prov Svc Labour %    – basis %
+    # 22: Svc Property %       – basis %
+    # 23: Provincial Svc Labour– calc $
+    # 24: Services Property    – calc $
+    # 25: Internals            – Grand Total for Internal OH rows
+    # 26: Meals                – Grand Total for meal/per-diem rows
+    # 27+: one column per distinct currency
+    foreign_col: int              = 10
+    foreign_spend_calc_col: int   = 11
+    canadian_spend_calc_col: int  = 12
+    fed_labour_basis_col: int     = 13
+    fed_labour_calc_col: int      = 14
+    fed_svc_basis_col: int        = 15
+    fed_svc_calc_col: int         = 16
+    non_prov_basis_col: int       = 17
+    non_prov_calc_col: int        = 18
+    prov_labour_basis_col: int    = 19
+    prov_labour_calc_col: int     = 20
+    prov_svc_basis_col: int       = 21
+    svc_property_basis_col: int   = 22
+    prov_svc_calc_col: int        = 23
+    svc_property_calc_col: int    = 24
+    internals_col: int            = 25
+    meals_col: int                = 26
 
     # Currency grand-total columns come after all fixed columns
     currency_col_map: dict[str, int] = {
-        cur: 25 + i + 1 for i, cur in enumerate(seen_currencies)
+        cur: 26 + i + 1 for i, cur in enumerate(seen_currencies)
     }
 
     # basis_cols order must match raw_basis tuple from BREAKOUT_BIBLE:
@@ -1080,25 +1083,26 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         "Subtotal",
         "Fringes",
         "Grand Total",
-        # cols 10–11: Foreign indicator + Foreign Spend calc
+        # cols 10–12: Foreign indicator, Foreign Spend, Canadian Spend
         "Foreign",
         "Foreign Spend",
-        # cols 12–15: Federal
+        "Canadian Spend",
+        # cols 13–16: Federal
         "Fed Labour %",
         "Federal Labour",
         "Fed Svc Labour %",
         "Federal Services Labour",
-        # cols 16–17: Non-Provincial
+        # cols 17–18: Non-Provincial
         "Non-Prov",
         "Non-Provincial Spend",
-        # cols 18–23: Provincial
+        # cols 19–24: Provincial
         "Prov Labour %",
         "Provincial Labour",
         "Prov Svc Labour %",
         "Svc Property %",
         "Provincial Services Labour",
         "Services Property",
-        # cols 24–25: Internals, Meals
+        # cols 25–26: Internals, Meals
         "Internals",
         "Meals",
     ] + [f"{cur} Grand Total" for cur in seen_currencies]
@@ -1106,7 +1110,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
     num_cols = len(headers)
     widths = (
         [12, 34, 40, 8, 28, 10, 14, 14, 14]    # A–I
-        + [10, 18]                               # Foreign, Foreign Spend
+        + [10, 18, 18]                           # Foreign, Foreign Spend, Canadian Spend
         + [13, 18, 16, 24]                       # Fed Labour %, Federal Labour, Fed Svc Labour %, Federal Services Labour
         + [10, 22]                               # Non-Prov, Non-Provincial Spend
         + [13, 20, 16, 13, 26, 20]              # Prov Labour %, Provincial Labour, Prov Svc Labour %, Svc Property %, Provincial Services Labour, Services Property
@@ -1276,6 +1280,15 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c = ws.cell(row=row_idx, column=bcol, value=None)
             c.fill = _LIGHT_GRAY_FILL
 
+        # Canadian Spend: Grand Total minus Foreign Spend at this aggregate row
+        fs_letter = get_column_letter(foreign_spend_calc_col)
+        c = ws.cell(row=row_idx, column=canadian_spend_calc_col,
+                    value=f"=I{row_idx}-{fs_letter}{row_idx}")
+        c.font = _BOLD
+        c.alignment = _RIGHT
+        c.fill = _LIGHT_GRAY_FILL
+        c.number_format = _ACCOUNTING_FORMAT
+
         # Bible calc cols: SUM of section total rows
         for ccol in calc_cols:
             cletter = get_column_letter(ccol)
@@ -1413,6 +1426,15 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.border = _NO_BORDER
             c.alignment = _CENTER
 
+            # Canadian Spend: Grand Total minus Foreign Spend (auditable formula)
+            fs_letter = get_column_letter(foreign_spend_calc_col)
+            canadian_formula = f"=I{row_idx}-{fs_letter}{row_idx}"
+            c = ws.cell(row=row_idx, column=canadian_spend_calc_col, value=canadian_formula)
+            c.font = _NORMAL
+            c.border = _NO_BORDER
+            c.alignment = _RIGHT
+            c.number_format = _ACCOUNTING_FORMAT
+
             # ── Bible calc columns: IF formulas referencing the basis columns ──
             np_l, pl_l, fl_l, psl_l, sp_l, fsl_l = basis_letters
             for_l = get_column_letter(foreign_col)
@@ -1486,6 +1508,15 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c = ws.cell(row=row_idx, column=bcol, value=None)
             c.fill = _LIGHT_GRAY_FILL
 
+        # Canadian Spend: Grand Total minus Foreign Spend at this section row
+        fs_letter = get_column_letter(foreign_spend_calc_col)
+        c = ws.cell(row=row_idx, column=canadian_spend_calc_col,
+                    value=f"=I{row_idx}-{fs_letter}{row_idx}")
+        c.font = _BOLD
+        c.alignment = _RIGHT
+        c.fill = _LIGHT_GRAY_FILL
+        c.number_format = _ACCOUNTING_FORMAT
+
         # Bible calc cols: SUM of detail rows in this section
         for ccol in calc_cols:
             cletter = get_column_letter(ccol)
@@ -1549,6 +1580,15 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c = ws.cell(row=row_idx, column=bcol, value=None)
             c.font = _WHITE_BOLD
             c.fill = _GRAND_TOTAL_FILL
+
+        # Canadian Spend: Grand Total minus Foreign Spend at the grand total row
+        fs_letter = get_column_letter(foreign_spend_calc_col)
+        c = ws.cell(row=row_idx, column=canadian_spend_calc_col,
+                    value=f"=I{row_idx}-{fs_letter}{row_idx}")
+        c.font = _WHITE_BOLD
+        c.alignment = _RIGHT
+        c.fill = _GRAND_TOTAL_FILL
+        c.number_format = _ACCOUNTING_FORMAT
 
         # Bible calc cols: SUM of section total rows
         for ccol in calc_cols:
