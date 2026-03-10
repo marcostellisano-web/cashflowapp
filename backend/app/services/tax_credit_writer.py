@@ -3,6 +3,7 @@
 from io import BytesIO
 
 from openpyxl import Workbook
+from openpyxl.formatting.rule import CellIsRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -1125,6 +1126,18 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
     for idx, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = width
 
+    # ── Column groups (collapsed by default, expandable) ─────────────────────
+    _HIDDEN_GROUPS = [
+        [4, 5],           # D–E:   Agg%, Groups
+        [15, 16],         # O–P:   Fed Svc Labour %, Federal Services Labour
+        [22, 23, 24, 25], # V–Y:   Prov Svc Labour %, Svc Property %, Provincial Services Labour, Services Property
+    ]
+    for group in _HIDDEN_GROUPS:
+        for col in group:
+            cd = ws.column_dimensions[get_column_letter(col)]
+            cd.outlineLevel = 1
+            cd.hidden = True
+
     # ── Header row ──────────────────────────────────────────────────────────
     for col, label in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col, value=label)
@@ -1698,6 +1711,21 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.fill = _LIGHT_GRAY_FILL
         c.number_format = _PERCENTAGE_FORMAT
     _set_outline_border_bb(3, 3)
+
+    # ── Conditional formatting: highlight indicator cells ────────────────────
+    # Subtle rose fill for "FOR" (Foreign) and "OUT" (Non-Prov) flags
+    _FLAG_FILL = PatternFill(start_color="FFDAD6", end_color="FFDAD6", fill_type="solid")
+    _for_col  = get_column_letter(foreign_col)
+    _nprov_col = get_column_letter(non_prov_basis_col)
+    max_row = grand_total_row
+    ws.conditional_formatting.add(
+        f"{_for_col}1:{_for_col}{max_row}",
+        CellIsRule(operator="equal", formula=['"FOR"'], fill=_FLAG_FILL),
+    )
+    ws.conditional_formatting.add(
+        f"{_nprov_col}1:{_nprov_col}{max_row}",
+        CellIsRule(operator="equal", formula=['"OUT"'], fill=_FLAG_FILL),
+    )
 
     ws.freeze_panes = "A4"
 
