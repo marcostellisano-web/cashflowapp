@@ -3,6 +3,7 @@
 from io import BytesIO
 
 from openpyxl import Workbook
+from openpyxl.formatting.rule import CellIsRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -1710,6 +1711,21 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.fill = _LIGHT_GRAY_FILL
         c.number_format = _PERCENTAGE_FORMAT
     _set_outline_border_bb(3, 3)
+
+    # ── Conditional formatting: highlight indicator cells ────────────────────
+    # Subtle rose fill for "FOR" (Foreign) and "OUT" (Non-Prov) flags
+    _FLAG_FILL = PatternFill(start_color="FFDAD6", end_color="FFDAD6", fill_type="solid")
+    _for_col  = get_column_letter(foreign_col)
+    _nprov_col = get_column_letter(non_prov_basis_col)
+    max_row = grand_total_row
+    ws.conditional_formatting.add(
+        f"{_for_col}1:{_for_col}{max_row}",
+        CellIsRule(operator="equal", formula=['"FOR"'], fill=_FLAG_FILL),
+    )
+    ws.conditional_formatting.add(
+        f"{_nprov_col}1:{_nprov_col}{max_row}",
+        CellIsRule(operator="equal", formula=['"OUT"'], fill=_FLAG_FILL),
+    )
 
     ws.freeze_panes = "A4"
 
