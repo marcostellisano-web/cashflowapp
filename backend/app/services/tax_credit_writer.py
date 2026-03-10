@@ -1728,6 +1728,35 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         CellIsRule(operator="equal", formula=['"OUT"'], fill=_FLAG_FILL),
     )
 
+    # ── Column-group outside borders ─────────────────────────────────────────
+    # A medium border box is drawn around each logical column group, running
+    # from the header row all the way down to the grand total row.
+    _MED = Side(style="medium")
+    col_groups = [
+        (foreign_col,        fed_labour_calc_col),   # Foreign … Federal Labour     (10–14)
+        (non_prov_basis_col, prov_labour_calc_col),  # Non-Prov … Provincial Labour (17–21)
+        (internals_col,      num_cols),              # Internals … last currency col (26+)
+    ]
+    for first_col, last_col in col_groups:
+        # Left and right edges — full height of the data
+        for row in range(1, grand_total_row + 1):
+            lc = ws.cell(row=row, column=first_col)
+            lc.border = Border(left=_MED, right=lc.border.right,
+                               top=lc.border.top, bottom=lc.border.bottom)
+            rc = ws.cell(row=row, column=last_col)
+            rc.border = Border(left=rc.border.left, right=_MED,
+                               top=rc.border.top, bottom=rc.border.bottom)
+        # Top edge — header row
+        for col in range(first_col, last_col + 1):
+            tc = ws.cell(row=1, column=col)
+            tc.border = Border(left=tc.border.left, right=tc.border.right,
+                               top=_MED, bottom=tc.border.bottom)
+        # Bottom edge — grand total row
+        for col in range(first_col, last_col + 1):
+            bc = ws.cell(row=grand_total_row, column=col)
+            bc.border = Border(left=bc.border.left, right=bc.border.right,
+                               top=bc.border.top, bottom=_MED)
+
     ws.freeze_panes = "A4"
 
 
