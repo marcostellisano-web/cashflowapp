@@ -12,6 +12,8 @@ from app.models.budget import ParsedBudget
 # Style constants
 # ---------------------------------------------------------------------------
 CURRENCY_FORMAT = '#,##0'
+# Accounting style: no currency symbol, zero shows as " - ", negatives in parens
+_ACCOUNTING_FORMAT = '_(* #,##0_);_(* (#,##0);_(* "-"_);_(@_)'
 
 _THIN = Side(style="thin")
 _THIN_BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
@@ -968,12 +970,26 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
       H: Fringes  (= G × D for rows with an Agg%)
       I: Grand Total (= G + H)
 
-    Dynamic columns (J onward):
-      One "XXX Grand Total" column per distinct currency found in the data.
-      Each data row fills its matching currency column with =I{row}; others are 0.
+    Fixed analysis columns (J–Z, columns 10–25):
+      J  (10): Foreign              – "FOR" when currency is not CAD/CA
+      K  (11): Foreign Spend        – Grand Total if Foreign = "FOR"
+      L  (12): Fed Labour %         – basis %
+      M  (13): Federal Labour       – calc $
+      N  (14): Fed Svc Labour %     – basis %
+      O  (15): Federal Svc Labour   – calc $
+      P  (16): Non-Prov             – "OUT" when account is non-provincial
+      Q  (17): Non-Provincial Spend – calc $
+      R  (18): Prov Labour %        – basis %
+      S  (19): Provincial Labour    – calc $
+      T  (20): Prov Svc Labour %    – basis %
+      U  (21): Svc Property %       – basis %
+      V  (22): Provincial Svc Labour– calc $
+      W  (23): Services Property    – calc $
+      X  (24): Internals            – Grand Total for Internal OH rows
+      Y  (25): Meals                – Grand Total for meal/per-diem rows
 
-    Final dynamic column:
-      Internals – shows =I{row} for rows whose Group (col E) is "Internal OH", else 0.
+    Dynamic currency columns (26+):
+      One "XXX Grand Total" column per distinct currency found in the data.
     """
     ws.title = "Breakout Budget"
 
@@ -997,37 +1013,54 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             seen_currencies.append(cur)
     seen_currencies.sort()
 
-    # Column indices for each currency grand-total column (1-based)
-    # Fixed columns A-I = 1-9; currency columns start at 10
+    # Fixed analysis columns (A–I = 1–9; analysis columns 10–25; currencies at end)
+    #
+    # 10: Foreign              – "FOR" indicator
+    # 11: Foreign Spend        – Grand Total when Foreign = "FOR"
+    # 12: Fed Labour %         – basis %
+    # 13: Federal Labour       – calc $
+    # 14: Fed Svc Labour %     – basis %
+    # 15: Federal Svc Labour   – calc $
+    # 16: Non-Prov             – "OUT" indicator
+    # 17: Non-Provincial Spend – calc $
+    # 18: Prov Labour %        – basis %
+    # 19: Provincial Labour    – calc $
+    # 20: Prov Svc Labour %    – basis %
+    # 21: Svc Property %       – basis %
+    # 22: Provincial Svc Labour– calc $
+    # 23: Services Property    – calc $
+    # 24: Internals            – Grand Total for Internal OH rows
+    # 25: Meals                – Grand Total for meal/per-diem rows
+    # 26+: one column per distinct currency
+    foreign_col: int             = 10
+    foreign_spend_calc_col: int  = 11
+    fed_labour_basis_col: int    = 12
+    fed_labour_calc_col: int     = 13
+    fed_svc_basis_col: int       = 14
+    fed_svc_calc_col: int        = 15
+    non_prov_basis_col: int      = 16
+    non_prov_calc_col: int       = 17
+    prov_labour_basis_col: int   = 18
+    prov_labour_calc_col: int    = 19
+    prov_svc_basis_col: int      = 20
+    svc_property_basis_col: int  = 21
+    prov_svc_calc_col: int       = 22
+    svc_property_calc_col: int   = 23
+    internals_col: int           = 24
+    meals_col: int               = 25
+
+    # Currency grand-total columns come after all fixed columns
     currency_col_map: dict[str, int] = {
-        cur: 9 + i + 1 for i, cur in enumerate(seen_currencies)
+        cur: 25 + i + 1 for i, cur in enumerate(seen_currencies)
     }
 
-    # "Internals" column comes after all currency columns
-    internals_col: int = 9 + len(seen_currencies) + 1
-    # "Meals" column comes after Internals
-    meals_col: int = internals_col + 1
-    # Six "basis" columns – show raw BREAKOUT_BIBLE treatment per row
-    #   Non-Prov: text "OUT" or blank; others: decimal percentage or blank
-    non_prov_basis_col: int      = meals_col + 1
-    foreign_col: int             = meals_col + 2   # "FOR" when currency is not CAD/CA
-    prov_labour_basis_col: int   = meals_col + 3
-    fed_labour_basis_col: int    = meals_col + 4
-    prov_svc_basis_col: int      = meals_col + 5
-    svc_property_basis_col: int  = meals_col + 6
-    fed_svc_basis_col: int       = meals_col + 7
+    # basis_cols order must match raw_basis tuple from BREAKOUT_BIBLE:
+    #   [non_prov_out, prov_labour, fed_labour, prov_svc, svc_property, fed_svc]
     basis_cols: list[int] = [
         non_prov_basis_col, prov_labour_basis_col, fed_labour_basis_col,
         prov_svc_basis_col, svc_property_basis_col, fed_svc_basis_col,
     ]
-    # Six "calc" columns – dollar amounts via IF formulas referencing basis cols
-    non_prov_calc_col: int      = meals_col + 8
-    prov_labour_calc_col: int   = meals_col + 9
-    fed_labour_calc_col: int    = meals_col + 10
-    prov_svc_calc_col: int      = meals_col + 11
-    svc_property_calc_col: int  = meals_col + 12
-    fed_svc_calc_col: int            = meals_col + 13
-    foreign_spend_calc_col: int      = meals_col + 14
+    # calc_cols order must match calc_formulas list in the per-row section below
     calc_cols: list[int] = [
         non_prov_calc_col, prov_labour_calc_col, fed_labour_calc_col,
         prov_svc_calc_col, svc_property_calc_col, fed_svc_calc_col,
@@ -1047,34 +1080,38 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         "Subtotal",
         "Fringes",
         "Grand Total",
-    ] + [f"{cur} Grand Total" for cur in seen_currencies] + [
-        "Internals",
-        "Meals",
-        # Basis columns – show raw BREAKOUT_BIBLE treatment (auditable inputs)
-        "Non-Prov",
+        # cols 10–11: Foreign indicator + Foreign Spend calc
         "Foreign",
-        "Prov Labour %",
+        "Foreign Spend",
+        # cols 12–15: Federal
         "Fed Labour %",
+        "Federal Labour",
+        "Fed Svc Labour %",
+        "Federal Services Labour",
+        # cols 16–17: Non-Provincial
+        "Non-Prov",
+        "Non-Provincial Spend",
+        # cols 18–23: Provincial
+        "Prov Labour %",
+        "Provincial Labour",
         "Prov Svc Labour %",
         "Svc Property %",
-        "Fed Svc Labour %",
-        # Calc columns – dollar amounts via IF formulas referencing basis cols
-        "Non-Provincial Spend",
-        "Provincial Labour",
-        "Federal Labour",
         "Provincial Services Labour",
         "Services Property",
-        "Federal Services Labour",
-        "Foreign Spend",
-    ]
+        # cols 24–25: Internals, Meals
+        "Internals",
+        "Meals",
+    ] + [f"{cur} Grand Total" for cur in seen_currencies]
 
     num_cols = len(headers)
     widths = (
-        [12, 34, 40, 8, 28, 10, 14, 14, 14]
-        + [16] * len(seen_currencies)
-        + [16, 14]                          # Internals, Meals
-        + [10, 10, 13, 13, 16, 13, 16]   # Non-Prov, Foreign, 5 basis % cols
-        + [22, 20, 18, 26, 20, 24, 18]  # 6 calc cols + Foreign Spend
+        [12, 34, 40, 8, 28, 10, 14, 14, 14]    # A–I
+        + [10, 18]                               # Foreign, Foreign Spend
+        + [13, 18, 16, 24]                       # Fed Labour %, Federal Labour, Fed Svc Labour %, Federal Services Labour
+        + [10, 22]                               # Non-Prov, Non-Provincial Spend
+        + [13, 20, 16, 13, 26, 20]              # Prov Labour %, Provincial Labour, Prov Svc Labour %, Svc Property %, Provincial Services Labour, Services Property
+        + [16, 14]                               # Internals, Meals
+        + [16] * len(seen_currencies)            # currency grand total cols
     )
 
     for idx, width in enumerate(widths, start=1):
@@ -1192,7 +1229,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.font = _BOLD
             c.alignment = _RIGHT
             c.fill = _LIGHT_GRAY_FILL
-            c.number_format = CURRENCY_FORMAT
+            c.number_format = _ACCOUNTING_FORMAT
 
         # Currency grand total columns
         for cur, col in currency_col_map.items():
@@ -1206,7 +1243,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.font = _BOLD
             c.alignment = _RIGHT
             c.fill = _LIGHT_GRAY_FILL
-            c.number_format = CURRENCY_FORMAT
+            c.number_format = _ACCOUNTING_FORMAT
 
         # Internals column for group total
         internals_letter = get_column_letter(internals_col)
@@ -1219,7 +1256,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.font = _BOLD
         c.alignment = _RIGHT
         c.fill = _LIGHT_GRAY_FILL
-        c.number_format = CURRENCY_FORMAT
+        c.number_format = _ACCOUNTING_FORMAT
 
         # Meals column for group total
         meals_letter = get_column_letter(meals_col)
@@ -1232,7 +1269,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.font = _BOLD
         c.alignment = _RIGHT
         c.fill = _LIGHT_GRAY_FILL
-        c.number_format = CURRENCY_FORMAT
+        c.number_format = _ACCOUNTING_FORMAT
 
         # Bible basis cols + Foreign: blank at aggregate rows (% not meaningful)
         for bcol in [foreign_col] + basis_cols:
@@ -1251,7 +1288,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.font = _BOLD
             c.alignment = _RIGHT
             c.fill = _LIGHT_GRAY_FILL
-            c.number_format = CURRENCY_FORMAT
+            c.number_format = _ACCOUNTING_FORMAT
 
         _set_outline_border_bb(row_idx, row_idx)
         row_idx += 2
@@ -1300,9 +1337,9 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
                 (detail.agg,         _CENTER, _PERCENTAGE_FORMAT),
                 (group_label,        _LEFT,   None),
                 (detail.currency,    _CENTER, None),
-                (detail.subtotal,    _RIGHT,  CURRENCY_FORMAT),
-                (f"={subtotal_col}*{agg_col}" if is_fringes_row else 0, _RIGHT, CURRENCY_FORMAT),
-                (f"=G{row_idx}+H{row_idx}", _RIGHT, CURRENCY_FORMAT),
+                (detail.subtotal,    _RIGHT,  _ACCOUNTING_FORMAT),
+                (f"={subtotal_col}*{agg_col}" if is_fringes_row else 0, _RIGHT, _ACCOUNTING_FORMAT),
+                (f"=G{row_idx}+H{row_idx}", _RIGHT, _ACCOUNTING_FORMAT),
             ]
 
             for col, (value, align, num_fmt) in enumerate(row_data, start=1):
@@ -1321,7 +1358,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
                 c.font = _NORMAL
                 c.border = _NO_BORDER
                 c.alignment = _RIGHT
-                c.number_format = CURRENCY_FORMAT
+                c.number_format = _ACCOUNTING_FORMAT
 
             # Internals column: if "Internal OH" appears anywhere in the Groups cell (E), return grand total
             internals_value = f'=IF(ISNUMBER(SEARCH("Internal OH",E{row_idx})),I{row_idx},0)'
@@ -1329,7 +1366,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.font = _NORMAL
             c.border = _NO_BORDER
             c.alignment = _RIGHT
-            c.number_format = CURRENCY_FORMAT
+            c.number_format = _ACCOUNTING_FORMAT
 
             # Meals column: account in {2840,3201,3210,3215,3320} OR "Diem" in Description (col C)
             meals_value = (
@@ -1341,7 +1378,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.font = _NORMAL
             c.border = _NO_BORDER
             c.alignment = _RIGHT
-            c.number_format = CURRENCY_FORMAT
+            c.number_format = _ACCOUNTING_FORMAT
 
             # ── Bible basis columns: visible raw treatment from BREAKOUT_BIBLE ──
             # Non-Prov: text "OUT" or blank; others: decimal percentage or blank
@@ -1395,7 +1432,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
                 c.font = _NORMAL
                 c.border = _NO_BORDER
                 c.alignment = _RIGHT
-                c.number_format = CURRENCY_FORMAT
+                c.number_format = _ACCOUNTING_FORMAT
 
             row_idx += 1
 
@@ -1414,7 +1451,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.font = _BOLD
             c.alignment = _RIGHT
             c.fill = _LIGHT_GRAY_FILL
-            c.number_format = CURRENCY_FORMAT
+            c.number_format = _ACCOUNTING_FORMAT
 
         # Currency grand total columns for this section total
         for cur, col in currency_col_map.items():
@@ -1424,7 +1461,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.font = _BOLD
             c.alignment = _RIGHT
             c.fill = _LIGHT_GRAY_FILL
-            c.number_format = CURRENCY_FORMAT
+            c.number_format = _ACCOUNTING_FORMAT
 
         # Internals column for this section total
         internals_letter = get_column_letter(internals_col)
@@ -1433,7 +1470,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.font = _BOLD
         c.alignment = _RIGHT
         c.fill = _LIGHT_GRAY_FILL
-        c.number_format = CURRENCY_FORMAT
+        c.number_format = _ACCOUNTING_FORMAT
 
         # Meals column for this section total
         meals_letter = get_column_letter(meals_col)
@@ -1442,7 +1479,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.font = _BOLD
         c.alignment = _RIGHT
         c.fill = _LIGHT_GRAY_FILL
-        c.number_format = CURRENCY_FORMAT
+        c.number_format = _ACCOUNTING_FORMAT
 
         # Bible basis cols + Foreign: blank at aggregate rows
         for bcol in [foreign_col] + basis_cols:
@@ -1457,7 +1494,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.font = _BOLD
             c.alignment = _RIGHT
             c.fill = _LIGHT_GRAY_FILL
-            c.number_format = CURRENCY_FORMAT
+            c.number_format = _ACCOUNTING_FORMAT
 
         section_total_rows_by_prefix[prefix] = row_idx
         _set_outline_border_bb(section_start, row_idx)
@@ -1482,7 +1519,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.font = _WHITE_BOLD
             c.alignment = _RIGHT
             c.fill = _GRAND_TOTAL_FILL
-            c.number_format = CURRENCY_FORMAT
+            c.number_format = _ACCOUNTING_FORMAT
         for cur, col in currency_col_map.items():
             letter = get_column_letter(col)
             refs = ",".join(f"{letter}{r}" for r in all_section_rows)
@@ -1490,7 +1527,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.font = _WHITE_BOLD
             c.alignment = _RIGHT
             c.fill = _GRAND_TOTAL_FILL
-            c.number_format = CURRENCY_FORMAT
+            c.number_format = _ACCOUNTING_FORMAT
         # Internals column for grand total
         internals_letter = get_column_letter(internals_col)
         refs = ",".join(f"{internals_letter}{r}" for r in all_section_rows)
@@ -1498,7 +1535,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.font = _WHITE_BOLD
         c.alignment = _RIGHT
         c.fill = _GRAND_TOTAL_FILL
-        c.number_format = CURRENCY_FORMAT
+        c.number_format = _ACCOUNTING_FORMAT
         # Meals column for grand total
         meals_letter = get_column_letter(meals_col)
         refs = ",".join(f"{meals_letter}{r}" for r in all_section_rows)
@@ -1506,7 +1543,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         c.font = _WHITE_BOLD
         c.alignment = _RIGHT
         c.fill = _GRAND_TOTAL_FILL
-        c.number_format = CURRENCY_FORMAT
+        c.number_format = _ACCOUNTING_FORMAT
         # Bible basis cols + Foreign: blank on grand total row
         for bcol in [foreign_col] + basis_cols:
             c = ws.cell(row=row_idx, column=bcol, value=None)
@@ -1521,14 +1558,14 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.font = _WHITE_BOLD
             c.alignment = _RIGHT
             c.fill = _GRAND_TOTAL_FILL
-            c.number_format = CURRENCY_FORMAT
+            c.number_format = _ACCOUNTING_FORMAT
     else:
         for col in range(7, num_cols + 1):
             c = ws.cell(row=row_idx, column=col, value=0)
             c.font = _WHITE_BOLD
             c.alignment = _RIGHT
             c.fill = _GRAND_TOTAL_FILL
-            c.number_format = CURRENCY_FORMAT
+            c.number_format = _ACCOUNTING_FORMAT
 
     for col in range(1, num_cols + 1):
         ws.cell(row=row_idx, column=col).border = _THIN_BORDER
