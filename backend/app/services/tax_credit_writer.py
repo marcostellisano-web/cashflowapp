@@ -1346,8 +1346,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         section_start = row_idx
         label = topsheet_name_by_prefix.get(prefix, "")
 
-        # Section header (merged across all columns)
-        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=num_cols)
+        # Section header (no merge — fill applied to every cell in the row)
         section_cell = ws.cell(
             row=row_idx,
             column=1,
@@ -1356,6 +1355,8 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
         section_cell.font = _BOLD
         section_cell.alignment = _LEFT
         section_cell.fill = _LIGHT_GRAY_FILL
+        for col in range(2, num_cols + 1):
+            ws.cell(row=row_idx, column=col).fill = _LIGHT_GRAY_FILL
         row_idx += 1
 
         section_detail_start = row_idx
