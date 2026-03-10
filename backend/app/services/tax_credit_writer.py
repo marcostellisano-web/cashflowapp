@@ -1189,7 +1189,7 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             )
 
     # ── Group totals logic ───────────────────────────────────────────────────
-    row_idx = 2
+    row_idx = 4  # rows 2–3 reserved for pinned summary (written after grand total is known)
     section_total_rows_by_prefix: dict[str, int] = {}
 
     section_group_end_prefixes = {"A": 600, "B": 5900, "C": 6900, "D": 7200}
@@ -1650,7 +1650,56 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
     for col in range(1, num_cols + 1):
         ws.cell(row=row_idx, column=col).border = _THIN_BORDER
 
-    ws.freeze_panes = "A2"
+    # ── Pinned summary rows (written now that grand total row is known) ───────
+    grand_total_row = row_idx
+
+    # All dollar-amount columns (accounting format) — used in both summary rows
+    accounting_cols = [
+        7, 8, 9,
+        foreign_spend_calc_col, canadian_spend_calc_col,
+        fed_labour_calc_col, fed_svc_calc_col,
+        non_prov_calc_col, provincial_spend_calc_col,
+        prov_labour_calc_col, prov_svc_calc_col, svc_property_calc_col,
+        internals_col, meals_col,
+    ] + list(currency_col_map.values())
+
+    # Apply background fill to every cell in both summary rows first
+    for col in range(1, num_cols + 1):
+        ws.cell(row=2, column=col).fill = _LIGHT_GRAY_FILL
+        ws.cell(row=3, column=col).fill = _LIGHT_GRAY_FILL
+
+    # Row 2 — TOTAL: mirror of grand total row
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=6)
+    lbl2 = ws.cell(row=2, column=1, value="TOTAL")
+    lbl2.font = _BOLD
+    lbl2.alignment = _LEFT
+    lbl2.fill = _LIGHT_GRAY_FILL
+    for col in accounting_cols:
+        letter = get_column_letter(col)
+        c = ws.cell(row=2, column=col, value=f"={letter}{grand_total_row}")
+        c.font = _BOLD
+        c.alignment = _RIGHT
+        c.fill = _LIGHT_GRAY_FILL
+        c.number_format = _ACCOUNTING_FORMAT
+    _set_outline_border_bb(2, 2)
+
+    # Row 3 — % OF GRAND TOTAL: each accounting col as % of Grand Total (col I)
+    ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=6)
+    lbl3 = ws.cell(row=3, column=1, value="% OF GRAND TOTAL")
+    lbl3.font = _BOLD
+    lbl3.alignment = _LEFT
+    lbl3.fill = _LIGHT_GRAY_FILL
+    for col in accounting_cols:
+        letter = get_column_letter(col)
+        c = ws.cell(row=3, column=col,
+                    value=f"=IFERROR({letter}{grand_total_row}/I{grand_total_row},0)")
+        c.font = _BOLD
+        c.alignment = _RIGHT
+        c.fill = _LIGHT_GRAY_FILL
+        c.number_format = _PERCENTAGE_FORMAT
+    _set_outline_border_bb(3, 3)
+
+    ws.freeze_panes = "A4"
 
 
 # ---------------------------------------------------------------------------
