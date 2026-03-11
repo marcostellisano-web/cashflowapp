@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { generateTaxCreditExcel } from '../../lib/api';
 import type { ParsedBudget } from '../../types/budget';
 import type { BreakoutOverride } from '../../types/tax_credit';
