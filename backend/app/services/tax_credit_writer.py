@@ -957,7 +957,7 @@ def _derive_group_label(prefix: str) -> str:
     return ""
 
 
-def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
+def _write_breakout_budget(ws, budget: ParsedBudget, overrides: dict | None = None) -> None:
     """Generate the Breakout Budget tab.
 
     Fixed columns (A–I):
@@ -1421,20 +1421,40 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
             c.number_format = _ACCOUNTING_FORMAT
 
             # ── Bible basis columns: visible raw treatment from BREAKOUT_BIBLE ──
-            # Non-Prov: text "OUT" or blank; others: decimal percentage or blank
+            # Overrides (if any) supersede the bible; None fields fall back to bible.
+            ov = (overrides or {}).get(normalized)
             bible_entry = BREAKOUT_BIBLE.get(normalized)
             if bible_entry:
-                non_prov_out, pl, fl, psl, sp, fsl = bible_entry
-                raw_basis = [
-                    "OUT" if non_prov_out else None,
-                    pl   if pl  > 0 else None,
-                    fl   if fl  > 0 else None,
-                    psl  if psl > 0 else None,
-                    sp   if sp  > 0 else None,
-                    fsl  if fsl > 0 else None,
-                ]
+                b_non_prov_out, b_pl, b_fl, b_psl, b_sp, b_fsl = bible_entry
             else:
-                raw_basis = [None, None, None, None, None, None]
+                b_non_prov_out, b_pl, b_fl, b_psl, b_sp, b_fsl = False, 0.0, 0.0, 0.0, 0.0, 0.0
+
+            def _ov_val(override_val, bible_val):
+                """Return override if set, else bible value."""
+                return bible_val if override_val is None else override_val
+
+            if ov is not None:
+                # Support both Pydantic model and plain dict
+                _get = (lambda f: getattr(ov, f)) if hasattr(ov, "__fields__") else (lambda f: ov.get(f))
+                non_prov_out = _ov_val(_get("is_non_prov"), b_non_prov_out)
+                pl  = _ov_val(_get("prov_labour_pct"),     b_pl)
+                fl  = _ov_val(_get("fed_labour_pct"),      b_fl)
+                psl = _ov_val(_get("prov_svc_labour_pct"), b_psl)
+                sp  = _ov_val(_get("svc_property_pct"),    b_sp)
+                fsl = _ov_val(_get("fed_svc_labour_pct"),  b_fsl)
+                is_foreign_override = _get("is_foreign")  # None / True / False
+            else:
+                non_prov_out, pl, fl, psl, sp, fsl = b_non_prov_out, b_pl, b_fl, b_psl, b_sp, b_fsl
+                is_foreign_override = None
+
+            raw_basis = [
+                "OUT" if non_prov_out else None,
+                pl   if pl  > 0 else None,
+                fl   if fl  > 0 else None,
+                psl  if psl > 0 else None,
+                sp   if sp  > 0 else None,
+                fsl  if fsl > 0 else None,
+            ]
 
             for bcol, bval in zip(basis_cols, raw_basis):
                 c = ws.cell(row=row_idx, column=bcol, value=bval)
@@ -1444,11 +1464,16 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
                 if isinstance(bval, float):
                     c.number_format = _PERCENTAGE_FORMAT
 
-            # Foreign column: Excel IF formula – "FOR" when currency (col F) is not CAD/CA/blank
-            foreign_formula = (
-                f'=IF(AND(F{row_idx}<>"",F{row_idx}<>"CAD",F{row_idx}<>"CA"),"FOR","")'
-            )
-            c = ws.cell(row=row_idx, column=foreign_col, value=foreign_formula)
+            # Foreign column: Excel formula by default; hard-coded when overridden
+            if is_foreign_override is True:
+                foreign_value = "FOR"
+            elif is_foreign_override is False:
+                foreign_value = ""
+            else:
+                foreign_value = (
+                    f'=IF(AND(F{row_idx}<>"",F{row_idx}<>"CAD",F{row_idx}<>"CA"),"FOR","")'
+                )
+            c = ws.cell(row=row_idx, column=foreign_col, value=foreign_value)
             c.font = _NORMAL
             c.border = _NO_BORDER
             c.alignment = _CENTER
@@ -1764,8 +1789,17 @@ def _write_breakout_budget(ws, budget: ParsedBudget) -> None:
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def write_tax_credit_excel(budget: ParsedBudget, title: str) -> BytesIO:
-    """Build a tax credit filing workbook and return as BytesIO."""
+def write_tax_credit_excel(
+    budget: ParsedBudget,
+    title: str,
+    overrides: dict | None = None,
+) -> BytesIO:
+    """Build a tax credit filing workbook and return as BytesIO.
+
+    ``overrides`` is an optional dict mapping account_code → BreakoutOverride
+    (or any object/dict with the same fields). When provided, these values
+    supersede the BREAKOUT_BIBLE for the matching account codes.
+    """
     wb = Workbook()
 
     # Remove the default empty sheet
@@ -1782,7 +1816,7 @@ def write_tax_credit_excel(budget: ParsedBudget, title: str) -> BytesIO:
     _write_detail_budget(ws_detail, budget)
 
     ws_breakout = wb.create_sheet("Breakout Budget")
-    _write_breakout_budget(ws_breakout, budget)
+    _write_breakout_budget(ws_breakout, budget, overrides or {})
 
     buffer = BytesIO()
     wb.save(buffer)

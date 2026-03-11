@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { generateTaxCreditExcel } from '../../lib/api';
 import type { ParsedBudget } from '../../types/budget';
+import type { BreakoutOverride } from '../../types/tax_credit';
+import BreakoutOverridesEditor from './BreakoutOverridesEditor';
 
 interface TaxCreditOutputProps {
   budget: ParsedBudget;
@@ -9,14 +11,25 @@ interface TaxCreditOutputProps {
 
 export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps) {
   const [title, setTitle] = useState('');
+  const [committedTitle, setCommittedTitle] = useState('');
+  const [overrides, setOverrides] = useState<BreakoutOverride[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Commit the title (triggers override load) on blur or Enter
+  const handleTitleCommit = () => {
+    setCommittedTitle(title.trim());
+  };
 
   const handleDownload = async () => {
     setLoading(true);
     setError(null);
     try {
-      const blob = await generateTaxCreditExcel(budget, title || 'Untitled');
+      const blob = await generateTaxCreditExcel(
+        budget,
+        title || 'Untitled',
+        overrides.length > 0 ? overrides : undefined,
+      );
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -69,14 +82,28 @@ export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps
       </div>
 
       {/* Title input */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-2">
         <h3 className="text-sm font-semibold text-gray-700">Production Title</h3>
+        <p className="text-xs text-gray-400">
+          Used as the project key — saved overrides will auto-load when you return to this title.
+        </p>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          onBlur={handleTitleCommit}
+          onKeyDown={(e) => e.key === 'Enter' && handleTitleCommit()}
           placeholder="Enter production title…"
           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+
+      {/* Breakout overrides editor */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <BreakoutOverridesEditor
+          budget={budget}
+          projectName={committedTitle}
+          onChange={setOverrides}
         />
       </div>
 
@@ -94,6 +121,12 @@ export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps
             <span className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />
             <span>
               <strong>Budget Lines</strong> — Full line-item detail showing each item mapped to its Telefilm category
+            </span>
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />
+            <span>
+              <strong>Breakout Budget</strong> — Tax credit analysis with your adjusted FOR / OUT / labour % values
             </span>
           </li>
         </ul>
