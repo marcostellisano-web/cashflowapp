@@ -207,10 +207,10 @@ export default function BreakoutOverridesEditor({ budget, projectName, onChange 
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {overrides.map((ov) => (
-              <tr key={ov.account_code} className="hover:bg-gray-50 transition-colors">
+            {overrides.map((ov, idx) => (
+              <tr key={ov.account_code} className={`transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50`}>
                 {/* Account code */}
-                <td className="sticky left-0 z-10 bg-white px-3 py-2 font-mono text-gray-800 whitespace-nowrap">
+                <td className={`sticky left-0 z-10 px-3 py-2 font-mono text-gray-800 whitespace-nowrap ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                   {ov.account_code}
                 </td>
                 {/* Description */}
