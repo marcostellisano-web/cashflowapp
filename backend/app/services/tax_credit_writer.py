@@ -1493,11 +1493,11 @@ def _write_breakout_budget(ws, budget: ParsedBudget, overrides: dict | None = No
             calc_formulas = [
                 # Non-Provincial Spend: triggered by either "OUT" (bible) or "FOR" (foreign currency)
                 f'=IF(OR({np_l}{row_idx}="OUT",{for_l}{row_idx}="FOR"),I{row_idx},0)',
-                f'=IF({pl_l}{row_idx}>0,I{row_idx}*{pl_l}{row_idx},0)',
-                f'=IF({fl_l}{row_idx}>0,I{row_idx}*{fl_l}{row_idx},0)',
-                f'=IF({psl_l}{row_idx}>0,I{row_idx}*{psl_l}{row_idx},0)',
+                f'=IF({pl_l}{row_idx}>0,G{row_idx}*{pl_l}{row_idx},0)',
+                f'=IF({fl_l}{row_idx}>0,G{row_idx}*{fl_l}{row_idx},0)',
+                f'=IF({psl_l}{row_idx}>0,G{row_idx}*{psl_l}{row_idx},0)',
                 f'=IF({sp_l}{row_idx}>0,I{row_idx}*{sp_l}{row_idx},0)',
-                f'=IF({fsl_l}{row_idx}>0,I{row_idx}*{fsl_l}{row_idx},0)',
+                f'=IF({fsl_l}{row_idx}>0,G{row_idx}*{fsl_l}{row_idx},0)',
                 # Foreign Spend: Grand Total when the Foreign column reads "FOR"
                 f'=IF({for_l}{row_idx}="FOR",I{row_idx},0)',
             ]
