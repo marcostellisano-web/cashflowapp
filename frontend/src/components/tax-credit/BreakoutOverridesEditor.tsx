@@ -180,26 +180,26 @@ export default function BreakoutOverridesEditor({ budget, projectName, onChange 
       </div>
 
       {/* Scrollable table */}
-      <div className="overflow-x-auto rounded-xl border border-gray-200">
+      <div className="overflow-x-auto overflow-y-auto max-h-[60vh] rounded-xl border border-gray-200">
         <table className="min-w-full text-xs">
-          <thead>
+          <thead className="sticky top-0 z-20">
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="sticky left-0 z-10 bg-gray-50 px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">
+              <th className="sticky left-0 z-30 bg-gray-50 px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap">
                 Account
               </th>
-              <th className="px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap min-w-[160px]">
+              <th className="bg-gray-50 px-3 py-2.5 text-left font-semibold text-gray-600 whitespace-nowrap min-w-[160px]">
                 Description
               </th>
-              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">
+              <th className="bg-gray-50 px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">
                 FOR
               </th>
-              <th className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">
+              <th className="bg-gray-50 px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap">
                 OUT
               </th>
               {PCT_FIELDS.map((f) => (
                 <th
                   key={f.key}
-                  className="px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap"
+                  className="bg-gray-50 px-3 py-2.5 text-center font-semibold text-gray-600 whitespace-nowrap"
                 >
                   {f.label}
                 </th>
