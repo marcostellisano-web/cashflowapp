@@ -2,6 +2,7 @@ import type { TimingBible } from '../types/bible';
 import type { ParsedBudget } from '../types/budget';
 import type { CashflowOutput, LineItemDistribution } from '../types/cashflow';
 import type { ProductionParameters } from '../types/production';
+import type { BreakoutOverride, ProjectOverridesResponse } from '../types/tax_credit';
 
 const BASE = '/api';
 
@@ -115,15 +116,50 @@ export async function deleteCustomBibleEntry(code: string): Promise<void> {
 export async function generateTaxCreditExcel(
   budget: ParsedBudget,
   title: string,
+  overrides?: BreakoutOverride[],
 ): Promise<Blob> {
   const res = await fetch(`${BASE}/tax-credit/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ budget, title }),
+    body: JSON.stringify({ budget, title, overrides: overrides ?? null }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || 'Generation failed');
   }
   return res.blob();
+}
+
+export async function getBreakoutOverrides(
+  projectName: string,
+  accountCodes: string[],
+  descriptions: string[],
+): Promise<ProjectOverridesResponse> {
+  const params = new URLSearchParams();
+  accountCodes.forEach((c) => params.append('account_codes', c));
+  descriptions.forEach((d) => params.append('descriptions', d));
+  const res = await fetch(
+    `${BASE}/tax-credit/overrides/${encodeURIComponent(projectName)}?${params}`,
+  );
+  if (!res.ok) throw new Error('Failed to load overrides');
+  return res.json();
+}
+
+export async function saveBreakoutOverrides(
+  projectName: string,
+  overrides: BreakoutOverride[],
+): Promise<ProjectOverridesResponse> {
+  const res = await fetch(
+    `${BASE}/tax-credit/overrides/${encodeURIComponent(projectName)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ overrides }),
+    },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to save overrides');
+  }
+  return res.json();
 }
