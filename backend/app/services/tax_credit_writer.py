@@ -1789,6 +1789,344 @@ def _write_breakout_budget(ws, budget: ParsedBudget, overrides: dict | None = No
 # Public entry point
 # ---------------------------------------------------------------------------
 
+def _calc_ofttc_labour(budget: ParsedBudget, overrides: dict) -> tuple[float, float]:
+    """Return (ontario_labour, federal_labour) summed from bible/override percentages × line totals."""
+    ontario_labour = 0.0
+    federal_labour = 0.0
+    for item in budget.line_items:
+        normalized = _normalize_account_code(item.code)
+        ov = (overrides or {}).get(normalized)
+        if ov is not None:
+            _get = (lambda f: getattr(ov, f)) if hasattr(ov, "__fields__") else (lambda f: ov.get(f))
+            pl = _get("prov_labour_pct")
+            fl = _get("fed_labour_pct")
+            bible_entry = BREAKOUT_BIBLE.get(normalized)
+            b_pl = bible_entry[1] if bible_entry else 0.0
+            b_fl = bible_entry[2] if bible_entry else 0.0
+            pl = b_pl if pl is None else pl
+            fl = b_fl if fl is None else fl
+        else:
+            bible_entry = BREAKOUT_BIBLE.get(normalized)
+            if bible_entry:
+                _, pl, fl, _, _, _ = bible_entry
+            else:
+                pl, fl = 0.0, 0.0
+        ontario_labour += item.total * pl
+        federal_labour += item.total * fl
+    return ontario_labour, federal_labour
+
+
+# Light yellow fill for user-editable input cells
+_INPUT_FILL = PatternFill(start_color="FFFDE7", end_color="FFFDE7", fill_type="solid")
+_PCT_FORMAT = '0.00%'
+
+
+def _write_ofttc_sheet(ws, budget: ParsedBudget, title: str, overrides: dict) -> None:
+    """Write the Ontario – Full (OFTTC) tax credit calculation sheet."""
+    ws.title = "Ontario - OFTTC"
+
+    # Column widths
+    ws.column_dimensions["A"].width = 42
+    ws.column_dimensions["B"].width = 18
+    ws.column_dimensions["C"].width = 18
+
+    # Pre-compute labour totals from breakout bible/overrides
+    ontario_labour, federal_labour = _calc_ofttc_labour(budget, overrides)
+    total_pc = budget.total_budget
+
+    # -----------------------------------------------------------------------
+    # Helper: write a cell with common properties
+    # -----------------------------------------------------------------------
+    def _cell(row, col, value=None, font=None, fill=None, border=None,
+              alignment=None, number_format=None):
+        c = ws.cell(row=row, column=col, value=value)
+        if font:        c.font = font
+        if fill:        c.fill = fill
+        if border:      c.border = border
+        if alignment:   c.alignment = alignment
+        if number_format: c.number_format = number_format
+        return c
+
+    def _section_header(row, label):
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
+        c = _cell(row, 1, label, font=_WHITE_BOLD, fill=_BLACK_FILL,
+                  alignment=_LEFT, border=_NO_BORDER)
+        ws.row_dimensions[row].height = 16
+        return c
+
+    def _section_label(row, label):
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
+        c = _cell(row, 1, label, font=_BOLD, alignment=_LEFT)
+        ws.row_dimensions[row].height = 14
+
+    def _data_row(row, label, col_b=None, col_c=None, bold=False, indent=False,
+                  c_format=_ACCOUNTING_FORMAT, input_b=False, input_c=False):
+        ws.row_dimensions[row].height = 15
+        lbl = ("        " if indent else "") + label
+        _cell(row, 1, lbl, font=_BOLD if bold else _NORMAL, alignment=_LEFT)
+        if col_b is not None:
+            cb = _cell(row, 2, col_b, font=_NORMAL, alignment=_CENTER)
+            if input_b:
+                cb.fill = _INPUT_FILL
+                cb.border = _THIN_BORDER
+        if col_c is not None:
+            cc = _cell(row, 3, col_c, font=_BOLD if bold else _NORMAL,
+                       alignment=_RIGHT, number_format=c_format)
+            if input_c:
+                cc.fill = _INPUT_FILL
+                cc.border = _THIN_BORDER
+        return row
+
+    def _total_row(row, label, formula, highlight=False):
+        ws.row_dimensions[row].height = 16
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=2)
+        fill = _BLACK_FILL if highlight else _TOTAL_FILL
+        font = _WHITE_BOLD if highlight else _BOLD
+        _cell(row, 1, label, font=font, fill=fill, alignment=_LEFT)
+        _cell(row, 2, None, fill=fill)  # merged, keep fill
+        _cell(row, 3, formula, font=font, fill=fill,
+              alignment=_RIGHT, number_format=_ACCOUNTING_FORMAT)
+
+    def _spacer(row):
+        ws.row_dimensions[row].height = 6
+
+    # -----------------------------------------------------------------------
+    # Title block
+    # -----------------------------------------------------------------------
+    r = 1
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=3)
+    _cell(r, 1, "ONTARIO \u2013 FULL (OFTTC)", font=_TITLE_FONT, alignment=_LEFT)
+    ws.row_dimensions[r].height = 18
+
+    r = 2
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=3)
+    _cell(r, 1, title, font=_BOLD, alignment=_LEFT)
+    ws.row_dimensions[r].height = 16
+
+    r = 3
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=3)
+    _cell(r, 1, "Tax Credit Calculation", font=_BOLD, alignment=_LEFT)
+    ws.row_dimensions[r].height = 16
+
+    _spacer(4)
+
+    # -----------------------------------------------------------------------
+    # ONTARIO PROVINCIAL TAX CREDIT
+    # -----------------------------------------------------------------------
+    _section_header(5, "ONTARIO PROVINCIAL TAX CREDIT")
+    _section_label(6, "A")
+
+    # Row 7: Total Production Cost
+    R_TOTAL_PC = 7
+    _data_row(R_TOTAL_PC, "Total Production Cost", col_c=total_pc, bold=True)
+
+    # Row 8: Ontario Labour (calculated)
+    R_ONT_LABOUR = 8
+    _data_row(R_ONT_LABOUR, "Estimate of Total Ont. Labour", col_c=round(ontario_labour))
+
+    # Row 9: Proportion of labour
+    _data_row(9, "Proportion of labour",
+              col_c=f"=C{R_ONT_LABOUR}/C{R_TOTAL_PC}",
+              c_format=_PCT_FORMAT)
+
+    _spacer(10)
+    _section_label(11, "B")
+
+    # Row 12: Labour expenditure (mirrors ontario labour)
+    R_B_LABOUR = 12
+    _data_row(R_B_LABOUR, "Estimate of total Labour expenditure",
+              col_c=f"=C{R_ONT_LABOUR}")
+
+    # Rows 13–15: Reductions (user inputs)
+    R_EQUITY = 13
+    R_DEFERRALS_PROV = 14
+    R_OTHERS = 15
+    ws.row_dimensions[R_EQUITY].height = 15
+    _cell(R_EQUITY, 1, "Reduction", font=_NORMAL, alignment=_LEFT)
+    _cell(R_EQUITY, 2, "Equity", font=_NORMAL, alignment=_CENTER)
+    _cell(R_EQUITY, 3, None, fill=_INPUT_FILL, border=_THIN_BORDER,
+          number_format=_ACCOUNTING_FORMAT)
+
+    ws.row_dimensions[R_DEFERRALS_PROV].height = 15
+    _cell(R_DEFERRALS_PROV, 2, "Deferrals", font=_NORMAL, alignment=_CENTER)
+    _cell(R_DEFERRALS_PROV, 3, None, fill=_INPUT_FILL, border=_THIN_BORDER,
+          number_format=_ACCOUNTING_FORMAT)
+
+    ws.row_dimensions[R_OTHERS].height = 15
+    _cell(R_OTHERS, 2, "Others", font=_NORMAL, alignment=_CENTER)
+    _cell(R_OTHERS, 3, None, fill=_INPUT_FILL, border=_THIN_BORDER,
+          number_format=_ACCOUNTING_FORMAT)
+
+    # Row 16: Net Production cost
+    R_NET_PROV = 16
+    _data_row(R_NET_PROV, "Net Production cost", bold=True,
+              col_c=f"=C{R_B_LABOUR}-IF(ISNUMBER(C{R_EQUITY}),C{R_EQUITY},0)"
+                    f"-IF(ISNUMBER(C{R_DEFERRALS_PROV}),C{R_DEFERRALS_PROV},0)"
+                    f"-IF(ISNUMBER(C{R_OTHERS}),C{R_OTHERS},0)")
+
+    _spacer(17)
+    _section_label(18, "C")
+
+    # Row 19: Ontario Labour
+    R_ONT_LABOUR_C = 19
+    _data_row(R_ONT_LABOUR_C, "Ontario Labour", col_c=f"=C{R_NET_PROV}")
+
+    # Row 20: General OFTTC
+    R_GENERAL_OFTTC = 20
+    _data_row(R_GENERAL_OFTTC, "General OFTTC (\u00d735%)", bold=True,
+              col_c=f"=C{R_ONT_LABOUR_C}*0.35")
+
+    # Row 21: Regional Bonus (y/n input in col B)
+    R_REGIONAL = 21
+    ws.row_dimensions[R_REGIONAL].height = 15
+    _cell(R_REGIONAL, 1, "Regional Bonus \u2013 10%", font=_BOLD, alignment=_LEFT)
+    rb_cell = _cell(R_REGIONAL, 2, "n", font=_NORMAL, alignment=_CENTER)
+    rb_cell.fill = _INPUT_FILL
+    rb_cell.border = _THIN_BORDER
+    _cell(R_REGIONAL, 3,
+          f'=IF(LOWER(B{R_REGIONAL})="y",C{R_ONT_LABOUR_C}*0.1,0)',
+          font=_BOLD, alignment=_RIGHT, number_format=_ACCOUNTING_FORMAT)
+
+    _spacer(22)
+
+    # Row 23: TOTAL OFTTC
+    R_TOTAL_OFTTC = 23
+    _total_row(R_TOTAL_OFTTC, "TOTAL OFTTC",
+               f"=C{R_GENERAL_OFTTC}+C{R_REGIONAL}")
+
+    # Row 24: Percentage of budget
+    _data_row(24, "Percentage of budget",
+              col_c=f"=C{R_TOTAL_OFTTC}/C{R_TOTAL_PC}",
+              c_format=_PCT_FORMAT)
+
+    _spacer(25)
+
+    # -----------------------------------------------------------------------
+    # FEDERAL TAX CREDIT
+    # -----------------------------------------------------------------------
+    _section_header(26, "FEDERAL TAX CREDIT")
+    _spacer(27)
+
+    # Row 28: Total Production cost
+    R_FED_TOTAL_PC = 28
+    _data_row(R_FED_TOTAL_PC, "Total Production cost", bold=True,
+              col_c=f"=C{R_TOTAL_PC}")
+
+    _spacer(29)
+
+    # Row 30: ON Tax Credits (negative – OFTTC deduction)
+    R_ON_TAX = 30
+    _data_row(R_ON_TAX, "ON Tax Credits",
+              col_c=f"=-C{R_TOTAL_OFTTC}")
+
+    # Row 31: Federal deferrals (user input)
+    R_FED_DEFERRALS = 31
+    _data_row(R_FED_DEFERRALS, "Deferrals", input_c=True,
+              col_c=None)
+    _cell(R_FED_DEFERRALS, 3, None, fill=_INPUT_FILL, border=_THIN_BORDER,
+          number_format=_ACCOUNTING_FORMAT)
+
+    # Row 32: 50% Meals & Entertainment (M&E gross in col B, 50% deduction in col C)
+    R_ME = 32
+    ws.row_dimensions[R_ME].height = 15
+    _cell(R_ME, 1, "50% Meals & Entertainment", font=_NORMAL, alignment=_LEFT)
+    me_b = _cell(R_ME, 2, None, alignment=_RIGHT, number_format=_ACCOUNTING_FORMAT)
+    me_b.fill = _INPUT_FILL
+    me_b.border = _THIN_BORDER
+    _cell(R_ME, 3, f"=IF(ISNUMBER(B{R_ME}),-B{R_ME}*0.5,0)",
+          font=_NORMAL, alignment=_RIGHT, number_format=_ACCOUNTING_FORMAT)
+
+    # Row 33: Assistance (user input)
+    R_ASSISTANCE = 33
+    _data_row(R_ASSISTANCE, "Assistance", input_c=True, col_c=None)
+    _cell(R_ASSISTANCE, 3, None, fill=_INPUT_FILL, border=_THIN_BORDER,
+          number_format=_ACCOUNTING_FORMAT)
+
+    # Row 34: Net Production Cost
+    R_NET_FED = 34
+    _data_row(R_NET_FED, "Net Production Cost", bold=True,
+              col_c=(f"=C{R_FED_TOTAL_PC}+C{R_ON_TAX}"
+                     f"-IF(ISNUMBER(C{R_FED_DEFERRALS}),C{R_FED_DEFERRALS},0)"
+                     f"+C{R_ME}"
+                     f"-IF(ISNUMBER(C{R_ASSISTANCE}),C{R_ASSISTANCE},0)"))
+
+    # Row 35: (A) Eligible production cost (60% of net)
+    R_ELIGIBLE_A = 35
+    _data_row(R_ELIGIBLE_A, "        (A) Eligible production cost", bold=True,
+              col_c=f"=C{R_NET_FED}*0.6")
+
+    _spacer(36)
+
+    # Row 37: Labour expenditure (calculated from overrides)
+    R_FED_LABOUR = 37
+    _data_row(R_FED_LABOUR, "Labour expenditure",
+              col_c=round(federal_labour))
+
+    _spacer(38)
+
+    # Row 39: Labour deferrals (user input)
+    R_LABOUR_DEFS = 39
+    _data_row(R_LABOUR_DEFS, "        Deferrals", input_c=True, col_c=None, indent=False)
+    _cell(R_LABOUR_DEFS, 3, None, fill=_INPUT_FILL, border=_THIN_BORDER,
+          number_format=_ACCOUNTING_FORMAT)
+
+    # Row 40: Sub-total
+    R_LABOUR_SUB = 40
+    _data_row(R_LABOUR_SUB, "Sub-total",
+              col_c=(f"=C{R_FED_LABOUR}"
+                     f"-IF(ISNUMBER(C{R_LABOUR_DEFS}),C{R_LABOUR_DEFS},0)"))
+
+    # Row 41: Percentage of ownership (user input, default 100)
+    R_OWNERSHIP = 41
+    ws.row_dimensions[R_OWNERSHIP].height = 15
+    _cell(R_OWNERSHIP, 1, "Percentage of ownership", font=_NORMAL, alignment=_LEFT)
+    own_cell = _cell(R_OWNERSHIP, 3, 100, font=_NORMAL, alignment=_RIGHT,
+                     number_format='0"%"')
+    own_cell.fill = _INPUT_FILL
+    own_cell.border = _THIN_BORDER
+
+    # Row 42: (B) Net labour expenditure
+    R_NET_LABOUR_B = 42
+    _data_row(R_NET_LABOUR_B, "        (B) Net labour expenditure", bold=True,
+              col_c=f"=C{R_LABOUR_SUB}*(C{R_OWNERSHIP}/100)")
+
+    _spacer(43)
+
+    # Row 44: Eligible cost for Federal Tax Credit
+    R_ELIGIBLE_FED = 44
+    _data_row(R_ELIGIBLE_FED, "Eligible cost for Fed. Tax Credit", bold=True,
+              col_c=f"=MIN(C{R_ELIGIBLE_A},C{R_NET_LABOUR_B})")
+
+    _spacer(45)
+
+    # Row 46: Total Federal Tax Credit
+    R_FED_CREDIT = 46
+    _data_row(R_FED_CREDIT, "Total Federal Tax Credit", bold=True,
+              col_c=f"=C{R_ELIGIBLE_FED}*0.25")
+
+    # Row 47: Percentage of budget
+    _data_row(47, "Percentage of budget",
+              col_c=f"=C{R_FED_CREDIT}/C{R_TOTAL_PC}",
+              c_format=_PCT_FORMAT)
+
+    _spacer(48)
+
+    # Row 49: TOTAL TAX CREDIT
+    R_TOTAL_CREDIT = 49
+    _total_row(R_TOTAL_CREDIT, "TOTAL TAX CREDIT",
+               f"=C{R_TOTAL_OFTTC}+C{R_FED_CREDIT}", highlight=True)
+
+    _spacer(50)
+
+    # Footer summary rows
+    _data_row(51, "Total Production Cost", bold=True, col_c=f"=C{R_TOTAL_PC}")
+    _data_row(52, "Percentage of Total Tax Credits", bold=True,
+              col_c=f"=C{R_TOTAL_CREDIT}/C{R_TOTAL_PC}",
+              c_format=_PCT_FORMAT)
+
+    _spacer(53)
+
+
 def write_tax_credit_excel(
     budget: ParsedBudget,
     title: str,
@@ -1817,6 +2155,9 @@ def write_tax_credit_excel(
 
     ws_breakout = wb.create_sheet("Breakout Budget")
     _write_breakout_budget(ws_breakout, budget, overrides or {})
+
+    ws_ofttc = wb.create_sheet("Ontario - OFTTC")
+    _write_ofttc_sheet(ws_ofttc, budget, title, overrides or {})
 
     buffer = BytesIO()
     wb.save(buffer)
