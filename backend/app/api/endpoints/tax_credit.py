@@ -42,13 +42,15 @@ class SaveOverridesRequest(BaseModel):
 
 class BibleEntrySchema(BaseModel):
     account_code: str
+    description: str = ""
     is_non_prov: bool
     prov_labour_pct: float
     fed_labour_pct: float
     prov_svc_labour_pct: float
     svc_property_pct: float
     fed_svc_labour_pct: float
-    is_customized: bool = False   # True when a DB row overrides the default
+    is_customized: bool = False  # True when a DB row overrides/creates the entry
+    is_standard: bool = True     # False when account_code is not in BREAKOUT_BIBLE
 
 
 class TaxCreditRequest(BaseModel):
@@ -167,80 +169,6 @@ async def download_bible_excel(db: Session = Depends(get_db)):
     )
 
 
-@router.get("/tax-credit/bible", response_model=list[BibleEntrySchema])
-async def get_bible(db: Session = Depends(get_db)):
-    """Return every BREAKOUT_BIBLE entry merged with any global DB customisations."""
-    db_rows = {r.account_code: r for r in db.query(BreakoutBibleEntry).all()}
-
-    result = []
-    for code, defaults in BREAKOUT_BIBLE.items():
-        non_prov, pl, fl, psl, sp, fsl = defaults
-        if code in db_rows:
-            r = db_rows[code]
-            result.append(BibleEntrySchema(
-                account_code=code,
-                is_non_prov=r.is_non_prov,
-                prov_labour_pct=r.prov_labour_pct,
-                fed_labour_pct=r.fed_labour_pct,
-                prov_svc_labour_pct=r.prov_svc_labour_pct,
-                svc_property_pct=r.svc_property_pct,
-                fed_svc_labour_pct=r.fed_svc_labour_pct,
-                is_customized=True,
-            ))
-        else:
-            result.append(BibleEntrySchema(
-                account_code=code,
-                is_non_prov=non_prov,
-                prov_labour_pct=pl,
-                fed_labour_pct=fl,
-                prov_svc_labour_pct=psl,
-                svc_property_pct=sp,
-                fed_svc_labour_pct=fsl,
-                is_customized=False,
-            ))
-    return result
-
-
-@router.put("/tax-credit/bible/{account_code}", response_model=BibleEntrySchema)
-async def update_bible_entry(
-    account_code: str,
-    body: BibleEntrySchema,
-    db: Session = Depends(get_db),
-):
-    existing = db.query(BreakoutBibleEntry).filter(
-        BreakoutBibleEntry.account_code == account_code
-    ).first()
-
-    if existing:
-        existing.is_non_prov         = body.is_non_prov
-        existing.prov_labour_pct     = body.prov_labour_pct
-        existing.fed_labour_pct      = body.fed_labour_pct
-        existing.prov_svc_labour_pct = body.prov_svc_labour_pct
-        existing.svc_property_pct    = body.svc_property_pct
-        existing.fed_svc_labour_pct  = body.fed_svc_labour_pct
-    else:
-        db.add(BreakoutBibleEntry(
-            account_code=account_code,
-            is_non_prov=body.is_non_prov,
-            prov_labour_pct=body.prov_labour_pct,
-            fed_labour_pct=body.fed_labour_pct,
-            prov_svc_labour_pct=body.prov_svc_labour_pct,
-            svc_property_pct=body.svc_property_pct,
-            fed_svc_labour_pct=body.fed_svc_labour_pct,
-        ))
-    db.commit()
-    return BibleEntrySchema(**body.model_dump(), is_customized=True)
-
-
-@router.delete("/tax-credit/bible/{account_code}", status_code=204)
-async def reset_bible_entry(account_code: str, db: Session = Depends(get_db)):
-    """Delete a global bible override, reverting the account to its hardcoded default."""
-    db.query(BreakoutBibleEntry).filter(
-        BreakoutBibleEntry.account_code == account_code
-    ).delete()
-    db.commit()
-
-
 # ---------------------------------------------------------------------------
 # Project overrides endpoints
 # ---------------------------------------------------------------------------
@@ -305,6 +233,115 @@ async def save_overrides(
             ))
     db.commit()
     return ProjectOverridesResponse(project_name=project_name, overrides=body.overrides)
+
+
+@router.get("/tax-credit/bible", response_model=list[BibleEntrySchema])
+async def get_bible(db: Session = Depends(get_db)):
+    """Return all breakout bible entries: BREAKOUT_BIBLE defaults merged with DB overrides,
+    plus any custom (non-standard) accounts stored only in the DB."""
+    db_rows: dict[str, BreakoutBibleEntry] = {
+        r.account_code: r
+        for r in db.query(BreakoutBibleEntry).all()
+    }
+
+    results: list[BibleEntrySchema] = []
+
+    # Standard entries from BREAKOUT_BIBLE
+    for code, entry in BREAKOUT_BIBLE.items():
+        non_prov, pl, fl, psl, sp, fsl = entry
+        row = db_rows.get(code)
+        if row:
+            results.append(BibleEntrySchema(
+                account_code=code,
+                description=row.description,
+                is_non_prov=row.is_non_prov,
+                prov_labour_pct=row.prov_labour_pct,
+                fed_labour_pct=row.fed_labour_pct,
+                prov_svc_labour_pct=row.prov_svc_labour_pct,
+                svc_property_pct=row.svc_property_pct,
+                fed_svc_labour_pct=row.fed_svc_labour_pct,
+                is_customized=True,
+                is_standard=True,
+            ))
+        else:
+            results.append(BibleEntrySchema(
+                account_code=code,
+                description="",
+                is_non_prov=non_prov,
+                prov_labour_pct=pl,
+                fed_labour_pct=fl,
+                prov_svc_labour_pct=psl,
+                svc_property_pct=sp,
+                fed_svc_labour_pct=fsl,
+                is_customized=False,
+                is_standard=True,
+            ))
+
+    # Custom (non-standard) entries that exist only in the DB
+    for code, row in db_rows.items():
+        if code not in BREAKOUT_BIBLE:
+            results.append(BibleEntrySchema(
+                account_code=code,
+                description=row.description,
+                is_non_prov=row.is_non_prov,
+                prov_labour_pct=row.prov_labour_pct,
+                fed_labour_pct=row.fed_labour_pct,
+                prov_svc_labour_pct=row.prov_svc_labour_pct,
+                svc_property_pct=row.svc_property_pct,
+                fed_svc_labour_pct=row.fed_svc_labour_pct,
+                is_customized=True,
+                is_standard=False,
+            ))
+
+    results.sort(key=lambda e: e.account_code)
+    return results
+
+
+@router.put("/tax-credit/bible/{account_code}", response_model=BibleEntrySchema)
+async def upsert_bible_entry(
+    account_code: str,
+    body: BibleEntrySchema,
+    db: Session = Depends(get_db),
+):
+    """Create or update a breakout bible entry in the database."""
+    row = db.query(BreakoutBibleEntry).filter(
+        BreakoutBibleEntry.account_code == account_code
+    ).first()
+    if row:
+        row.description         = body.description
+        row.is_non_prov         = body.is_non_prov
+        row.prov_labour_pct     = body.prov_labour_pct
+        row.fed_labour_pct      = body.fed_labour_pct
+        row.prov_svc_labour_pct = body.prov_svc_labour_pct
+        row.svc_property_pct    = body.svc_property_pct
+        row.fed_svc_labour_pct  = body.fed_svc_labour_pct
+    else:
+        db.add(BreakoutBibleEntry(
+            account_code        = account_code,
+            description         = body.description,
+            is_non_prov         = body.is_non_prov,
+            prov_labour_pct     = body.prov_labour_pct,
+            fed_labour_pct      = body.fed_labour_pct,
+            prov_svc_labour_pct = body.prov_svc_labour_pct,
+            svc_property_pct    = body.svc_property_pct,
+            fed_svc_labour_pct  = body.fed_svc_labour_pct,
+        ))
+    db.commit()
+    is_standard = account_code in BREAKOUT_BIBLE
+    return BibleEntrySchema(**body.model_dump(), is_customized=True, is_standard=is_standard)
+
+
+@router.delete("/tax-credit/bible/{account_code}", status_code=204)
+async def delete_bible_entry(account_code: str, db: Session = Depends(get_db)):
+    """Delete the DB override for a bible entry (reverts standard entries to defaults,
+    fully removes custom entries)."""
+    row = db.query(BreakoutBibleEntry).filter(
+        BreakoutBibleEntry.account_code == account_code
+    ).first()
+    if row:
+        db.delete(row)
+        db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/tax-credit/generate")

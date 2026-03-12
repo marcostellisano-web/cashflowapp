@@ -33,13 +33,15 @@ class CustomBibleEntry(Base):
 class BreakoutBibleEntry(Base):
     """Global (non-project-specific) customisations to the tax credit breakout bible.
 
-    Only rows whose values differ from the hardcoded BREAKOUT_BIBLE defaults
-    are stored.  Absent rows fall back to the Python defaults automatically.
+    Standard BREAKOUT_BIBLE entries are stored here when their values are
+    overridden. Entirely new (non-standard) account codes can also be added.
+    Absent rows fall back to the Python defaults automatically.
     """
 
     __tablename__ = "breakout_bible_entries"
 
     account_code        = Column(String(20), primary_key=True)
+    description         = Column(Text,    nullable=False, default="")
     is_non_prov         = Column(Boolean, nullable=False, default=False)
     prov_labour_pct     = Column(Float,   nullable=False, default=0.0)
     fed_labour_pct      = Column(Float,   nullable=False, default=0.0)

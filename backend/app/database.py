@@ -8,7 +8,7 @@ Set DATABASE_URL environment variable to switch:
 
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import NullPool
 
@@ -55,3 +55,28 @@ def init_db() -> None:
     # Import models so SQLAlchemy registers them with Base.metadata
     from app.models import db_models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    _migrate()
+
+
+def _migrate() -> None:
+    """Apply incremental schema changes that create_all cannot handle.
+
+    Safe to run on every startup — each statement is idempotent.
+    """
+    with engine.connect() as conn:
+        if _is_sqlite:
+            # SQLite ADD COLUMN IF NOT EXISTS requires 3.37+; use try/except
+            try:
+                conn.execute(text(
+                    "ALTER TABLE breakout_bible_entries "
+                    "ADD COLUMN description TEXT NOT NULL DEFAULT ''"
+                ))
+                conn.commit()
+            except Exception:
+                pass  # column already exists
+        else:
+            conn.execute(text(
+                "ALTER TABLE breakout_bible_entries "
+                "ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''"
+            ))
+            conn.commit()

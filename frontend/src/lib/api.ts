@@ -2,7 +2,7 @@ import type { TimingBible } from '../types/bible';
 import type { ParsedBudget } from '../types/budget';
 import type { CashflowOutput, LineItemDistribution } from '../types/cashflow';
 import type { ProductionParameters } from '../types/production';
-import type { BibleEntry, BreakoutOverride, ProjectOverridesResponse } from '../types/tax_credit';
+import type { BreakoutBibleEntry, BreakoutOverride, ProjectOverridesResponse } from '../types/tax_credit';
 
 const BASE = '/api';
 
@@ -130,39 +130,6 @@ export async function generateTaxCreditExcel(
   return res.blob();
 }
 
-export async function getBreakoutBibleEntries(): Promise<BibleEntry[]> {
-  const res = await fetch(`${BASE}/tax-credit/bible`);
-  if (!res.ok) throw new Error('Failed to get breakout bible');
-  return res.json();
-}
-
-export async function updateBreakoutBibleEntry(entry: BibleEntry): Promise<BibleEntry> {
-  const res = await fetch(
-    `${BASE}/tax-credit/bible/${encodeURIComponent(entry.account_code)}`,
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(entry),
-    },
-  );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || 'Failed to save bible entry');
-  }
-  return res.json();
-}
-
-export async function resetBreakoutBibleEntry(accountCode: string): Promise<void> {
-  const res = await fetch(
-    `${BASE}/tax-credit/bible/${encodeURIComponent(accountCode)}`,
-    { method: 'DELETE' },
-  );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || 'Failed to reset bible entry');
-  }
-}
-
 export function getBreakoutBibleExcelUrl(): string {
   return `${BASE}/tax-credit/bible/excel`;
 }
@@ -180,6 +147,41 @@ export async function getBreakoutOverrides(
   );
   if (!res.ok) throw new Error('Failed to load overrides');
   return res.json();
+}
+
+export async function getBreakoutBible(): Promise<BreakoutBibleEntry[]> {
+  const res = await fetch(`${BASE}/tax-credit/bible`);
+  if (!res.ok) throw new Error('Failed to load breakout bible');
+  return res.json();
+}
+
+export async function upsertBreakoutBibleEntry(
+  entry: BreakoutBibleEntry,
+): Promise<BreakoutBibleEntry> {
+  const res = await fetch(
+    `${BASE}/tax-credit/bible/${encodeURIComponent(entry.account_code)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
+    },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to save bible entry');
+  }
+  return res.json();
+}
+
+export async function deleteBreakoutBibleEntry(accountCode: string): Promise<void> {
+  const res = await fetch(
+    `${BASE}/tax-credit/bible/${encodeURIComponent(accountCode)}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to delete bible entry');
+  }
 }
 
 export async function saveBreakoutOverrides(
