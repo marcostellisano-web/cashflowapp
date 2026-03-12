@@ -1834,11 +1834,11 @@ def _write_ofttc_sheet(ws, title: str) -> None:
         return c
 
     def _lined(row, col, value=None, font=None, fill=None, align=None, fmt=None):
-        """Cell WITH thin border (grey section / total rows only)."""
+        """Cell on a grey row — fill/font only; borders applied in post-processing."""
         ws.row_dimensions[row].height = ROW_H
         c = ws.cell(row=row, column=col, value=value)
         c.font      = font  or _BOLD
-        c.border    = _THIN_BORDER
+        c.border    = _NO_BORDER
         c.fill      = fill or _GFI
         c.alignment = align or _LEFT
         if fmt: c.number_format = fmt
@@ -2033,6 +2033,30 @@ def _write_ofttc_sheet(ws, title: str) -> None:
     R_TOTAL = 55
     grey_row(R_TOTAL, "TOTAL TAX CREDIT",
              c_val=f"=C{R_OFTTC}+C{R_FED_CR}")
+
+    # ── Post-processing: outline borders ──────────────────────────────
+    # Grey rows: 6 (ONTARIO PROV), R_OFTTC (TOTAL OFTTC),
+    #            32 (FEDERAL TAX), R_TOTAL (TOTAL TAX CREDIT)
+    CALC_START = 6
+    CALC_END   = R_TOTAL
+    _GREY_ROWS = {CALC_START, R_OFTTC, 32, CALC_END}
+
+    # For every cell in the calculation block, compute its border from
+    # two rules:
+    #   1. Grey rows   → top + bottom across full width
+    #   2. Outer box   → left on col-A, right on col-C, top on first row,
+    #                    bottom on last row
+    for row in range(CALC_START, CALC_END + 1):
+        is_grey  = row in _GREY_ROWS
+        is_start = row == CALC_START
+        is_end   = row == CALC_END
+        for col in range(1, 4):
+            ws.cell(row=row, column=col).border = Border(
+                top    = _THIN if (is_grey or is_start) else None,
+                bottom = _THIN if (is_grey or is_end)   else None,
+                left   = _THIN if col == 1               else None,
+                right  = _THIN if col == 3               else None,
+            )
 
     blank_row(56)
 
