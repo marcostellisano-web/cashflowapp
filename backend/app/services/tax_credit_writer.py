@@ -1789,50 +1789,30 @@ def _write_breakout_budget(ws, budget: ParsedBudget, overrides: dict | None = No
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def _calc_ofttc_labour(budget: ParsedBudget, overrides: dict) -> tuple[float, float]:
-    """Return (ontario_labour, federal_labour) summed from bible/override percentages × line totals."""
-    ontario_labour = 0.0
-    federal_labour = 0.0
-    for item in budget.line_items:
-        normalized = _normalize_account_code(item.code)
-        ov = (overrides or {}).get(normalized)
-        if ov is not None:
-            _get = (lambda f: getattr(ov, f)) if hasattr(ov, "__fields__") else (lambda f: ov.get(f))
-            pl = _get("prov_labour_pct")
-            fl = _get("fed_labour_pct")
-            bible_entry = BREAKOUT_BIBLE.get(normalized)
-            b_pl = bible_entry[1] if bible_entry else 0.0
-            b_fl = bible_entry[2] if bible_entry else 0.0
-            pl = b_pl if pl is None else pl
-            fl = b_fl if fl is None else fl
-        else:
-            bible_entry = BREAKOUT_BIBLE.get(normalized)
-            if bible_entry:
-                _, pl, fl, _, _, _ = bible_entry
-            else:
-                pl, fl = 0.0, 0.0
-        ontario_labour += item.total * pl
-        federal_labour += item.total * fl
-    return ontario_labour, federal_labour
-
+# Cross-sheet references to Breakout Budget's pinned Row 2 ("TOTAL")
+_BB_GRAND_TOTAL = "='Breakout Budget'!I2"   # col I  (9)  Grand Total
+_BB_PROV_LABOUR = "='Breakout Budget'!U2"   # col U  (21) Provincial Labour
+_BB_FED_LABOUR  = "='Breakout Budget'!N2"   # col N  (14) Federal Labour
+_BB_MEALS       = "='Breakout Budget'!AA2"  # col AA (27) Meals
 
 # Light yellow fill for user-editable input cells
 _INPUT_FILL = PatternFill(start_color="FFFDE7", end_color="FFFDE7", fill_type="solid")
 _PCT_FORMAT = '0.00%'
 
 
-def _write_ofttc_sheet(ws, budget: ParsedBudget, title: str, overrides: dict) -> None:
-    """Write the Ontario – Full (OFTTC) tax credit calculation sheet."""
+def _write_ofttc_sheet(ws, budget: ParsedBudget, title: str) -> None:
+    """Write the Ontario – Full (OFTTC) tax credit calculation sheet.
+
+    Key values are linked via cross-sheet formulas to the Breakout Budget
+    pinned Row 2 (TOTAL), so any override changes there cascade here
+    automatically.
+    """
     ws.title = "Ontario - OFTTC"
 
     # Column widths
     ws.column_dimensions["A"].width = 42
     ws.column_dimensions["B"].width = 18
     ws.column_dimensions["C"].width = 18
-
-    # Pre-compute labour totals from breakout bible/overrides
-    ontario_labour, federal_labour = _calc_ofttc_labour(budget, overrides)
-    total_pc = budget.total_budget
 
     # -----------------------------------------------------------------------
     # Helper: write a cell with common properties
@@ -1916,13 +1896,13 @@ def _write_ofttc_sheet(ws, budget: ParsedBudget, title: str, overrides: dict) ->
     _section_header(5, "ONTARIO PROVINCIAL TAX CREDIT")
     _section_label(6, "A")
 
-    # Row 7: Total Production Cost
+    # Row 7: Total Production Cost — linked to Breakout Budget Grand Total (col I)
     R_TOTAL_PC = 7
-    _data_row(R_TOTAL_PC, "Total Production Cost", col_c=total_pc, bold=True)
+    _data_row(R_TOTAL_PC, "Total Production Cost", col_c=_BB_GRAND_TOTAL, bold=True)
 
-    # Row 8: Ontario Labour (calculated)
+    # Row 8: Ontario Labour — linked to Breakout Budget Provincial Labour (col U)
     R_ONT_LABOUR = 8
-    _data_row(R_ONT_LABOUR, "Estimate of Total Ont. Labour", col_c=round(ontario_labour))
+    _data_row(R_ONT_LABOUR, "Estimate of Total Ont. Labour", col_c=_BB_PROV_LABOUR)
 
     # Row 9: Proportion of labour
     _data_row(9, "Proportion of labour",
@@ -2026,13 +2006,12 @@ def _write_ofttc_sheet(ws, budget: ParsedBudget, title: str, overrides: dict) ->
     _cell(R_FED_DEFERRALS, 3, None, fill=_INPUT_FILL, border=_THIN_BORDER,
           number_format=_ACCOUNTING_FORMAT)
 
-    # Row 32: 50% Meals & Entertainment (M&E gross in col B, 50% deduction in col C)
+    # Row 32: 50% Meals & Entertainment — col B linked to Breakout Budget Meals (col AA)
     R_ME = 32
     ws.row_dimensions[R_ME].height = 15
     _cell(R_ME, 1, "50% Meals & Entertainment", font=_NORMAL, alignment=_LEFT)
-    me_b = _cell(R_ME, 2, None, alignment=_RIGHT, number_format=_ACCOUNTING_FORMAT)
-    me_b.fill = _INPUT_FILL
-    me_b.border = _THIN_BORDER
+    _cell(R_ME, 2, _BB_MEALS,
+          alignment=_RIGHT, number_format=_ACCOUNTING_FORMAT)
     _cell(R_ME, 3, f"=IF(ISNUMBER(B{R_ME}),-B{R_ME}*0.5,0)",
           font=_NORMAL, alignment=_RIGHT, number_format=_ACCOUNTING_FORMAT)
 
@@ -2057,10 +2036,9 @@ def _write_ofttc_sheet(ws, budget: ParsedBudget, title: str, overrides: dict) ->
 
     _spacer(36)
 
-    # Row 37: Labour expenditure (calculated from overrides)
+    # Row 37: Labour expenditure — linked to Breakout Budget Federal Labour (col N)
     R_FED_LABOUR = 37
-    _data_row(R_FED_LABOUR, "Labour expenditure",
-              col_c=round(federal_labour))
+    _data_row(R_FED_LABOUR, "Labour expenditure", col_c=_BB_FED_LABOUR)
 
     _spacer(38)
 
@@ -2157,7 +2135,7 @@ def write_tax_credit_excel(
     _write_breakout_budget(ws_breakout, budget, overrides or {})
 
     ws_ofttc = wb.create_sheet("Ontario - OFTTC")
-    _write_ofttc_sheet(ws_ofttc, budget, title, overrides or {})
+    _write_ofttc_sheet(ws_ofttc, budget, title)
 
     buffer = BytesIO()
     wb.save(buffer)
