@@ -1,10 +1,9 @@
 """SQLAlchemy ORM table definitions.
 
 Each "bible" gets its own table so they can evolve independently.
-Currently:
-  - custom_bible_entries  — user-defined timing bible overrides
-Future:
-  - tax_credit_bible      — tax credit rules per jurisdiction/code
+  - custom_bible_entries   — user-defined timing bible overrides
+  - breakout_bible_entries — global tax credit breakout bible customisations
+  - tax_credit_overrides   — per-project tax credit overrides
 """
 
 from datetime import datetime, timezone
@@ -24,6 +23,29 @@ class CustomBibleEntry(Base):
     timing_pattern = Column(String(100), nullable=False)
     timing_title = Column(String(200), nullable=False)
     timing_details = Column(Text, nullable=False, default="")
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class BreakoutBibleEntry(Base):
+    """Global (non-project-specific) customisations to the tax credit breakout bible.
+
+    Only rows whose values differ from the hardcoded BREAKOUT_BIBLE defaults
+    are stored.  Absent rows fall back to the Python defaults automatically.
+    """
+
+    __tablename__ = "breakout_bible_entries"
+
+    account_code        = Column(String(20), primary_key=True)
+    is_non_prov         = Column(Boolean, nullable=False, default=False)
+    prov_labour_pct     = Column(Float,   nullable=False, default=0.0)
+    fed_labour_pct      = Column(Float,   nullable=False, default=0.0)
+    prov_svc_labour_pct = Column(Float,   nullable=False, default=0.0)
+    svc_property_pct    = Column(Float,   nullable=False, default=0.0)
+    fed_svc_labour_pct  = Column(Float,   nullable=False, default=0.0)
     updated_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

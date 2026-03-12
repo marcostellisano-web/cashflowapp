@@ -1,3 +1,14 @@
+export interface BibleEntry {
+  account_code: string;
+  is_non_prov: boolean;
+  prov_labour_pct: number;
+  fed_labour_pct: number;
+  prov_svc_labour_pct: number;
+  svc_property_pct: number;
+  fed_svc_labour_pct: number;
+  is_customized: boolean;
+}
+
 export interface BreakoutOverride {
   account_code: string;
   description: string;
