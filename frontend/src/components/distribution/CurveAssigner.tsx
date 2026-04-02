@@ -7,9 +7,14 @@ import type {
   CurveType,
 } from '../../types/cashflow';
 import {
+  getCashflowTemplate,
   getDefaultDistributions,
+  getCashflowTemplateExcelUrl,
   getTimingBible,
   getCustomBible,
+  listCashflowTemplates,
+  saveCashflowTemplate,
+  uploadCashflowTemplate,
   upsertCustomBibleEntry,
 } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
@@ -58,6 +63,11 @@ export default function CurveAssigner({
   const [savingCode, setSavingCode] = useState<string | null>(null);
   const [savedToast, setSavedToast] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [templateNames, setTemplateNames] = useState<string[]>([]);
+  const [templateBusy, setTemplateBusy] = useState(false);
+  const [templateStatus, setTemplateStatus] = useState<string | null>(null);
 
   // Load official bible + custom bible + default distributions on mount
   useEffect(() => {
@@ -110,6 +120,12 @@ export default function CurveAssigner({
         .finally(() => setLoading(false));
     });
   }, [budget, savedDistributions]);
+
+  useEffect(() => {
+    listCashflowTemplates()
+      .then(setTemplateNames)
+      .catch(() => setTemplateNames([]));
+  }, []);
 
   // Unique timing options derived from the full bible (for override dropdowns)
   const timingOptions = useMemo(() => {
@@ -202,6 +218,73 @@ export default function CurveAssigner({
   const autoCount = distributions.filter((d) => d.auto_assigned).length;
   const manualCount = distributions.length - autoCount;
   const bibleCount = budget.line_items.filter((li) => !!bibleMap[li.code]).length;
+  const budgetCodes = budget.line_items.map((li) => li.code);
+
+  const handleCreateTemplate = () => {
+    const name = newTemplateName.trim();
+    if (!name) return;
+    if (!templateNames.includes(name)) {
+      setTemplateNames((prev) => [...prev, name].sort((a, b) => a.localeCompare(b)));
+    }
+    setTemplateName(name);
+    setNewTemplateName('');
+  };
+
+  const handleLoadTemplate = async () => {
+    const name = templateName.trim();
+    if (!name) return;
+    setTemplateBusy(true);
+    setTemplateStatus(null);
+    try {
+      const loaded = await getCashflowTemplate(name, budgetCodes);
+      setDistributions(loaded);
+      setTemplateStatus(`Loaded template "${name}".`);
+    } catch (e: any) {
+      setTemplateStatus(e.message || 'Failed to load template');
+    } finally {
+      setTemplateBusy(false);
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    const name = templateName.trim();
+    if (!name) return;
+    setTemplateBusy(true);
+    setTemplateStatus(null);
+    try {
+      await saveCashflowTemplate(name, distributions);
+      if (!templateNames.includes(name)) {
+        setTemplateNames((prev) => [...prev, name].sort((a, b) => a.localeCompare(b)));
+      }
+      setTemplateStatus(`Saved template "${name}".`);
+    } catch (e: any) {
+      setTemplateStatus(e.message || 'Failed to save template');
+    } finally {
+      setTemplateBusy(false);
+    }
+  };
+
+  const handleUploadTemplate = async (file: File) => {
+    const name = templateName.trim();
+    if (!name) {
+      setTemplateStatus('Set a template name before uploading.');
+      return;
+    }
+    setTemplateBusy(true);
+    setTemplateStatus(null);
+    try {
+      const uploaded = await uploadCashflowTemplate(name, file);
+      setDistributions(uploaded);
+      if (!templateNames.includes(name)) {
+        setTemplateNames((prev) => [...prev, name].sort((a, b) => a.localeCompare(b)));
+      }
+      setTemplateStatus(`Uploaded template "${name}" (${uploaded.length} rows).`);
+    } catch (e: any) {
+      setTemplateStatus(e.message || 'Failed to upload template');
+    } finally {
+      setTemplateBusy(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -269,6 +352,82 @@ export default function CurveAssigner({
             Next: Preview
           </button>
         </div>
+      </div>
+
+      <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg space-y-2">
+        <p className="text-xs text-indigo-700">
+          Cashflow templates save distribution rules (Account, Phase, Curve, Timing Pattern Override).
+          You can download, edit in Excel, and upload again.
+        </p>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-indigo-700 font-medium">Template</label>
+            <select
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              className="px-2 py-1.5 border border-indigo-300 rounded text-sm min-w-52"
+            >
+              <option value="">Select template…</option>
+              {templateNames.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-indigo-700 font-medium">New Template</label>
+            <input
+              value={newTemplateName}
+              onChange={(e) => setNewTemplateName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateTemplate()}
+              placeholder="e.g. Streamer Series"
+              className="px-2 py-1.5 border border-indigo-300 rounded text-sm"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleCreateTemplate}
+            className="px-3 py-1.5 border border-indigo-300 text-indigo-700 rounded text-sm hover:bg-indigo-100"
+          >
+            Create / Select
+          </button>
+          <button
+            type="button"
+            disabled={templateBusy || !templateName}
+            onClick={handleLoadTemplate}
+            className="px-3 py-1.5 border border-indigo-300 text-indigo-700 rounded text-sm hover:bg-indigo-100 disabled:opacity-50"
+          >
+            Load
+          </button>
+          <button
+            type="button"
+            disabled={templateBusy || !templateName}
+            onClick={handleSaveTemplate}
+            className="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50"
+          >
+            Save
+          </button>
+          <a
+            href={templateName ? getCashflowTemplateExcelUrl(templateName) : undefined}
+            className={`px-3 py-1.5 border rounded text-sm ${templateName ? 'border-indigo-300 text-indigo-700 hover:bg-indigo-100' : 'border-gray-200 text-gray-300 pointer-events-none'}`}
+          >
+            Download
+          </a>
+          <label className={`px-3 py-1.5 border rounded text-sm ${templateBusy ? 'border-gray-200 text-gray-300' : 'border-indigo-300 text-indigo-700 hover:bg-indigo-100'} cursor-pointer`}>
+            Upload
+            <input
+              type="file"
+              accept=".xlsx,.xlsm"
+              disabled={templateBusy}
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleUploadTemplate(file);
+                e.currentTarget.value = '';
+              }}
+            />
+          </label>
+        </div>
+        {templateStatus && <p className="text-xs text-indigo-700">{templateStatus}</p>}
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">

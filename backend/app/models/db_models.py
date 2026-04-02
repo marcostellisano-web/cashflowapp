@@ -82,3 +82,22 @@ class TaxCreditOverride(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+
+class CashflowTemplateDistribution(Base):
+    """Reusable distribution templates for cashflow by template name + account code."""
+
+    __tablename__ = "cashflow_template_distributions"
+    __table_args__ = (UniqueConstraint("template_name", "budget_code"),)
+
+    id = Column(String(128), primary_key=True)  # "{template_name}::{budget_code}"
+    template_name = Column(String(120), nullable=False, index=True)
+    budget_code = Column(String(20), nullable=False)
+    phase = Column(String(50), nullable=False)
+    curve = Column(String(50), nullable=False)
+    timing_pattern_override = Column(String(100), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
