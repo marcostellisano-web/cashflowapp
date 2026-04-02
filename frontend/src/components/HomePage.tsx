@@ -5,11 +5,12 @@ import type { ParsedBudget } from '../types/budget';
 interface HomePageProps {
   onSelectCashflow: () => void;
   onSelectTaxCredit: () => void;
+  onSelectBible: () => void;
   onBudgetParsed: (budget: ParsedBudget) => void;
   initialBudget?: ParsedBudget | null;
 }
 
-export default function HomePage({ onSelectCashflow, onSelectTaxCredit, onBudgetParsed, initialBudget = null }: HomePageProps) {
+export default function HomePage({ onSelectCashflow, onSelectTaxCredit, onSelectBible, onBudgetParsed, initialBudget = null }: HomePageProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [parsedBudget, setParsedBudget] = useState<ParsedBudget | null>(initialBudget);
@@ -196,7 +197,7 @@ export default function HomePage({ onSelectCashflow, onSelectTaxCredit, onBudget
           What would you like to generate?
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Cashflow Card — active */}
           <button
             onClick={onSelectCashflow}
@@ -311,6 +312,69 @@ export default function HomePage({ onSelectCashflow, onSelectTaxCredit, onBudget
 
             <div className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 group-hover:text-emerald-700">
               Get started
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 7l5 5m0 0l-5 5m5-5H6"
+                />
+              </svg>
+            </div>
+          </button>
+          {/* Breakout Bible Editor Card */}
+          <button
+            onClick={onSelectBible}
+            className="group text-left bg-white border border-gray-200 rounded-2xl p-8 shadow-sm hover:shadow-md hover:border-violet-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2"
+          >
+            <div className="flex items-start justify-between mb-6">
+              {/* Icon */}
+              <div className="w-12 h-12 bg-violet-50 rounded-xl flex items-center justify-center group-hover:bg-violet-100 transition-colors">
+                <svg
+                  className="w-6 h-6 text-violet-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.75}
+                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                  />
+                </svg>
+              </div>
+              {/* Arrow */}
+              <svg
+                className="w-5 h-5 text-gray-300 group-hover:text-violet-500 group-hover:translate-x-0.5 transition-all"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </div>
+
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              Breakout Bible Editor
+            </h3>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              View and edit the global tax credit breakout bible. Adjust OUT flags
+              and labour percentages across all 210 accounts, then download as Excel.
+            </p>
+
+            <div className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-violet-600 group-hover:text-violet-700">
+              Open editor
               <svg
                 className="w-4 h-4"
                 fill="none"

@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { generateTaxCreditExcel } from '../../lib/api';
 import type { ParsedBudget } from '../../types/budget';
 import type { BreakoutOverride } from '../../types/tax_credit';
+import BibleEditor from './BibleEditor';
 import BreakoutOverridesEditor from './BreakoutOverridesEditor';
+
+type Tab = 'project' | 'bible';
 
 interface TaxCreditOutputProps {
   budget: ParsedBudget;
@@ -10,6 +13,7 @@ interface TaxCreditOutputProps {
 }
 
 export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps) {
+  const [tab, setTab] = useState<Tab>('project');
   const [title, setTitle] = useState('');
   const [committedTitle, setCommittedTitle] = useState('');
   const [overrides, setOverrides] = useState<BreakoutOverride[]>([]);
@@ -98,13 +102,40 @@ export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps
         />
       </div>
 
-      {/* Breakout overrides editor */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
-        <BreakoutOverridesEditor
-          budget={budget}
-          projectName={committedTitle}
-          onChange={setOverrides}
-        />
+      {/* Tabs: Project Overrides | Bible Editor */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => setTab('project')}
+            className={`px-5 py-3 text-sm font-medium transition-colors ${
+              tab === 'project'
+                ? 'border-b-2 border-blue-600 text-blue-700 bg-white'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Project Overrides
+          </button>
+          <button
+            onClick={() => setTab('bible')}
+            className={`px-5 py-3 text-sm font-medium transition-colors ${
+              tab === 'bible'
+                ? 'border-b-2 border-blue-600 text-blue-700 bg-white'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Bible Editor
+          </button>
+        </div>
+        <div className="p-6">
+          {tab === 'project' && (
+            <BreakoutOverridesEditor
+              budget={budget}
+              projectName={committedTitle}
+              onChange={setOverrides}
+            />
+          )}
+          {tab === 'bible' && <BibleEditor />}
+        </div>
       </div>
 
       {/* Output description */}

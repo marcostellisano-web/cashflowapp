@@ -960,7 +960,12 @@ def _derive_group_label(prefix: str) -> str:
     return ""
 
 
-def _write_breakout_budget(ws, budget: ParsedBudget, overrides: dict | None = None) -> None:
+def _write_breakout_budget(
+    ws,
+    budget: ParsedBudget,
+    overrides: dict | None = None,
+    effective_bible: dict | None = None,
+) -> None:
     """Generate the Breakout Budget tab.
 
     Fixed columns (A–I):
@@ -1423,10 +1428,11 @@ def _write_breakout_budget(ws, budget: ParsedBudget, overrides: dict | None = No
             c.alignment = _RIGHT
             c.number_format = _ACCOUNTING_FORMAT
 
-            # ── Bible basis columns: visible raw treatment from BREAKOUT_BIBLE ──
+            # ── Bible basis columns: visible raw treatment from bible ──
             # Overrides (if any) supersede the bible; None fields fall back to bible.
+            _bible = effective_bible if effective_bible is not None else BREAKOUT_BIBLE
             ov = (overrides or {}).get(normalized)
-            bible_entry = BREAKOUT_BIBLE.get(normalized)
+            bible_entry = _bible.get(normalized)
             if bible_entry:
                 b_non_prov_out, b_pl, b_fl, b_psl, b_sp, b_fsl = bible_entry
             else:
@@ -2072,17 +2078,105 @@ def _write_ofttc_sheet(ws, title: str) -> None:
            align=_RIGHT, fmt=_PCT_FORMAT)
 
 
+def write_bible_excel(entries: list[dict]) -> BytesIO:
+    """Export the full breakout bible as a formatted Excel workbook.
+
+    ``entries`` is a list of dicts with keys:
+        account_code, is_non_prov, prov_labour_pct, fed_labour_pct,
+        prov_svc_labour_pct, svc_property_pct, fed_svc_labour_pct,
+        is_customized (bool – True if differs from hardcoded default)
+    """
+    _CUSTOM_FILL = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+    _HDR_FILL    = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    _HDR_FONT    = Font(bold=True, color="FFFFFF", size=10)
+    _PCT_FMT     = "0%"
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Breakout Bible"
+
+    # ── column widths ────────────────────────────────────────────
+    widths = [12, 8, 14, 14, 18, 14, 18]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    # ── title rows ───────────────────────────────────────────────
+    ws.row_dimensions[1].height = 20
+    t = ws.cell(row=1, column=1, value="Tax Credit Breakout Bible")
+    t.font = Font(bold=True, size=13)
+    ws.row_dimensions[2].height = 14
+    ws.cell(row=2, column=1, value="Yellow rows have been customised from the default values")
+    ws.cell(row=2, column=1).font = Font(italic=True, size=9, color="806000")
+    ws.row_dimensions[3].height = 8
+
+    # ── header row ───────────────────────────────────────────────
+    headers = [
+        "Account", "OUT",
+        "Prov Labour %", "Fed Labour %",
+        "Prov Svc Labour %", "Svc Property %", "Fed Svc Labour %",
+    ]
+    ws.row_dimensions[4].height = 18
+    for col, hdr in enumerate(headers, 1):
+        c = ws.cell(row=4, column=col, value=hdr)
+        c.font      = _HDR_FONT
+        c.fill      = _HDR_FILL
+        c.alignment = _CENTER
+        c.border    = _THIN_BORDER
+
+    # ── data rows ────────────────────────────────────────────────
+    for r_offset, entry in enumerate(entries):
+        row = r_offset + 5
+        ws.row_dimensions[row].height = 15
+        fill = _CUSTOM_FILL if entry.get("is_customized") else None
+
+        def _dc(col, value, fmt=None, align=None):
+            c = ws.cell(row=row, column=col, value=value)
+            c.font      = _NORMAL
+            c.border    = _THIN_BORDER
+            c.alignment = align or _LEFT
+            if fill:    c.fill = fill
+            if fmt:     c.number_format = fmt
+            return c
+
+        _dc(1, entry["account_code"])
+        out_cell = _dc(2, "OUT" if entry["is_non_prov"] else "", align=_CENTER)
+        if entry["is_non_prov"]:
+            out_cell.font = Font(bold=True, size=10, color="C00000")
+
+        for col, key in [
+            (3, "prov_labour_pct"),
+            (4, "fed_labour_pct"),
+            (5, "prov_svc_labour_pct"),
+            (6, "svc_property_pct"),
+            (7, "fed_svc_labour_pct"),
+        ]:
+            val = entry.get(key, 0.0) or 0.0
+            _dc(col, val if val else None, fmt=_PCT_FMT, align=_RIGHT)
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
 def write_tax_credit_excel(
     budget: ParsedBudget,
     title: str,
     overrides: dict | None = None,
+    global_bible: dict | None = None,
 ) -> BytesIO:
     """Build a tax credit filing workbook and return as BytesIO.
 
-    ``overrides`` is an optional dict mapping account_code → BreakoutOverride
-    (or any object/dict with the same fields). When provided, these values
-    supersede the BREAKOUT_BIBLE for the matching account codes.
+    ``overrides``     — maps account_code → BreakoutOverride (project-specific).
+    ``global_bible``  — maps account_code → (non_prov, pl, fl, psl, sp, fsl) tuple,
+                        superseding BREAKOUT_BIBLE defaults before project overrides
+                        are applied.
     """
+    # Build effective bible: hardcoded defaults → global customisations
+    effective_bible = dict(BREAKOUT_BIBLE)
+    if global_bible:
+        effective_bible.update(global_bible)
+
     wb = Workbook()
 
     # Remove the default empty sheet
@@ -2099,7 +2193,7 @@ def write_tax_credit_excel(
     _write_detail_budget(ws_detail, budget)
 
     ws_breakout = wb.create_sheet("Breakout Budget")
-    _write_breakout_budget(ws_breakout, budget, overrides or {})
+    _write_breakout_budget(ws_breakout, budget, overrides or {}, effective_bible)
 
     ws_ofttc = wb.create_sheet("Ontario - OFTTC")
     _write_ofttc_sheet(ws_ofttc, title)

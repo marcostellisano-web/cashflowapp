@@ -8,12 +8,13 @@ import ProductionForm from './components/parameters/ProductionForm';
 import CurveAssigner from './components/distribution/CurveAssigner';
 import DownloadButton from './components/output/DownloadButton';
 import TaxCreditOutput from './components/tax-credit/TaxCreditOutput';
+import BibleEditor from './components/bible/BibleEditor';
 import type { ParsedBudget } from './types/budget';
 import type { ProductionParameters } from './types/production';
 import type { LineItemDistribution, CashflowOutput } from './types/cashflow';
 import { previewCashflow } from './lib/api';
 
-type AppMode = 'home' | 'cashflow' | 'taxcredit';
+type AppMode = 'home' | 'cashflow' | 'taxcredit' | 'bible';
 
 export default function App() {
   const [mode, setMode] = useState<AppMode>('home');
@@ -69,11 +70,26 @@ export default function App() {
     }
   };
 
+  if (mode === 'bible') {
+    return (
+      <AppShell
+        currentStep={-1}
+        onHome={handleGoHome}
+        hideSteps
+        headerTitle="Breakout Bible"
+        headerSubtitle="Editor"
+      >
+        <BibleEditor onBack={handleGoHome} />
+      </AppShell>
+    );
+  }
+
   if (mode === 'home') {
     return (
       <HomePage
         onSelectCashflow={() => setMode('cashflow')}
         onSelectTaxCredit={() => setMode('taxcredit')}
+        onSelectBible={() => setMode('bible')}
         onBudgetParsed={handleBudgetParsed}
         initialBudget={budget}
       />
