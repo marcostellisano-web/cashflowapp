@@ -4,6 +4,7 @@ import {
   getBreakoutBible,
   getBreakoutBibleExcelUrl,
   upsertBreakoutBibleEntry,
+  uploadBreakoutTemplate,
 } from '../../lib/api';
 import type { BreakoutBibleEntry } from '../../types/tax_credit';
 
@@ -56,6 +57,10 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
   const [newDesc, setNewDesc] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateUploading, setTemplateUploading] = useState(false);
+  const [templateUploadError, setTemplateUploadError] = useState<string | null>(null);
+  const [templateUploadMessage, setTemplateUploadMessage] = useState<string | null>(null);
 
   useEffect(() => {
     getBreakoutBible()
@@ -163,6 +168,25 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
     }
   };
 
+  const handleTemplateUpload = async (file: File) => {
+    const name = templateName.trim();
+    if (!name) {
+      setTemplateUploadError('Template name is required before upload.');
+      return;
+    }
+    setTemplateUploading(true);
+    setTemplateUploadError(null);
+    setTemplateUploadMessage(null);
+    try {
+      const resp = await uploadBreakoutTemplate(name, file);
+      setTemplateUploadMessage(`Template "${name}" uploaded (${resp.overrides.length} rows).`);
+    } catch (e: any) {
+      setTemplateUploadError(e.message || 'Template upload failed');
+    } finally {
+      setTemplateUploading(false);
+    }
+  };
+
   const dirtyCount = Object.keys(dirty).length;
 
   return (
@@ -213,6 +237,40 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
           {adding ? 'Adding…' : '+ Add Account'}
         </button>
         {addError && <p className="w-full text-xs text-red-600 mt-1">{addError}</p>}
+      </div>
+
+      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+        <p className="text-xs text-blue-700">
+          Upload an Excel file to create/update a template with columns:
+          <strong> Account, Description, OUT, Prov Labour %, Fed Labour %, Prov Svc %, Svc Prop %, Fed Svc %</strong>.
+        </p>
+        <div className="flex items-end gap-2 flex-wrap">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-blue-700 font-medium">Template Name</label>
+            <input
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="e.g. Crime Shows"
+              className="w-56 px-2 py-1.5 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <label className={`px-3 py-1.5 rounded text-sm font-medium border ${templateUploading ? 'border-gray-300 text-gray-400 bg-gray-100' : 'border-blue-300 text-blue-700 hover:bg-blue-100'} cursor-pointer`}>
+            {templateUploading ? 'Uploading…' : 'Upload Template Excel'}
+            <input
+              type="file"
+              accept=".xlsx,.xlsm"
+              disabled={templateUploading}
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleTemplateUpload(file);
+                e.currentTarget.value = '';
+              }}
+            />
+          </label>
+        </div>
+        {templateUploadMessage && <p className="text-xs text-green-700">{templateUploadMessage}</p>}
+        {templateUploadError && <p className="text-xs text-red-700">{templateUploadError}</p>}
       </div>
 
       {/* Toolbar */}
