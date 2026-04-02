@@ -202,3 +202,61 @@ export async function saveBreakoutOverrides(
   }
   return res.json();
 }
+
+export async function listBreakoutTemplates(): Promise<string[]> {
+  const res = await fetch(`${BASE}/tax-credit/templates`);
+  if (!res.ok) throw new Error('Failed to load templates');
+  return res.json();
+}
+
+export async function getBreakoutTemplateOverrides(
+  templateName: string,
+  accountCodes: string[],
+  descriptions: string[],
+): Promise<ProjectOverridesResponse> {
+  const params = new URLSearchParams();
+  accountCodes.forEach((c) => params.append('account_codes', c));
+  descriptions.forEach((d) => params.append('descriptions', d));
+  const res = await fetch(
+    `${BASE}/tax-credit/templates/${encodeURIComponent(templateName)}?${params}`,
+  );
+  if (!res.ok) throw new Error('Failed to load template');
+  return res.json();
+}
+
+export async function saveBreakoutTemplateOverrides(
+  templateName: string,
+  overrides: BreakoutOverride[],
+): Promise<ProjectOverridesResponse> {
+  const res = await fetch(
+    `${BASE}/tax-credit/templates/${encodeURIComponent(templateName)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ overrides }),
+    },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to save template');
+  }
+  return res.json();
+}
+
+export function getBreakoutTemplateExcelUrl(templateName: string): string {
+  return `${BASE}/tax-credit/templates/${encodeURIComponent(templateName)}/excel`;
+}
+
+export async function uploadBreakoutTemplate(templateName: string, file: File): Promise<ProjectOverridesResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(
+    `${BASE}/tax-credit/templates/${encodeURIComponent(templateName)}/upload`,
+    { method: 'POST', body: form },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to upload template');
+  }
+  return res.json();
+}

@@ -1,5 +1,10 @@
-import { useState } from 'react';
-import { generateTaxCreditExcel } from '../../lib/api';
+import { useEffect, useState } from 'react';
+import {
+  generateTaxCreditExcel,
+  getBreakoutTemplateExcelUrl,
+  listBreakoutTemplates,
+  uploadBreakoutTemplate,
+} from '../../lib/api';
 import type { ParsedBudget } from '../../types/budget';
 import type { BreakoutOverride } from '../../types/tax_credit';
 import BibleEditor from './BibleEditor';
@@ -15,14 +20,44 @@ interface TaxCreditOutputProps {
 export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps) {
   const [tab, setTab] = useState<Tab>('project');
   const [title, setTitle] = useState('');
-  const [committedTitle, setCommittedTitle] = useState('');
+  const [templates, setTemplates] = useState<string[]>([]);
+  const [templateName, setTemplateName] = useState('');
+  const [newTemplateName, setNewTemplateName] = useState('');
   const [overrides, setOverrides] = useState<BreakoutOverride[]>([]);
   const [loading, setLoading] = useState(false);
+  const [templateBusy, setTemplateBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templateError, setTemplateError] = useState<string | null>(null);
 
-  // Commit the title (triggers override load) on blur or Enter
-  const handleTitleCommit = () => {
-    setCommittedTitle(title.trim());
+  useEffect(() => {
+    listBreakoutTemplates()
+      .then(setTemplates)
+      .catch(() => setTemplates([]));
+  }, []);
+
+  const handleCreateTemplate = () => {
+    const name = newTemplateName.trim();
+    if (!name) return;
+    if (!templates.includes(name)) setTemplates((prev) => [...prev, name].sort());
+    setTemplateName(name);
+    setNewTemplateName('');
+  };
+
+  const handleUploadTemplate = async (file: File) => {
+    const name = templateName.trim();
+    if (!name) {
+      setTemplateError('Select or create a template first.');
+      return;
+    }
+    setTemplateBusy(true);
+    setTemplateError(null);
+    try {
+      await uploadBreakoutTemplate(name, file);
+    } catch (e: any) {
+      setTemplateError(e.message || 'Failed to upload template');
+    } finally {
+      setTemplateBusy(false);
+    }
   };
 
   const handleDownload = async () => {
@@ -89,17 +124,74 @@ export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps
       <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-2">
         <h3 className="text-sm font-semibold text-gray-700">Production Title</h3>
         <p className="text-xs text-gray-400">
-          Used as the project key — saved overrides will auto-load when you return to this title.
+          Used only for the generated file name.
         </p>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          onBlur={handleTitleCommit}
-          onKeyDown={(e) => e.key === 'Enter' && handleTitleCommit()}
           placeholder="Enter production title…"
           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700">Breakout Template</h3>
+        <p className="text-xs text-gray-400">
+          Choose a reusable template (e.g., Crime, Disaster). Each template can be edited, saved, downloaded, and uploaded.
+        </p>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-56">
+            <label className="text-xs text-gray-500 font-medium">Existing templates</label>
+            <select
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="">Select template…</option>
+              {templates.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 font-medium">New template</label>
+            <input
+              value={newTemplateName}
+              onChange={(e) => setNewTemplateName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateTemplate()}
+              placeholder="e.g. Crime Shows"
+              className="mt-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            />
+          </div>
+          <button
+            onClick={handleCreateTemplate}
+            className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+          >
+            Create / Select
+          </button>
+          <a
+            href={templateName ? getBreakoutTemplateExcelUrl(templateName) : undefined}
+            className={`px-3 py-2 text-sm rounded-lg border ${templateName ? 'border-gray-300 hover:bg-gray-50 text-gray-700' : 'border-gray-200 text-gray-300 pointer-events-none'}`}
+          >
+            Download Template
+          </a>
+          <label className={`px-3 py-2 text-sm rounded-lg border ${templateBusy ? 'border-gray-200 text-gray-300' : 'border-gray-300 hover:bg-gray-50 text-gray-700'} cursor-pointer`}>
+            Upload Template
+            <input
+              type="file"
+              accept=".xlsx,.xlsm"
+              disabled={templateBusy}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleUploadTemplate(file);
+                e.currentTarget.value = '';
+              }}
+              className="hidden"
+            />
+          </label>
+        </div>
+        {templateError && <p className="text-xs text-red-600">{templateError}</p>}
       </div>
 
       {/* Tabs: Project Overrides | Bible Editor */}
@@ -130,7 +222,7 @@ export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps
           {tab === 'project' && (
             <BreakoutOverridesEditor
               budget={budget}
-              projectName={committedTitle}
+              templateName={templateName}
               onChange={setOverrides}
             />
           )}

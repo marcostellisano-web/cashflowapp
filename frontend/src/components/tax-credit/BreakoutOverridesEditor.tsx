@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { getBreakoutOverrides, saveBreakoutOverrides } from '../../lib/api';
+import { getBreakoutTemplateOverrides, saveBreakoutTemplateOverrides } from '../../lib/api';
 import type { ParsedBudget } from '../../types/budget';
 import type { BreakoutOverride } from '../../types/tax_credit';
 
 interface Props {
   budget: ParsedBudget;
-  projectName: string;
+  templateName: string;
   onChange: (overrides: BreakoutOverride[]) => void;
 }
 
@@ -40,7 +40,7 @@ function parsePct(s: string): number | null {
   return n > 1 ? n / 100 : n;
 }
 
-export default function BreakoutOverridesEditor({ budget, projectName, onChange }: Props) {
+export default function BreakoutOverridesEditor({ budget, templateName, onChange }: Props) {
   const [overrides, setOverrides] = useState<BreakoutOverride[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -62,16 +62,16 @@ export default function BreakoutOverridesEditor({ budget, projectName, onChange 
     accountEntries.current = entries;
   }, [budget]);
 
-  // Load overrides whenever projectName becomes non-empty
+  // Load overrides whenever templateName becomes non-empty
   useEffect(() => {
-    if (!projectName.trim()) return;
+    if (!templateName.trim()) return;
     const entries = accountEntries.current;
     if (!entries.length) return;
 
     setLoading(true);
     setError(null);
-    getBreakoutOverrides(
-      projectName,
+    getBreakoutTemplateOverrides(
+      templateName,
       entries.map((e) => e.code),
       entries.map((e) => e.description),
     )
@@ -82,7 +82,7 @@ export default function BreakoutOverridesEditor({ budget, projectName, onChange 
       .catch((e) => setError(e.message || 'Failed to load overrides'))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectName]);
+  }, [templateName]);
 
   const handleBoolToggle = (code: string, field: 'is_foreign' | 'is_non_prov', checked: boolean) => {
     setOverrides((prev) =>
@@ -104,11 +104,11 @@ export default function BreakoutOverridesEditor({ budget, projectName, onChange 
   };
 
   const handleSave = async () => {
-    if (!projectName.trim()) return;
+    if (!templateName.trim()) return;
     setSaving(true);
     setSaveStatus('idle');
     try {
-      await saveBreakoutOverrides(projectName, overrides);
+      await saveBreakoutTemplateOverrides(templateName, overrides);
       onChange(overrides);
       setSaveStatus('saved');
     } catch (e: any) {
@@ -119,10 +119,10 @@ export default function BreakoutOverridesEditor({ budget, projectName, onChange 
     }
   };
 
-  if (!projectName.trim()) {
+  if (!templateName.trim()) {
     return (
       <p className="text-sm text-gray-400 italic">
-        Enter a production title above to load and edit breakout parameters.
+        Select or create a template above to load and edit breakout parameters.
       </p>
     );
   }
