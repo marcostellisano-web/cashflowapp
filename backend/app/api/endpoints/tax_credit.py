@@ -1,15 +1,14 @@
-import io
-from datetime import datetime, timezone
+from datetime import datetime
 
-import openpyxl
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.budget import ParsedBudget
-from app.models.db_models import BreakoutBibleEntry, TaxCreditOverride
+from app.models.db_models import BiblePreset, BiblePresetEntry, BreakoutBibleEntry, TaxCreditOverride
+from app.services.bible_parser import parse_bible_excel
 from app.services.tax_credit_writer import (
     BIBLE_DESCRIPTIONS,
     BREAKOUT_BIBLE,
@@ -54,14 +53,29 @@ class BibleEntrySchema(BaseModel):
     prov_svc_labour_pct: float
     svc_property_pct: float
     fed_svc_labour_pct: float
-    is_customized: bool = False  # True when a DB row overrides/creates the entry
-    is_standard: bool = True     # False when account_code is not in BREAKOUT_BIBLE
+    is_customized: bool = False   # True when a manual breakout_bible_entries row exists
+    is_standard: bool = True      # False when account_code is not in BREAKOUT_BIBLE
+    is_from_preset: bool = False  # True when value comes from the active preset
 
 
 class TaxCreditRequest(BaseModel):
     budget: ParsedBudget
     title: str = "Untitled"
     overrides: list[BreakoutOverride] | None = None
+
+
+class BiblePresetSchema(BaseModel):
+    id: int
+    name: str
+    is_active: bool
+    created_at: datetime
+    entry_count: int
+
+
+class BiblePresetUploadResponse(BaseModel):
+    preset_id: int
+    name: str
+    entry_count: int
 
 
 # ---------------------------------------------------------------------------
@@ -136,10 +150,30 @@ def _db_row_to_override(row: TaxCreditOverride, description: str = "") -> Breako
 
 
 def _load_global_bible(db: Session) -> dict:
-    """Return global bible customisations as a tuple-dict for write_tax_credit_excel."""
-    rows = db.query(BreakoutBibleEntry).all()
-    return {
-        r.account_code: (
+    """Return effective bible overrides as a tuple-dict for write_tax_credit_excel.
+
+    Resolution order (later entries win):
+      1. Active preset entries  (if any preset is marked is_active)
+      2. Manual breakout_bible_entries overrides
+    """
+    result: dict = {}
+
+    active_preset = db.query(BiblePreset).filter(BiblePreset.is_active == True).first()
+    if active_preset:
+        for e in db.query(BiblePresetEntry).filter(
+            BiblePresetEntry.preset_id == active_preset.id
+        ).all():
+            result[e.account_code] = (
+                e.is_non_prov,
+                e.prov_labour_pct,
+                e.fed_labour_pct,
+                e.prov_svc_labour_pct,
+                e.svc_property_pct,
+                e.fed_svc_labour_pct,
+            )
+
+    for r in db.query(BreakoutBibleEntry).all():
+        result[r.account_code] = (
             r.is_non_prov,
             r.prov_labour_pct,
             r.fed_labour_pct,
@@ -147,7 +181,20 @@ def _load_global_bible(db: Session) -> dict:
             r.svc_property_pct,
             r.fed_svc_labour_pct,
         )
-        for r in rows
+
+    return result
+
+
+def _get_active_preset_dict(db: Session) -> dict:
+    """Return active preset entries keyed by account_code (raw row objects)."""
+    preset = db.query(BiblePreset).filter(BiblePreset.is_active == True).first()
+    if not preset:
+        return {}
+    return {
+        e.account_code: e
+        for e in db.query(BiblePresetEntry).filter(
+            BiblePresetEntry.preset_id == preset.id
+        ).all()
     }
 
 
@@ -550,33 +597,61 @@ async def save_bible_as_template(template_name: str, db: Session = Depends(get_d
 
 @router.get("/tax-credit/bible", response_model=list[BibleEntrySchema])
 async def get_bible(db: Session = Depends(get_db)):
-    """Return all breakout bible entries: BREAKOUT_BIBLE defaults merged with DB overrides,
-    plus any custom (non-standard) accounts stored only in the DB."""
+    """Return the effective breakout bible for the editor.
+
+    Merges (in ascending priority):
+      1. BREAKOUT_BIBLE hardcoded defaults
+      2. Active preset entries (if any)
+      3. Manual breakout_bible_entries overrides
+    """
     db_rows: dict[str, BreakoutBibleEntry] = {
         r.account_code: r
         for r in db.query(BreakoutBibleEntry).all()
     }
+    preset_rows = _get_active_preset_dict(db)
+
+    # Collect all known account codes across all sources
+    all_codes = set(BREAKOUT_BIBLE) | set(preset_rows) | set(db_rows)
 
     results: list[BibleEntrySchema] = []
+    for code in all_codes:
+        is_standard = code in BREAKOUT_BIBLE
+        manual_row = db_rows.get(code)
+        preset_row = preset_rows.get(code)
 
-    # Standard entries from BREAKOUT_BIBLE
-    for code, entry in BREAKOUT_BIBLE.items():
-        non_prov, pl, fl, psl, sp, fsl = entry
-        row = db_rows.get(code)
-        if row:
+        if manual_row:
+            # Manual override wins — show its values
             results.append(BibleEntrySchema(
                 account_code=code,
-                description=row.description,
-                is_non_prov=row.is_non_prov,
-                prov_labour_pct=row.prov_labour_pct,
-                fed_labour_pct=row.fed_labour_pct,
-                prov_svc_labour_pct=row.prov_svc_labour_pct,
-                svc_property_pct=row.svc_property_pct,
-                fed_svc_labour_pct=row.fed_svc_labour_pct,
+                description=manual_row.description,
+                is_non_prov=manual_row.is_non_prov,
+                prov_labour_pct=manual_row.prov_labour_pct,
+                fed_labour_pct=manual_row.fed_labour_pct,
+                prov_svc_labour_pct=manual_row.prov_svc_labour_pct,
+                svc_property_pct=manual_row.svc_property_pct,
+                fed_svc_labour_pct=manual_row.fed_svc_labour_pct,
                 is_customized=True,
-                is_standard=True,
+                is_standard=is_standard,
+                is_from_preset=False,
+            ))
+        elif preset_row:
+            # Preset value (no manual override)
+            results.append(BibleEntrySchema(
+                account_code=code,
+                description=preset_row.description,
+                is_non_prov=preset_row.is_non_prov,
+                prov_labour_pct=preset_row.prov_labour_pct,
+                fed_labour_pct=preset_row.fed_labour_pct,
+                prov_svc_labour_pct=preset_row.prov_svc_labour_pct,
+                svc_property_pct=preset_row.svc_property_pct,
+                fed_svc_labour_pct=preset_row.fed_svc_labour_pct,
+                is_customized=False,
+                is_standard=is_standard,
+                is_from_preset=True,
             ))
         else:
+            # Hardcoded default
+            non_prov, pl, fl, psl, sp, fsl = BREAKOUT_BIBLE[code]
             results.append(BibleEntrySchema(
                 account_code=code,
                 description=BIBLE_DESCRIPTIONS.get(code, ""),
@@ -588,22 +663,7 @@ async def get_bible(db: Session = Depends(get_db)):
                 fed_svc_labour_pct=fsl,
                 is_customized=False,
                 is_standard=True,
-            ))
-
-    # Custom (non-standard) entries that exist only in the DB
-    for code, row in db_rows.items():
-        if code not in BREAKOUT_BIBLE:
-            results.append(BibleEntrySchema(
-                account_code=code,
-                description=row.description,
-                is_non_prov=row.is_non_prov,
-                prov_labour_pct=row.prov_labour_pct,
-                fed_labour_pct=row.fed_labour_pct,
-                prov_svc_labour_pct=row.prov_svc_labour_pct,
-                svc_property_pct=row.svc_property_pct,
-                fed_svc_labour_pct=row.fed_svc_labour_pct,
-                is_customized=True,
-                is_standard=False,
+                is_from_preset=False,
             ))
 
     results.sort(key=lambda e: e.account_code)
@@ -654,6 +714,121 @@ async def delete_bible_entry(account_code: str, db: Session = Depends(get_db)):
     if row:
         db.delete(row)
         db.commit()
+    return Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------
+# Bible preset endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/tax-credit/bible/presets", response_model=list[BiblePresetSchema])
+async def list_bible_presets(db: Session = Depends(get_db)):
+    """Return all saved bible presets."""
+    presets = db.query(BiblePreset).order_by(BiblePreset.created_at.desc()).all()
+    results = []
+    for p in presets:
+        count = db.query(BiblePresetEntry).filter(BiblePresetEntry.preset_id == p.id).count()
+        results.append(BiblePresetSchema(
+            id=p.id,
+            name=p.name,
+            is_active=p.is_active,
+            created_at=p.created_at,
+            entry_count=count,
+        ))
+    return results
+
+
+@router.post("/tax-credit/bible/presets/upload", response_model=BiblePresetUploadResponse)
+async def upload_bible_preset(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Upload an Excel file as a new named bible preset."""
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="File must be an Excel file (.xlsx or .xls)")
+
+    try:
+        entries = parse_bible_excel(file.file)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Failed to parse bible file: {e}")
+
+    preset = BiblePreset(name=name.strip() or "Untitled", is_active=False)
+    db.add(preset)
+    db.flush()  # get preset.id before inserting entries
+
+    for entry in entries:
+        db.add(BiblePresetEntry(
+            preset_id           = preset.id,
+            account_code        = entry["account_code"],
+            description         = entry["description"],
+            is_non_prov         = entry["is_non_prov"],
+            prov_labour_pct     = entry["prov_labour_pct"],
+            fed_labour_pct      = entry["fed_labour_pct"],
+            prov_svc_labour_pct = entry["prov_svc_labour_pct"],
+            svc_property_pct    = entry["svc_property_pct"],
+            fed_svc_labour_pct  = entry["fed_svc_labour_pct"],
+        ))
+
+    db.commit()
+    return BiblePresetUploadResponse(
+        preset_id=preset.id,
+        name=preset.name,
+        entry_count=len(entries),
+    )
+
+
+@router.put("/tax-credit/bible/presets/{preset_id}/activate", response_model=BiblePresetSchema)
+async def activate_bible_preset(preset_id: int, db: Session = Depends(get_db)):
+    """Set a preset as active (deactivates all others)."""
+    target = db.query(BiblePreset).filter(BiblePreset.id == preset_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Preset not found")
+
+    db.query(BiblePreset).update({BiblePreset.is_active: False})
+    target.is_active = True
+    db.commit()
+
+    count = db.query(BiblePresetEntry).filter(BiblePresetEntry.preset_id == target.id).count()
+    return BiblePresetSchema(
+        id=target.id,
+        name=target.name,
+        is_active=True,
+        created_at=target.created_at,
+        entry_count=count,
+    )
+
+
+@router.delete("/tax-credit/bible/presets/{preset_id}/deactivate", response_model=BiblePresetSchema)
+async def deactivate_bible_preset(preset_id: int, db: Session = Depends(get_db)):
+    """Deactivate a preset (falls back to hardcoded defaults)."""
+    target = db.query(BiblePreset).filter(BiblePreset.id == preset_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Preset not found")
+
+    target.is_active = False
+    db.commit()
+
+    count = db.query(BiblePresetEntry).filter(BiblePresetEntry.preset_id == target.id).count()
+    return BiblePresetSchema(
+        id=target.id,
+        name=target.name,
+        is_active=False,
+        created_at=target.created_at,
+        entry_count=count,
+    )
+
+
+@router.delete("/tax-credit/bible/presets/{preset_id}", status_code=204)
+async def delete_bible_preset(preset_id: int, db: Session = Depends(get_db)):
+    """Delete a preset and all its entries."""
+    preset = db.query(BiblePreset).filter(BiblePreset.id == preset_id).first()
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found")
+
+    db.query(BiblePresetEntry).filter(BiblePresetEntry.preset_id == preset_id).delete()
+    db.delete(preset)
+    db.commit()
     return Response(status_code=204)
 
 
