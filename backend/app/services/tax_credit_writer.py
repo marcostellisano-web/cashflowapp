@@ -943,6 +943,16 @@ BREAKOUT_BIBLE: dict[str, tuple] = {
     "8001": (False, 0.0,  0.0,  0.0,  0.0, 0.0),
 }
 
+# ---------------------------------------------------------------------------
+# Default descriptions for standard BREAKOUT_BIBLE accounts.
+# Maps account_code → human-readable label shown in the Bible Editor when no
+# DB override has been saved. Populated from user-provided descriptions.
+# ---------------------------------------------------------------------------
+BIBLE_DESCRIPTIONS: dict[str, str] = {
+    # Descriptions will be added here once provided.
+    # Example: "0201": "Writer's Fees – Story & Screenplay",
+}
+
 # Maps account prefix numeric range to a group label for the Groups column
 def _derive_group_label(prefix: str) -> str:
     """Return the A/B/C/D group label for a given 4-digit prefix (e.g. '0200')."""
