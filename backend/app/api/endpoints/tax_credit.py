@@ -738,6 +738,42 @@ async def list_bible_presets(db: Session = Depends(get_db)):
     return results
 
 
+class CreatePresetFromEntriesRequest(BaseModel):
+    name: str
+    entries: list[BibleEntrySchema]
+
+
+@router.post("/tax-credit/bible/presets/from-entries", response_model=BiblePresetUploadResponse)
+async def create_preset_from_entries(
+    body: CreatePresetFromEntriesRequest,
+    db: Session = Depends(get_db),
+):
+    """Create a new named preset directly from a list of entries (no file upload)."""
+    preset = BiblePreset(name=body.name.strip() or "Untitled", is_active=False)
+    db.add(preset)
+    db.flush()
+
+    for entry in body.entries:
+        db.add(BiblePresetEntry(
+            preset_id           = preset.id,
+            account_code        = entry.account_code,
+            description         = entry.description,
+            is_non_prov         = entry.is_non_prov,
+            prov_labour_pct     = entry.prov_labour_pct,
+            fed_labour_pct      = entry.fed_labour_pct,
+            prov_svc_labour_pct = entry.prov_svc_labour_pct,
+            svc_property_pct    = entry.svc_property_pct,
+            fed_svc_labour_pct  = entry.fed_svc_labour_pct,
+        ))
+
+    db.commit()
+    return BiblePresetUploadResponse(
+        preset_id=preset.id,
+        name=preset.name,
+        entry_count=len(body.entries),
+    )
+
+
 @router.post("/tax-credit/bible/presets/upload", response_model=BiblePresetUploadResponse)
 async def upload_bible_preset(
     file: UploadFile = File(...),

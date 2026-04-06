@@ -11,9 +11,11 @@ import type { BiblePreset } from '../../types/tax_credit';
 interface BiblePresetSelectorProps {
   /** Called after any change that affects the bible (activate/deactivate/delete). */
   onBibleChanged: () => void;
+  /** Increment this to force the preset list to reload (e.g. after creating a new preset). */
+  refreshTrigger?: number;
 }
 
-export default function BiblePresetSelector({ onBibleChanged }: BiblePresetSelectorProps) {
+export default function BiblePresetSelector({ onBibleChanged, refreshTrigger }: BiblePresetSelectorProps) {
   const [presets, setPresets] = useState<BiblePreset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export default function BiblePresetSelector({ onBibleChanged }: BiblePresetSelec
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [refreshTrigger]);
 
   const activePreset = presets.find((p) => p.is_active);
 

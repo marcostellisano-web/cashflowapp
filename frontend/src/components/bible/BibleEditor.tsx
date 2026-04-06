@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  createPresetFromEntries,
   deleteBreakoutBibleEntry,
   getBreakoutBible,
   getBreakoutBibleExcelUrl,
@@ -52,6 +53,13 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
   const [loading, setLoading] = useState(true);
   const saveCountRef = useRef(0);
 
+  // Save-as-preset
+  const [showSaveAs, setShowSaveAs] = useState(false);
+  const [saveAsName, setSaveAsName] = useState('');
+  const [saveAsError, setSaveAsError] = useState<string | null>(null);
+  const [saveAsSuccess, setSaveAsSuccess] = useState<string | null>(null);
+  const [presetRefreshKey, setPresetRefreshKey] = useState(0);
+
   // Add account form
   const [newCode, setNewCode] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -85,25 +93,29 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
     setDirty((prev) => ({ ...prev, [code]: { ...base, ...updates } }));
   };
 
-  const handleSaveAll = async () => {
-    const toSave = Object.values(dirty);
-    if (toSave.length === 0) return;
+  const handleSaveAsPreset = async () => {
+    const name = saveAsName.trim();
+    if (!name) { setSaveAsError('Please enter a name for this bible version'); return; }
     setSaving(true);
-    setSaveError(null);
+    setSaveAsError(null);
+    setSaveAsSuccess(null);
     const id = ++saveCountRef.current;
     try {
-      await Promise.all(toSave.map((e) => upsertBreakoutBibleEntry(e)));
-      if (id !== saveCountRef.current) return;
-      setEntries((prev) =>
-        prev.map((e) =>
-          dirty[e.account_code]
-            ? { ...dirty[e.account_code], is_customized: true }
-            : e,
-        ),
+      // Merge dirty changes into the displayed entries to get the full current state
+      const allEntries = entries.map((e) =>
+        dirty[e.account_code] ? { ...dirty[e.account_code], is_customized: true } : e,
       );
+      await createPresetFromEntries(name, allEntries);
+      if (id !== saveCountRef.current) return;
+      // Apply dirty changes locally and clear
+      setEntries(allEntries);
       setDirty({});
+      setSaveAsSuccess(`Saved as "${name}". You can activate it from the Bible Presets panel above.`);
+      setSaveAsName('');
+      setShowSaveAs(false);
+      setPresetRefreshKey((k) => k + 1); // triggers BiblePresetSelector to reload its list
     } catch (e: any) {
-      if (id === saveCountRef.current) setSaveError(e.message || 'Save failed');
+      if (id === saveCountRef.current) setSaveAsError(e.message || 'Save failed');
     } finally {
       if (id === saveCountRef.current) setSaving(false);
     }
@@ -186,7 +198,7 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
       </div>
 
       {/* Preset selector */}
-      <BiblePresetSelector onBibleChanged={loadEntries} />
+      <BiblePresetSelector onBibleChanged={loadEntries} refreshTrigger={presetRefreshKey} />
 
       {/* Add account form */}
       <div className="flex items-end gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg flex-wrap">
@@ -241,17 +253,56 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
           Download Excel
         </a>
         <button
-          onClick={() => void handleSaveAll()}
+          onClick={() => { setShowSaveAs(true); setSaveAsSuccess(null); }}
           disabled={dirtyCount === 0 || saving}
           className="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-medium rounded-lg transition-colors"
         >
-          {saving
-            ? 'Saving…'
-            : dirtyCount > 0
-            ? `Save ${dirtyCount} change${dirtyCount !== 1 ? 's' : ''}`
+          {dirtyCount > 0
+            ? `Save ${dirtyCount} change${dirtyCount !== 1 ? 's' : ''}…`
             : 'No changes'}
         </button>
       </div>
+
+      {/* Save-as-preset panel */}
+      {showSaveAs && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+          <p className="text-xs text-blue-700 font-medium">
+            Save current edits as a new bible version (your active preset will not be changed).
+          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="text"
+              value={saveAsName}
+              onChange={(e) => setSaveAsName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void handleSaveAsPreset()}
+              placeholder="e.g. Full Telefilm CoA v2"
+              className="flex-1 min-w-48 px-2 py-1.5 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoFocus
+            />
+            <button
+              onClick={() => void handleSaveAsPreset()}
+              disabled={saving}
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-medium rounded transition-colors"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={() => { setShowSaveAs(false); setSaveAsError(null); }}
+              className="px-3 py-1.5 border border-gray-300 text-gray-600 text-sm rounded hover:bg-white transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          {saveAsError && <p className="text-xs text-red-600">{saveAsError}</p>}
+        </div>
+      )}
+
+      {saveAsSuccess && (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 flex items-start justify-between gap-2">
+          <span>{saveAsSuccess}</span>
+          <button onClick={() => setSaveAsSuccess(null)} className="text-green-500 hover:text-green-700 shrink-0">✕</button>
+        </div>
+      )}
 
       {saveError && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">

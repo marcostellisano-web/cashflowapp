@@ -240,6 +240,22 @@ export async function deleteBreakoutBibleEntry(accountCode: string): Promise<voi
   }
 }
 
+export async function createPresetFromEntries(
+  name: string,
+  entries: BreakoutBibleEntry[],
+): Promise<{ preset_id: number; name: string; entry_count: number }> {
+  const res = await fetch(`${BASE}/tax-credit/bible/presets/from-entries`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, entries }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to save preset');
+  }
+  return res.json();
+}
+
 export async function getBiblePresets(): Promise<BiblePreset[]> {
   const res = await fetch(`${BASE}/tax-credit/bible/presets`);
   if (!res.ok) throw new Error('Failed to load bible presets');
