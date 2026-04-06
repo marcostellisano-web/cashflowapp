@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models.budget import ParsedBudget
 from app.models.db_models import BreakoutBibleEntry, TaxCreditOverride
 from app.services.tax_credit_writer import (
+    BIBLE_DESCRIPTIONS,
     BREAKOUT_BIBLE,
     write_bible_excel,
     write_tax_credit_excel,
@@ -419,6 +420,131 @@ async def upload_template_excel(
     return _save_overrides(_template_project_name(template_name), body, db)
 
 
+@router.delete("/tax-credit/templates/{template_name}", status_code=204)
+async def delete_template(template_name: str, db: Session = Depends(get_db)):
+    """Delete all rows belonging to a saved breakout template."""
+    project_key = _template_project_name(template_name)
+    db.query(TaxCreditOverride).filter(
+        TaxCreditOverride.project_name == project_key
+    ).delete()
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/tax-credit/bible/apply-template/{template_name}", response_model=list[BibleEntrySchema])
+async def apply_template_to_bible(template_name: str, db: Session = Depends(get_db)):
+    """Reset the global bible to the named template.
+
+    For the built-in 'Nat Geo - 4 Episode' template this simply clears all DB
+    customisations (reverting every account to its BREAKOUT_BIBLE default).
+    For user templates the DB customisations are cleared then the template rows
+    are written as global bible overrides.
+    """
+    BUILTIN_TEMPLATE = "Nat Geo - 4 Episode"
+
+    # Clear all existing global bible customisations.
+    db.query(BreakoutBibleEntry).delete()
+    db.commit()
+
+    if template_name.strip() != BUILTIN_TEMPLATE:
+        project_key = _template_project_name(template_name)
+        template_rows = (
+            db.query(TaxCreditOverride)
+            .filter(TaxCreditOverride.project_name == project_key)
+            .all()
+        )
+        if not template_rows:
+            raise HTTPException(status_code=404, detail="Template not found")
+
+        for row in template_rows:
+            defaults = BREAKOUT_BIBLE.get(row.account_code, (False, 0.0, 0.0, 0.0, 0.0, 0.0))
+            non_prov_def, pl_def, fl_def, psl_def, sp_def, fsl_def = defaults
+            db.add(BreakoutBibleEntry(
+                account_code        = row.account_code,
+                description         = BIBLE_DESCRIPTIONS.get(row.account_code, ""),
+                is_non_prov         = row.is_non_prov         if row.is_non_prov         is not None else non_prov_def,
+                prov_labour_pct     = row.prov_labour_pct     if row.prov_labour_pct     is not None else pl_def,
+                fed_labour_pct      = row.fed_labour_pct      if row.fed_labour_pct      is not None else fl_def,
+                prov_svc_labour_pct = row.prov_svc_labour_pct if row.prov_svc_labour_pct is not None else psl_def,
+                svc_property_pct    = row.svc_property_pct    if row.svc_property_pct    is not None else sp_def,
+                fed_svc_labour_pct  = row.fed_svc_labour_pct  if row.fed_svc_labour_pct  is not None else fsl_def,
+            ))
+        db.commit()
+
+    # Return the fresh bible state (same as GET /tax-credit/bible).
+    db_rows: dict[str, BreakoutBibleEntry] = {
+        r.account_code: r for r in db.query(BreakoutBibleEntry).all()
+    }
+    results: list[BibleEntrySchema] = []
+    for code, entry in BREAKOUT_BIBLE.items():
+        non_prov, pl, fl, psl, sp, fsl = entry
+        row = db_rows.get(code)
+        if row:
+            results.append(BibleEntrySchema(
+                account_code=code, description=row.description,
+                is_non_prov=row.is_non_prov, prov_labour_pct=row.prov_labour_pct,
+                fed_labour_pct=row.fed_labour_pct, prov_svc_labour_pct=row.prov_svc_labour_pct,
+                svc_property_pct=row.svc_property_pct, fed_svc_labour_pct=row.fed_svc_labour_pct,
+                is_customized=True, is_standard=True,
+            ))
+        else:
+            results.append(BibleEntrySchema(
+                account_code=code, description=BIBLE_DESCRIPTIONS.get(code, ""),
+                is_non_prov=non_prov, prov_labour_pct=pl, fed_labour_pct=fl,
+                prov_svc_labour_pct=psl, svc_property_pct=sp, fed_svc_labour_pct=fsl,
+                is_customized=False, is_standard=True,
+            ))
+    for code, row in db_rows.items():
+        if code not in BREAKOUT_BIBLE:
+            results.append(BibleEntrySchema(
+                account_code=code, description=row.description,
+                is_non_prov=row.is_non_prov, prov_labour_pct=row.prov_labour_pct,
+                fed_labour_pct=row.fed_labour_pct, prov_svc_labour_pct=row.prov_svc_labour_pct,
+                svc_property_pct=row.svc_property_pct, fed_svc_labour_pct=row.fed_svc_labour_pct,
+                is_customized=True, is_standard=False,
+            ))
+    results.sort(key=lambda e: e.account_code)
+    return results
+
+
+@router.post("/tax-credit/bible/save-as-template/{template_name}", response_model=ProjectOverridesResponse)
+async def save_bible_as_template(template_name: str, db: Session = Depends(get_db)):
+    """Snapshot the current global bible as a named template."""
+    db_rows = db.query(BreakoutBibleEntry).all()
+    overrides: list[BreakoutOverride] = []
+    for code in BREAKOUT_BIBLE:
+        row = next((r for r in db_rows if r.account_code == code), None)
+        defaults = BREAKOUT_BIBLE[code]
+        non_prov, pl, fl, psl, sp, fsl = defaults
+        overrides.append(BreakoutOverride(
+            account_code        = code,
+            description         = row.description if row else BIBLE_DESCRIPTIONS.get(code, ""),
+            is_foreign          = None,
+            is_non_prov         = row.is_non_prov         if row else non_prov,
+            prov_labour_pct     = row.prov_labour_pct     if row else pl,
+            fed_labour_pct      = row.fed_labour_pct      if row else fl,
+            prov_svc_labour_pct = row.prov_svc_labour_pct if row else psl,
+            svc_property_pct    = row.svc_property_pct    if row else sp,
+            fed_svc_labour_pct  = row.fed_svc_labour_pct  if row else fsl,
+        ))
+    # Include any custom (non-standard) accounts.
+    for row in db_rows:
+        if row.account_code not in BREAKOUT_BIBLE:
+            overrides.append(BreakoutOverride(
+                account_code        = row.account_code,
+                description         = row.description,
+                is_foreign          = None,
+                is_non_prov         = row.is_non_prov,
+                prov_labour_pct     = row.prov_labour_pct,
+                fed_labour_pct      = row.fed_labour_pct,
+                prov_svc_labour_pct = row.prov_svc_labour_pct,
+                svc_property_pct    = row.svc_property_pct,
+                fed_svc_labour_pct  = row.fed_svc_labour_pct,
+            ))
+    body = SaveOverridesRequest(overrides=overrides)
+    return _save_overrides(_template_project_name(template_name), body, db)
+
+
 @router.get("/tax-credit/bible", response_model=list[BibleEntrySchema])
 async def get_bible(db: Session = Depends(get_db)):
     """Return all breakout bible entries: BREAKOUT_BIBLE defaults merged with DB overrides,
@@ -450,7 +576,7 @@ async def get_bible(db: Session = Depends(get_db)):
         else:
             results.append(BibleEntrySchema(
                 account_code=code,
-                description="",
+                description=BIBLE_DESCRIPTIONS.get(code, ""),
                 is_non_prov=non_prov,
                 prov_labour_pct=pl,
                 fed_labour_pct=fl,

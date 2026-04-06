@@ -303,6 +303,41 @@ export function getBreakoutTemplateExcelUrl(templateName: string): string {
   return `${BASE}/tax-credit/templates/${encodeURIComponent(templateName)}/excel`;
 }
 
+export async function deleteBreakoutTemplate(templateName: string): Promise<void> {
+  const res = await fetch(
+    `${BASE}/tax-credit/templates/${encodeURIComponent(templateName)}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to delete template');
+  }
+}
+
+export async function applyTemplateToGlobalBible(templateName: string): Promise<BreakoutBibleEntry[]> {
+  const res = await fetch(
+    `${BASE}/tax-credit/bible/apply-template/${encodeURIComponent(templateName)}`,
+    { method: 'POST' },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to apply template');
+  }
+  return res.json();
+}
+
+export async function saveBibleAsTemplate(templateName: string): Promise<ProjectOverridesResponse> {
+  const res = await fetch(
+    `${BASE}/tax-credit/bible/save-as-template/${encodeURIComponent(templateName)}`,
+    { method: 'POST' },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to save as template');
+  }
+  return res.json();
+}
+
 export async function uploadBreakoutTemplate(templateName: string, file: File): Promise<ProjectOverridesResponse> {
   const form = new FormData();
   form.append('file', file);
