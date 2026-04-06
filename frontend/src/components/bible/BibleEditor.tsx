@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   deleteBreakoutBibleEntry,
   getBreakoutBible,
@@ -6,6 +6,7 @@ import {
   upsertBreakoutBibleEntry,
 } from '../../lib/api';
 import type { BreakoutBibleEntry } from '../../types/tax_credit';
+import BiblePresetSelector from './BiblePresetSelector';
 
 interface BibleEditorProps {
   onBack: () => void;
@@ -57,12 +58,15 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
   const [addError, setAddError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
-  useEffect(() => {
+  const loadEntries = useCallback(() => {
+    setLoading(true);
     getBreakoutBible()
       .then((data: BreakoutBibleEntry[]) => setEntries(data))
       .catch((e: any) => setSaveError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { loadEntries(); }, [loadEntries]);
 
   const displayed = entries.filter((e) => {
     if (!filter) return true;
@@ -183,6 +187,9 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
         </button>
       </div>
 
+      {/* Preset selector */}
+      <BiblePresetSelector onBibleChanged={loadEntries} />
+
       {/* Add account form */}
       <div className="flex items-end gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg flex-wrap">
         <div className="flex flex-col gap-1">
@@ -284,6 +291,8 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
                     ? 'bg-yellow-50'
                     : e.is_customized
                     ? 'bg-blue-50/40'
+                    : e.is_from_preset
+                    ? 'bg-green-50/50'
                     : '';
                   return (
                     <tr
@@ -392,7 +401,10 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
           <div className="px-4 py-2 border-t border-gray-100 text-xs text-gray-400 flex items-center gap-4">
             <span>{displayed.length} accounts shown</span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-blue-100 rounded-sm inline-block border border-blue-200" /> Customized
+              <span className="w-3 h-3 bg-green-100 rounded-sm inline-block border border-green-200" /> From active preset
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 bg-blue-100 rounded-sm inline-block border border-blue-200" /> Manual override
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="w-3 h-3 bg-yellow-100 rounded-sm inline-block border border-yellow-200" /> Unsaved edit

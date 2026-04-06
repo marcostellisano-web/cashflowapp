@@ -2,7 +2,7 @@ import type { TimingBible } from '../types/bible';
 import type { ParsedBudget } from '../types/budget';
 import type { CashflowOutput, LineItemDistribution } from '../types/cashflow';
 import type { ProductionParameters } from '../types/production';
-import type { BreakoutBibleEntry, BreakoutOverride, ProjectOverridesResponse } from '../types/tax_credit';
+import type { BiblePreset, BreakoutBibleEntry, BreakoutOverride, ProjectOverridesResponse } from '../types/tax_credit';
 
 const BASE = '/api';
 
@@ -181,6 +181,50 @@ export async function deleteBreakoutBibleEntry(accountCode: string): Promise<voi
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || 'Failed to delete bible entry');
+  }
+}
+
+export async function getBiblePresets(): Promise<BiblePreset[]> {
+  const res = await fetch(`${BASE}/tax-credit/bible/presets`);
+  if (!res.ok) throw new Error('Failed to load bible presets');
+  return res.json();
+}
+
+export async function uploadBiblePreset(file: File, name: string): Promise<{ preset_id: number; name: string; entry_count: number }> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('name', name);
+  const res = await fetch(`${BASE}/tax-credit/bible/presets/upload`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Upload failed');
+  }
+  return res.json();
+}
+
+export async function activateBiblePreset(id: number): Promise<BiblePreset> {
+  const res = await fetch(`${BASE}/tax-credit/bible/presets/${id}/activate`, { method: 'PUT' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to activate preset');
+  }
+  return res.json();
+}
+
+export async function deactivateBiblePreset(id: number): Promise<BiblePreset> {
+  const res = await fetch(`${BASE}/tax-credit/bible/presets/${id}/deactivate`, { method: 'DELETE' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to deactivate preset');
+  }
+  return res.json();
+}
+
+export async function deleteBiblePreset(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/tax-credit/bible/presets/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to delete preset');
   }
 }
 

@@ -4,11 +4,13 @@ Each "bible" gets its own table so they can evolve independently.
   - custom_bible_entries   — user-defined timing bible overrides
   - breakout_bible_entries — global tax credit breakout bible customisations
   - tax_credit_overrides   — per-project tax credit overrides
+  - bible_presets          — named uploaded bible versions
+  - bible_preset_entries   — entries belonging to a named bible preset
 """
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Float, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 
 from app.database import Base
 
@@ -53,6 +55,41 @@ class BreakoutBibleEntry(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+
+class BiblePreset(Base):
+    """A named, uploadable version of the breakout bible.
+
+    One preset can be marked is_active=True at a time; when active its entries
+    serve as the base bible for tax-credit generation (overriding the hardcoded
+    BREAKOUT_BIBLE defaults, but themselves overrideable by breakout_bible_entries).
+    """
+
+    __tablename__ = "bible_presets"
+
+    id         = Column(Integer,              primary_key=True, autoincrement=True)
+    name       = Column(String(200),          nullable=False)
+    is_active  = Column(Boolean,              nullable=False, default=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class BiblePresetEntry(Base):
+    """One account-code row belonging to a BiblePreset."""
+
+    __tablename__ = "bible_preset_entries"
+
+    preset_id           = Column(Integer,     ForeignKey("bible_presets.id"), primary_key=True)
+    account_code        = Column(String(20),  primary_key=True)
+    description         = Column(Text,        nullable=False, default="")
+    is_non_prov         = Column(Boolean,     nullable=False, default=False)
+    prov_labour_pct     = Column(Float,       nullable=False, default=0.0)
+    fed_labour_pct      = Column(Float,       nullable=False, default=0.0)
+    prov_svc_labour_pct = Column(Float,       nullable=False, default=0.0)
+    svc_property_pct    = Column(Float,       nullable=False, default=0.0)
+    fed_svc_labour_pct  = Column(Float,       nullable=False, default=0.0)
 
 
 class TaxCreditOverride(Base):
