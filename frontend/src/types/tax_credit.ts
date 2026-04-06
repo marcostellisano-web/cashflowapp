@@ -28,7 +28,7 @@ export interface BreakoutBibleEntry {
   fed_svc_labour_pct: number;
   is_customized: boolean;
   is_standard: boolean;
-  is_from_preset: boolean;
+  is_from_preset?: boolean;
 }
 
 export interface BiblePreset {
