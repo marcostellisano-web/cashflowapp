@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import { deleteBreakoutBibleEntry, getBreakoutBible, upsertBreakoutBibleEntry } from '../../lib/api';
+import {
+  deleteBreakoutBibleEntry,
+  getBreakoutBible,
+  upsertBreakoutBibleEntry,
+  uploadBreakoutTemplate,
+} from '../../lib/api';
 import type { BreakoutBibleEntry } from '../../types/tax_credit';
 
 type PctField =
@@ -45,6 +50,10 @@ export default function BibleEditor() {
   const [newDesc, setNewDesc] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateUploadBusy, setTemplateUploadBusy] = useState(false);
+  const [templateUploadMsg, setTemplateUploadMsg] = useState<string | null>(null);
+  const [templateUploadError, setTemplateUploadError] = useState<string | null>(null);
 
   // Filter
   const [filter, setFilter] = useState('');
@@ -164,6 +173,25 @@ export default function BibleEditor() {
     }
   }
 
+  async function handleUploadTemplate(file: File) {
+    const name = templateName.trim();
+    if (!name) {
+      setTemplateUploadError('Template name is required before upload.');
+      return;
+    }
+    setTemplateUploadBusy(true);
+    setTemplateUploadError(null);
+    setTemplateUploadMsg(null);
+    try {
+      const resp = await uploadBreakoutTemplate(name, file);
+      setTemplateUploadMsg(`Uploaded template "${name}" with ${resp.overrides.length} rows.`);
+    } catch (e: any) {
+      setTemplateUploadError(e.message || 'Failed to upload template.');
+    } finally {
+      setTemplateUploadBusy(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -184,8 +212,43 @@ export default function BibleEditor() {
         <h3 className="text-sm font-semibold text-gray-700">Breakout Bible</h3>
         <p className="text-xs text-gray-400 mt-0.5">
           Edit global default percentages for each account code. Changes apply to all new projects.
-          Custom accounts (not in the standard bible) can be added below.
+          Custom accounts (not in the standard bible) can be added below. Descriptions are editable and may be blank
+          until you fill them in.
         </p>
+      </div>
+
+      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+        <p className="text-xs text-blue-700">
+          Upload an Excel file to create/update a named breakout template. Required columns:
+          <strong> Account, Description, OUT, Prov Labour %, Fed Labour %, Prov Svc %, Svc Prop %, Fed Svc %</strong>.
+        </p>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-blue-700 font-medium">Template Name</label>
+            <input
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="e.g. Crime Shows"
+              className="w-56 px-2 py-1.5 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <label className={`px-3 py-1.5 rounded text-sm font-medium border ${templateUploadBusy ? 'border-gray-300 text-gray-400 bg-gray-100' : 'border-blue-300 text-blue-700 hover:bg-blue-100'} cursor-pointer`}>
+            {templateUploadBusy ? 'Uploading…' : 'Upload Template Excel'}
+            <input
+              type="file"
+              accept=".xlsx,.xlsm"
+              disabled={templateUploadBusy}
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleUploadTemplate(file);
+                e.currentTarget.value = '';
+              }}
+            />
+          </label>
+        </div>
+        {templateUploadMsg && <p className="text-xs text-green-700">{templateUploadMsg}</p>}
+        {templateUploadError && <p className="text-xs text-red-700">{templateUploadError}</p>}
       </div>
 
       {/* Add account form */}
@@ -273,6 +336,8 @@ export default function BibleEditor() {
                           [entry.account_code]: { ...prev[entry.account_code], description: e.target.value },
                         }))
                       }
+                      placeholder="Add description"
+                      title={entry.description || 'Description not set yet'}
                       className="w-full min-w-32 px-1.5 py-0.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
                   </td>

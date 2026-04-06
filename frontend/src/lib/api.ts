@@ -61,6 +61,62 @@ export async function generateCashflowExcel(
   return res.blob();
 }
 
+export async function listCashflowTemplates(): Promise<string[]> {
+  const res = await fetch(`${BASE}/cashflow/templates`);
+  if (!res.ok) throw new Error('Failed to list cashflow templates');
+  return res.json();
+}
+
+export async function getCashflowTemplate(
+  templateName: string,
+  codes: string[],
+): Promise<LineItemDistribution[]> {
+  const params = new URLSearchParams();
+  codes.forEach((c) => params.append('codes', c));
+  const res = await fetch(
+    `${BASE}/cashflow/templates/${encodeURIComponent(templateName)}?${params}`,
+  );
+  if (!res.ok) throw new Error('Failed to load cashflow template');
+  return res.json();
+}
+
+export async function saveCashflowTemplate(
+  templateName: string,
+  distributions: LineItemDistribution[],
+): Promise<LineItemDistribution[]> {
+  const res = await fetch(`${BASE}/cashflow/templates/${encodeURIComponent(templateName)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(distributions),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to save cashflow template');
+  }
+  return res.json();
+}
+
+export function getCashflowTemplateExcelUrl(templateName: string): string {
+  return `${BASE}/cashflow/templates/${encodeURIComponent(templateName)}/excel`;
+}
+
+export async function uploadCashflowTemplate(
+  templateName: string,
+  file: File,
+): Promise<LineItemDistribution[]> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${BASE}/cashflow/templates/${encodeURIComponent(templateName)}/upload`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to upload cashflow template');
+  }
+  return res.json();
+}
+
 export async function getTimingBible(): Promise<TimingBible> {
   const res = await fetch(`${BASE}/bible`);
   if (!res.ok) throw new Error('Failed to get timing bible');
@@ -243,6 +299,99 @@ export async function saveBreakoutOverrides(
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || 'Failed to save overrides');
+  }
+  return res.json();
+}
+
+export async function listBreakoutTemplates(): Promise<string[]> {
+  const res = await fetch(`${BASE}/tax-credit/templates`);
+  if (!res.ok) throw new Error('Failed to load templates');
+  return res.json();
+}
+
+export async function getBreakoutTemplateOverrides(
+  templateName: string,
+  accountCodes: string[],
+  descriptions: string[],
+): Promise<ProjectOverridesResponse> {
+  const params = new URLSearchParams();
+  accountCodes.forEach((c) => params.append('account_codes', c));
+  descriptions.forEach((d) => params.append('descriptions', d));
+  const res = await fetch(
+    `${BASE}/tax-credit/templates/${encodeURIComponent(templateName)}?${params}`,
+  );
+  if (!res.ok) throw new Error('Failed to load template');
+  return res.json();
+}
+
+export async function saveBreakoutTemplateOverrides(
+  templateName: string,
+  overrides: BreakoutOverride[],
+): Promise<ProjectOverridesResponse> {
+  const res = await fetch(
+    `${BASE}/tax-credit/templates/${encodeURIComponent(templateName)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ overrides }),
+    },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to save template');
+  }
+  return res.json();
+}
+
+export function getBreakoutTemplateExcelUrl(templateName: string): string {
+  return `${BASE}/tax-credit/templates/${encodeURIComponent(templateName)}/excel`;
+}
+
+export async function deleteBreakoutTemplate(templateName: string): Promise<void> {
+  const res = await fetch(
+    `${BASE}/tax-credit/templates/${encodeURIComponent(templateName)}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to delete template');
+  }
+}
+
+export async function applyTemplateToGlobalBible(templateName: string): Promise<BreakoutBibleEntry[]> {
+  const res = await fetch(
+    `${BASE}/tax-credit/bible/apply-template/${encodeURIComponent(templateName)}`,
+    { method: 'POST' },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to apply template');
+  }
+  return res.json();
+}
+
+export async function saveBibleAsTemplate(templateName: string): Promise<ProjectOverridesResponse> {
+  const res = await fetch(
+    `${BASE}/tax-credit/bible/save-as-template/${encodeURIComponent(templateName)}`,
+    { method: 'POST' },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to save as template');
+  }
+  return res.json();
+}
+
+export async function uploadBreakoutTemplate(templateName: string, file: File): Promise<ProjectOverridesResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(
+    `${BASE}/tax-credit/templates/${encodeURIComponent(templateName)}/upload`,
+    { method: 'POST', body: form },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to upload template');
   }
   return res.json();
 }
