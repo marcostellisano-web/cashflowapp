@@ -58,6 +58,7 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
   const [saveAsName, setSaveAsName] = useState('');
   const [saveAsError, setSaveAsError] = useState<string | null>(null);
   const [saveAsSuccess, setSaveAsSuccess] = useState<string | null>(null);
+  const [presetRefreshKey, setPresetRefreshKey] = useState(0);
 
   // Add account form
   const [newCode, setNewCode] = useState('');
@@ -112,7 +113,7 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
       setSaveAsSuccess(`Saved as "${name}". You can activate it from the Bible Presets panel above.`);
       setSaveAsName('');
       setShowSaveAs(false);
-      loadEntries(); // refresh preset list in selector
+      setPresetRefreshKey((k) => k + 1); // triggers BiblePresetSelector to reload its list
     } catch (e: any) {
       if (id === saveCountRef.current) setSaveAsError(e.message || 'Save failed');
     } finally {
@@ -197,7 +198,7 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
       </div>
 
       {/* Preset selector */}
-      <BiblePresetSelector onBibleChanged={loadEntries} />
+      <BiblePresetSelector onBibleChanged={loadEntries} refreshTrigger={presetRefreshKey} />
 
       {/* Add account form */}
       <div className="flex items-end gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg flex-wrap">
