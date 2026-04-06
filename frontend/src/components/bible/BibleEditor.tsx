@@ -1,20 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  applyTemplateToGlobalBible,
   deleteBreakoutBibleEntry,
-  deleteBreakoutTemplate,
   getBreakoutBible,
   getBreakoutBibleExcelUrl,
-  getBreakoutTemplateExcelUrl,
-  listBreakoutTemplates,
-  saveBibleAsTemplate,
-  uploadBreakoutTemplate,
   upsertBreakoutBibleEntry,
 } from '../../lib/api';
 import type { BreakoutBibleEntry } from '../../types/tax_credit';
 import BiblePresetSelector from './BiblePresetSelector';
-
-const BUILTIN_TEMPLATE = 'Nat Geo - 4 Episode';
 
 interface BibleEditorProps {
   onBack: () => void;
@@ -72,11 +64,6 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
       .then((data: BreakoutBibleEntry[]) => setEntries(data))
       .catch((e: any) => setSaveError(e.message))
       .finally(() => setLoading(false));
-
-    listBreakoutTemplates()
-      .then(setTemplates)
-      .catch(() => {})
-      .finally(() => setTemplatesLoading(false));
   }, []);
 
   useEffect(() => { loadEntries(); }, [loadEntries]);
@@ -175,76 +162,6 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
       setAddError(e.message || 'Failed to add account');
     } finally {
       setAdding(false);
-    }
-  };
-
-  const handleApplyTemplate = async (name: string) => {
-    const isBuiltin = name === BUILTIN_TEMPLATE;
-    const msg = isBuiltin
-      ? `Apply the "${name}" template? This will reset all bible customisations to the default values.`
-      : `Apply the "${name}" template? This will overwrite the current global bible with this template's values.`;
-    if (!window.confirm(msg)) return;
-    setTemplateError(null);
-    setApplyingTemplate(name);
-    try {
-      const fresh = await applyTemplateToGlobalBible(name);
-      setEntries(fresh);
-      setDirty({});
-    } catch (e: any) {
-      setTemplateError(e.message || 'Failed to apply template');
-    } finally {
-      setApplyingTemplate(null);
-    }
-  };
-
-  const handleDeleteTemplate = async (name: string) => {
-    if (!window.confirm(`Delete template "${name}"? This cannot be undone.`)) return;
-    setTemplateError(null);
-    setDeletingTemplate(name);
-    try {
-      await deleteBreakoutTemplate(name);
-      setTemplates((prev) => prev.filter((t) => t !== name));
-    } catch (e: any) {
-      setTemplateError(e.message || 'Failed to delete template');
-    } finally {
-      setDeletingTemplate(null);
-    }
-  };
-
-  const handleSaveAsTemplate = async () => {
-    const name = saveAsName.trim();
-    if (!name) { setSaveAsError('Template name is required'); return; }
-    if (name === BUILTIN_TEMPLATE) { setSaveAsError(`"${BUILTIN_TEMPLATE}" is a built-in template and cannot be overwritten.`); return; }
-    setSaveAsError(null);
-    setSaveAsMessage(null);
-    setSavingAsTemplate(true);
-    try {
-      await saveBibleAsTemplate(name);
-      setSaveAsMessage(`Saved as "${name}".`);
-      setSaveAsName('');
-      if (!templates.includes(name)) setTemplates((prev) => [...prev, name].sort());
-    } catch (e: any) {
-      setSaveAsError(e.message || 'Failed to save template');
-    } finally {
-      setSavingAsTemplate(false);
-    }
-  };
-
-  const handleTemplateUpload = async (file: File) => {
-    const name = uploadName.trim();
-    if (!name) { setTemplateUploadError('Template name is required before upload.'); return; }
-    if (name === BUILTIN_TEMPLATE) { setTemplateUploadError(`"${BUILTIN_TEMPLATE}" is a built-in template and cannot be overwritten.`); return; }
-    setTemplateUploading(true);
-    setTemplateUploadError(null);
-    setTemplateUploadMessage(null);
-    try {
-      const resp = await uploadBreakoutTemplate(name, file);
-      setTemplateUploadMessage(`Template "${name}" uploaded (${resp.overrides.length} rows).`);
-      if (!templates.includes(name)) setTemplates((prev) => [...prev, name].sort());
-    } catch (e: any) {
-      setTemplateUploadError(e.message || 'Template upload failed');
-    } finally {
-      setTemplateUploading(false);
     }
   };
 
