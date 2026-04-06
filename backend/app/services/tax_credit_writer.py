@@ -2299,7 +2299,7 @@ def write_bible_excel(entries: list[dict]) -> BytesIO:
     """Export the full breakout bible as a formatted Excel workbook.
 
     ``entries`` is a list of dicts with keys:
-        account_code, is_non_prov, prov_labour_pct, fed_labour_pct,
+        account_code, description, is_non_prov, prov_labour_pct, fed_labour_pct,
         prov_svc_labour_pct, svc_property_pct, fed_svc_labour_pct,
         is_customized (bool – True if differs from hardcoded default)
     """
@@ -2313,7 +2313,7 @@ def write_bible_excel(entries: list[dict]) -> BytesIO:
     ws.title = "Breakout Bible"
 
     # ── column widths ────────────────────────────────────────────
-    widths = [12, 8, 14, 14, 18, 14, 18]
+    widths = [12, 44, 8, 14, 14, 18, 14, 18]
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
@@ -2328,7 +2328,7 @@ def write_bible_excel(entries: list[dict]) -> BytesIO:
 
     # ── header row ───────────────────────────────────────────────
     headers = [
-        "Account", "OUT",
+        "Account", "Description", "OUT",
         "Prov Labour %", "Fed Labour %",
         "Prov Svc Labour %", "Svc Property %", "Fed Svc Labour %",
     ]
@@ -2356,16 +2356,17 @@ def write_bible_excel(entries: list[dict]) -> BytesIO:
             return c
 
         _dc(1, entry["account_code"])
-        out_cell = _dc(2, "OUT" if entry["is_non_prov"] else "", align=_CENTER)
+        _dc(2, entry.get("description", "") or "")
+        out_cell = _dc(3, "OUT" if entry["is_non_prov"] else "", align=_CENTER)
         if entry["is_non_prov"]:
             out_cell.font = Font(bold=True, size=10, color="C00000")
 
         for col, key in [
-            (3, "prov_labour_pct"),
-            (4, "fed_labour_pct"),
-            (5, "prov_svc_labour_pct"),
-            (6, "svc_property_pct"),
-            (7, "fed_svc_labour_pct"),
+            (4, "prov_labour_pct"),
+            (5, "fed_labour_pct"),
+            (6, "prov_svc_labour_pct"),
+            (7, "svc_property_pct"),
+            (8, "fed_svc_labour_pct"),
         ]:
             val = entry.get(key, 0.0) or 0.0
             _dc(col, val if val else None, fmt=_PCT_FMT, align=_RIGHT)

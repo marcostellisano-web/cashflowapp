@@ -227,6 +227,7 @@ async def download_bible_excel(db: Session = Depends(get_db)):
             r = db_rows[code]
             entries.append({
                 "account_code": code,
+                "description": (r.description or "").strip() or BIBLE_DESCRIPTIONS.get(code, ""),
                 "is_non_prov": r.is_non_prov,
                 "prov_labour_pct": r.prov_labour_pct,
                 "fed_labour_pct": r.fed_labour_pct,
@@ -238,6 +239,7 @@ async def download_bible_excel(db: Session = Depends(get_db)):
         else:
             entries.append({
                 "account_code": code,
+                "description": BIBLE_DESCRIPTIONS.get(code, ""),
                 "is_non_prov": non_prov,
                 "prov_labour_pct": pl,
                 "fed_labour_pct": fl,
@@ -325,6 +327,7 @@ async def download_template_excel(template_name: str, db: Session = Depends(get_
         non_prov_default, pl_default, fl_default, psl_default, sp_default, fsl_default = defaults
         data.append({
             "account_code": row.account_code,
+            "description": (row.description or "").strip() or BIBLE_DESCRIPTIONS.get(row.account_code, ""),
             "is_non_prov": row.is_non_prov if row.is_non_prov is not None else non_prov_default,
             "prov_labour_pct": row.prov_labour_pct if row.prov_labour_pct is not None else pl_default,
             "fed_labour_pct": row.fed_labour_pct if row.fed_labour_pct is not None else fl_default,
