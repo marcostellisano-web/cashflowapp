@@ -109,11 +109,11 @@ export default function BiblePresetSelector({ onBibleChanged, refreshTrigger }: 
   };
 
   return (
-    <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+    <div className="p-4 bg-violet-50 border border-violet-200 rounded-xl space-y-3">
       {/* Header row */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <span className="text-sm font-semibold text-gray-700">Bible Presets</span>
+          <span className="text-sm font-semibold text-violet-800">Bible Presets</span>
           <span className="ml-2 text-xs text-gray-500">
             {activePreset
               ? <>Active: <span className="font-medium text-green-700">{activePreset.name}</span></>
@@ -122,7 +122,7 @@ export default function BiblePresetSelector({ onBibleChanged, refreshTrigger }: 
         </div>
         <button
           onClick={() => { setShowUpload((v) => !v); setUploadError(null); }}
-          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-white text-gray-700 transition-colors"
+          className="px-3 py-1.5 text-sm border border-violet-300 rounded-lg hover:bg-violet-100 text-violet-700 transition-colors"
         >
           {showUpload ? 'Cancel' : '+ Upload New Bible'}
         </button>
