@@ -317,9 +317,9 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
         </div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
             <table className="w-full text-xs">
-              <thead>
+              <thead className="sticky top-0 z-10">
                 <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 uppercase tracking-wide">
                   <th className="text-left px-4 py-3 font-semibold w-24">Account</th>
                   <th className="text-left px-3 py-3 font-semibold">Description</th>
