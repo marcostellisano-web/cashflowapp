@@ -360,19 +360,9 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
                     >
                       <td className="px-4 py-2 font-mono font-semibold text-gray-800 whitespace-nowrap">
                         {e.account_code}
-                        {!e.is_standard && (
-                          <span className="ml-1.5 text-[10px] font-normal px-1 py-0.5 rounded bg-purple-100 text-purple-700">
-                            custom
-                          </span>
-                        )}
                         {isDirty && (
                           <span className="ml-1.5 text-[10px] font-normal px-1 py-0.5 rounded bg-yellow-200 text-yellow-800">
                             edited
-                          </span>
-                        )}
-                        {!isDirty && e.is_customized && e.is_standard && (
-                          <span className="ml-1.5 text-[10px] font-normal px-1 py-0.5 rounded bg-blue-100 text-blue-700">
-                            custom
                           </span>
                         )}
                       </td>
