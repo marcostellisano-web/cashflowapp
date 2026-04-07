@@ -65,6 +65,7 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
   const [newDesc, setNewDesc] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const loadEntries = useCallback(() => {
     setLoading(true);
@@ -170,6 +171,7 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
       );
       setNewCode('');
       setNewDesc('');
+      setShowAddForm(false);
     } catch (e: any) {
       setAddError(e.message || 'Failed to add account');
     } finally {
@@ -200,38 +202,6 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
       {/* Preset selector */}
       <BiblePresetSelector onBibleChanged={loadEntries} refreshTrigger={presetRefreshKey} />
 
-      {/* Add account form */}
-      <div className="flex items-end gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg flex-wrap">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">Account Code</label>
-          <input
-            value={newCode}
-            onChange={(e) => setNewCode(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && void handleAddAccount()}
-            placeholder="e.g. 1234"
-            className="w-28 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div className="flex flex-col gap-1 flex-1 min-w-40">
-          <label className="text-xs text-gray-500 font-medium">Description</label>
-          <input
-            value={newDesc}
-            onChange={(e) => setNewDesc(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && void handleAddAccount()}
-            placeholder="Account description"
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <button
-          onClick={() => void handleAddAccount()}
-          disabled={adding}
-          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-medium rounded transition-colors"
-        >
-          {adding ? 'Adding…' : '+ Add Account'}
-        </button>
-        {addError && <p className="w-full text-xs text-red-600 mt-1">{addError}</p>}
-      </div>
-
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 flex-wrap">
         <input
@@ -241,6 +211,12 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
           onChange={(e) => setFilter(e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-64"
         />
+        <button
+          onClick={() => { setShowAddForm(v => !v); setAddError(null); }}
+          className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors"
+        >
+          {showAddForm ? '✕ Cancel' : '+ Add Account'}
+        </button>
         <div className="flex-1" />
         <a
           href={getBreakoutBibleExcelUrl()}
@@ -262,6 +238,40 @@ export default function BibleEditor({ onBack }: BibleEditorProps) {
             : 'No changes'}
         </button>
       </div>
+
+      {/* Add account – expandable form */}
+      {showAddForm && (
+        <div className="flex items-end gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg flex-wrap">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500 font-medium">Account Code</label>
+            <input
+              value={newCode}
+              onChange={(e) => setNewCode(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void handleAddAccount()}
+              placeholder="e.g. 1234"
+              className="w-28 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex flex-col gap-1 flex-1 min-w-40">
+            <label className="text-xs text-gray-500 font-medium">Description</label>
+            <input
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void handleAddAccount()}
+              placeholder="Account description"
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            onClick={() => void handleAddAccount()}
+            disabled={adding}
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-medium rounded transition-colors"
+          >
+            {adding ? 'Adding…' : '+ Add Account'}
+          </button>
+          {addError && <p className="w-full text-xs text-red-600 mt-1">{addError}</p>}
+        </div>
+      )}
 
       {/* Save-as-preset panel */}
       {showSaveAs && (
