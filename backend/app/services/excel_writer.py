@@ -1,6 +1,7 @@
 """Generate formatted Excel cashflow workbook from CashflowOutput."""
 
-from datetime import timedelta
+from collections import Counter
+from datetime import date, timedelta
 from io import BytesIO
 
 from openpyxl import Workbook
@@ -1404,6 +1405,437 @@ def _write_vertical_cf_sheet(wb: Workbook, output: CashflowOutput) -> None:
     ws.column_dimensions["F"].width = 22
 
 
+def _write_monthly_cf_sheet(wb: Workbook, output: CashflowOutput, params: ProductionParameters) -> None:
+    """Write the 'Monthly CF' sheet.
+
+    Aggregates weekly data from 'Summary CF' into calendar-month columns using
+    SUM formulas.  Row structure mirrors Summary CF; column structure replaces
+    individual week columns with one column per calendar month.
+    Pre-TC and TC event columns are preserved at the end, linked directly from
+    'Summary CF'.
+    """
+    SUMMARY = "'Summary CF'"
+    ws = wb.create_sheet("Monthly CF")
+
+    num_weeks = len(output.weeks)
+
+    # ── Build month groups (ordered, contiguous) ──────────────────────────────
+    # month_order: list of (year, month) in sequence
+    # month_sc_cols: (year, month) -> (first_sc_col, last_sc_col) in Summary CF
+    month_order: list[tuple[int, int]] = []
+    month_sc_cols: dict[tuple[int, int], tuple[int, int]] = {}
+
+    for i, week in enumerate(output.weeks):
+        wc = week.week_commencing
+        key = (wc.year, wc.month)
+        sc_col = FIRST_WEEK_COL + i
+        if key not in month_sc_cols:
+            month_sc_cols[key] = (sc_col, sc_col)
+            month_order.append(key)
+        else:
+            month_sc_cols[key] = (month_sc_cols[key][0], sc_col)
+
+    num_months = len(month_order)
+    last_month_col = FIRST_WEEK_COL + num_months - 1
+    last_month_col_letter = get_column_letter(last_month_col)
+    first_data_col_letter = get_column_letter(FIRST_WEEK_COL)
+
+    # Pre-TC and TC columns on Monthly CF (immediately after the month columns)
+    pre_tc_col = FIRST_WEEK_COL + num_months
+    pre_tc_col_letter = get_column_letter(pre_tc_col)
+    tax_credit_col = FIRST_WEEK_COL + num_months + 1
+    tc_col_letter = get_column_letter(tax_credit_col)
+
+    # Corresponding columns in Summary CF
+    sc_pre_tc_letter = get_column_letter(FIRST_WEEK_COL + num_weeks)
+    sc_tc_letter = get_column_letter(FIRST_WEEK_COL + num_weeks + 1)
+
+    # Row positions in Summary CF (kept in sync with _write_summary_cf_sheet)
+    sc_totals_row        = DATA_START_ROW + len(SUMMARY_ACCOUNTS)
+    sc_cum_row           = sc_totals_row + 1
+    sc_inflow_hdr_row    = sc_cum_row + 3
+    sc_inflow_data_start = sc_inflow_hdr_row + 1
+    sc_inflow_total_row  = sc_inflow_data_start + len(output.cash_inflows)
+    sc_inflow_cum_row    = sc_inflow_total_row + 1
+    sc_cash_pos_row      = sc_inflow_cum_row + 2
+    sc_interest_cost_row = sc_cash_pos_row + 2
+    sc_interest_rate_row = sc_interest_cost_row + 1
+    sc_fin_interest_row  = sc_interest_rate_row + 2
+    sc_fin_legal_row     = sc_fin_interest_row + 2
+
+    # Helper: formula that sums the weeks of one month from Summary CF for a given row
+    def sc_sum(year: int, month: int, row: int) -> str:
+        first_col, last_col = month_sc_cols[(year, month)]
+        first_letter = get_column_letter(first_col)
+        last_letter = get_column_letter(last_col)
+        if first_col == last_col:
+            return f"={SUMMARY}!{first_letter}{row}"
+        return f"=SUM({SUMMARY}!{first_letter}{row}:{last_letter}{row})"
+
+    # ── Rows 1-2: title / metadata ────────────────────────────────────────────
+    ws.cell(row=1, column=1, value=f"{output.title} - Monthly Cashflow Forecast").font = TITLE_FONT
+    series_number = getattr(params, "series_number", None)
+    series_text = f"Series {series_number}" if series_number else ""
+    ep_text = f"{params.episode_count} Episodes"
+    meta = " | ".join(filter(None, [series_text, ep_text]))
+    ws.cell(row=2, column=1, value=meta).font = SUBTITLE_FONT
+
+    # ── Row 4: dominant phase label per month ─────────────────────────────────
+    for m_idx, (year, month) in enumerate(month_order):
+        col = FIRST_WEEK_COL + m_idx
+        first_sc, last_sc = month_sc_cols[(year, month)]
+        phase_labels = [
+            output.weeks[i - FIRST_WEEK_COL].phase_label
+            for i in range(first_sc, last_sc + 1)
+        ]
+        dominant = Counter(phase_labels).most_common(1)[0][0]
+        cell = ws.cell(row=4, column=col, value=dominant)
+        cell.font = Font(bold=True, size=8)
+        cell.fill = _get_phase_fill(dominant)
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = THIN_BORDER
+    for extra_col, sc_letter in ((pre_tc_col, sc_pre_tc_letter), (tax_credit_col, sc_tc_letter)):
+        ec = ws.cell(row=4, column=extra_col, value=f"={SUMMARY}!{sc_letter}4")
+        ec.font = Font(bold=True, size=8)
+        ec.alignment = Alignment(horizontal="center")
+        ec.border = THIN_BORDER
+
+    # ── Row 5: month labels / column headers ──────────────────────────────────
+    ws.cell(row=5, column=CODE_COL,  value="Code").font        = HEADER_FONT
+    ws.cell(row=5, column=DESC_COL,  value="Description").font = HEADER_FONT
+    ws.cell(row=5, column=TOTAL_COL, value="Total").font       = HEADER_FONT
+    ws.cell(row=5, column=CODE_COL).border  = THIN_BORDER
+    ws.cell(row=5, column=DESC_COL).border  = THIN_BORDER
+    ws.cell(row=5, column=TOTAL_COL).border = THIN_BORDER
+    for m_idx, (year, month) in enumerate(month_order):
+        col = FIRST_WEEK_COL + m_idx
+        cell = ws.cell(row=5, column=col, value=date(year, month, 1))
+        cell.font = Font(bold=True, size=9)
+        cell.number_format = "MMM-YYYY"
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = THIN_BORDER
+    for extra_col, sc_letter in ((pre_tc_col, sc_pre_tc_letter), (tax_credit_col, sc_tc_letter)):
+        ec = ws.cell(row=5, column=extra_col, value=f"={SUMMARY}!{sc_letter}5")
+        ec.font = Font(bold=True, size=8)
+        ec.number_format = "DD-MMM-YYYY"
+        ec.alignment = Alignment(horizontal="center")
+        ec.border = THIN_BORDER
+
+    # ── Summary account rows ──────────────────────────────────────────────────
+    for row_idx, (code, description) in enumerate(SUMMARY_ACCOUNTS):
+        excel_row = DATA_START_ROW + row_idx
+        ws.cell(row=excel_row, column=CODE_COL,  value=code).border        = THIN_BORDER
+        ws.cell(row=excel_row, column=DESC_COL,  value=description).border = THIN_BORDER
+        total_cell = ws.cell(row=excel_row, column=TOTAL_COL, value=f"={SUMMARY}!C{excel_row}")
+        total_cell.number_format = CURRENCY_FORMAT
+        total_cell.font   = Font(bold=True)
+        total_cell.border = THIN_BORDER
+        for m_idx, (year, month) in enumerate(month_order):
+            col = FIRST_WEEK_COL + m_idx
+            cell = ws.cell(row=excel_row, column=col, value=sc_sum(year, month, excel_row))
+            cell.number_format = CURRENCY_FORMAT
+            cell.border = THIN_BORDER
+        for extra_col, sc_letter in ((pre_tc_col, sc_pre_tc_letter), (tax_credit_col, sc_tc_letter)):
+            ec = ws.cell(row=excel_row, column=extra_col, value=f"={SUMMARY}!{sc_letter}{excel_row}")
+            ec.number_format = CURRENCY_FORMAT
+            ec.border = THIN_BORDER
+
+    # ── Monthly totals row ────────────────────────────────────────────────────
+    sum_totals_row = DATA_START_ROW + len(SUMMARY_ACCOUNTS)
+    ws.cell(row=sum_totals_row, column=DESC_COL, value="MONTHLY TOTAL").font = Font(bold=True, size=11)
+    ws.cell(row=sum_totals_row, column=DESC_COL).border = THIN_BORDER
+    for m_idx in range(num_months):
+        col = FIRST_WEEK_COL + m_idx
+        col_letter = get_column_letter(col)
+        cell = ws.cell(
+            row=sum_totals_row, column=col,
+            value=f"=SUM({col_letter}{DATA_START_ROW}:{col_letter}{sum_totals_row - 1})",
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font  = Font(bold=True)
+        cell.fill  = TOTAL_FILL
+        cell.border = THIN_BORDER
+    grand_total = ws.cell(
+        row=sum_totals_row, column=TOTAL_COL,
+        value=f"=SUM({first_data_col_letter}{sum_totals_row}:{last_month_col_letter}{sum_totals_row})",
+    )
+    grand_total.number_format = CURRENCY_FORMAT_TOTAL
+    grand_total.font  = Font(bold=True)
+    grand_total.fill  = TOTAL_FILL
+    grand_total.border = THIN_BORDER
+    for extra_col, sc_letter in ((pre_tc_col, sc_pre_tc_letter), (tax_credit_col, sc_tc_letter)):
+        ec = ws.cell(row=sum_totals_row, column=extra_col, value=f"={SUMMARY}!{sc_letter}{sc_totals_row}")
+        ec.number_format = CURRENCY_FORMAT_TOTAL
+        ec.font  = Font(bold=True)
+        ec.fill  = TOTAL_FILL
+        ec.border = THIN_BORDER
+
+    # ── Cumulative totals row (running sum of monthly totals) ─────────────────
+    sum_cum_row = sum_totals_row + 1
+    ws.cell(row=sum_cum_row, column=DESC_COL, value="CUMULATIVE TOTAL").font = Font(bold=True, size=11)
+    ws.cell(row=sum_cum_row, column=DESC_COL).border = THIN_BORDER
+    for m_idx in range(num_months):
+        col = FIRST_WEEK_COL + m_idx
+        col_letter = get_column_letter(col)
+        if m_idx == 0:
+            cell = ws.cell(row=sum_cum_row, column=col, value=f"={col_letter}{sum_totals_row}")
+        else:
+            prev = get_column_letter(col - 1)
+            cell = ws.cell(
+                row=sum_cum_row, column=col,
+                value=f"={prev}{sum_cum_row}+{col_letter}{sum_totals_row}",
+            )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font  = Font(bold=True, italic=True)
+        cell.border = THIN_BORDER
+    # Pre-TC / TC carry the last month's cumulative outflow (no new outflows)
+    for extra_col in (pre_tc_col, tax_credit_col):
+        ec = ws.cell(row=sum_cum_row, column=extra_col, value=f"={last_month_col_letter}{sum_cum_row}")
+        ec.number_format = CURRENCY_FORMAT_TOTAL
+        ec.font   = Font(bold=True, italic=True)
+        ec.border = THIN_BORDER
+
+    # ── Cash Inflows section ──────────────────────────────────────────────────
+    sum_inflow_hdr_row    = sum_cum_row + 3
+    sum_inflow_data_start = sum_inflow_hdr_row + 1
+    sum_inflow_total_row  = sum_inflow_data_start + len(output.cash_inflows)
+    sum_inflow_cum_row    = sum_inflow_total_row + 1
+
+    ws.cell(row=sum_inflow_hdr_row, column=DESC_COL, value="CASH INFLOWS").font = Font(bold=True, size=11)
+    ws.cell(row=sum_inflow_hdr_row, column=DESC_COL).fill   = INFLOW_HEADER_FILL
+    ws.cell(row=sum_inflow_hdr_row, column=DESC_COL).border = THIN_BORDER
+    for m_idx in range(num_months):
+        cell = ws.cell(row=sum_inflow_hdr_row, column=FIRST_WEEK_COL + m_idx)
+        cell.fill   = INFLOW_HEADER_FILL
+        cell.border = THIN_BORDER
+    for extra_col in (pre_tc_col, tax_credit_col):
+        c = ws.cell(row=sum_inflow_hdr_row, column=extra_col)
+        c.fill   = INFLOW_HEADER_FILL
+        c.border = THIN_BORDER
+
+    for row_idx, inflow_row in enumerate(output.cash_inflows):
+        excel_row    = sum_inflow_data_start + row_idx
+        sc_inflow_row = sc_inflow_data_start + row_idx
+        ws.cell(row=excel_row, column=DESC_COL, value=inflow_row.label).border = THIN_BORDER
+        total_cell = ws.cell(row=excel_row, column=TOTAL_COL, value=f"={SUMMARY}!C{sc_inflow_row}")
+        total_cell.number_format = CURRENCY_FORMAT
+        total_cell.font   = Font(bold=True)
+        total_cell.border = THIN_BORDER
+        for m_idx, (year, month) in enumerate(month_order):
+            col = FIRST_WEEK_COL + m_idx
+            cell = ws.cell(row=excel_row, column=col, value=sc_sum(year, month, sc_inflow_row))
+            cell.number_format = CURRENCY_FORMAT
+            cell.border = THIN_BORDER
+        for extra_col, sc_letter in ((pre_tc_col, sc_pre_tc_letter), (tax_credit_col, sc_tc_letter)):
+            ec = ws.cell(row=excel_row, column=extra_col, value=f"={SUMMARY}!{sc_letter}{sc_inflow_row}")
+            ec.number_format = CURRENCY_FORMAT
+            ec.border = THIN_BORDER
+
+    # Monthly inflow total
+    ws.cell(row=sum_inflow_total_row, column=DESC_COL, value="MONTHLY INFLOW TOTAL").font = Font(bold=True, size=11)
+    ws.cell(row=sum_inflow_total_row, column=DESC_COL).fill   = INFLOW_TOTAL_FILL
+    ws.cell(row=sum_inflow_total_row, column=DESC_COL).border = THIN_BORDER
+    for m_idx in range(num_months):
+        col = FIRST_WEEK_COL + m_idx
+        col_letter = get_column_letter(col)
+        cell = ws.cell(
+            row=sum_inflow_total_row, column=col,
+            value=f"=SUM({col_letter}{sum_inflow_data_start}:{col_letter}{sum_inflow_total_row - 1})",
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font   = Font(bold=True)
+        cell.fill   = INFLOW_TOTAL_FILL
+        cell.border = THIN_BORDER
+    for extra_col, sc_letter in ((pre_tc_col, sc_pre_tc_letter), (tax_credit_col, sc_tc_letter)):
+        extra_letter = get_column_letter(extra_col)
+        ec = ws.cell(
+            row=sum_inflow_total_row, column=extra_col,
+            value=f"=SUM({extra_letter}{sum_inflow_data_start}:{extra_letter}{sum_inflow_total_row - 1})",
+        )
+        ec.number_format = CURRENCY_FORMAT_TOTAL
+        ec.font   = Font(bold=True)
+        ec.fill   = INFLOW_TOTAL_FILL
+        ec.border = THIN_BORDER
+    inflow_grand = ws.cell(
+        row=sum_inflow_total_row, column=TOTAL_COL,
+        value=f"=SUM({first_data_col_letter}{sum_inflow_total_row}:{tc_col_letter}{sum_inflow_total_row})",
+    )
+    inflow_grand.number_format = CURRENCY_FORMAT_TOTAL
+    inflow_grand.font   = Font(bold=True)
+    inflow_grand.fill   = INFLOW_TOTAL_FILL
+    inflow_grand.border = THIN_BORDER
+
+    # Cumulative inflow total (running sum)
+    ws.cell(row=sum_inflow_cum_row, column=DESC_COL, value="CUMULATIVE INFLOW TOTAL").font = Font(bold=True, size=11)
+    ws.cell(row=sum_inflow_cum_row, column=DESC_COL).border = THIN_BORDER
+    for m_idx in range(num_months):
+        col = FIRST_WEEK_COL + m_idx
+        col_letter = get_column_letter(col)
+        if m_idx == 0:
+            cell = ws.cell(row=sum_inflow_cum_row, column=col, value=f"={col_letter}{sum_inflow_total_row}")
+        else:
+            prev = get_column_letter(col - 1)
+            cell = ws.cell(
+                row=sum_inflow_cum_row, column=col,
+                value=f"={prev}{sum_inflow_cum_row}+{col_letter}{sum_inflow_total_row}",
+            )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font   = Font(bold=True, italic=True)
+        cell.border = THIN_BORDER
+    # Pre-TC cumulative inflow = last month cum + pre_tc monthly inflow
+    pre_tc_cum = ws.cell(
+        row=sum_inflow_cum_row, column=pre_tc_col,
+        value=f"={last_month_col_letter}{sum_inflow_cum_row}+{pre_tc_col_letter}{sum_inflow_total_row}",
+    )
+    pre_tc_cum.number_format = CURRENCY_FORMAT_TOTAL
+    pre_tc_cum.font   = Font(bold=True, italic=True)
+    pre_tc_cum.border = THIN_BORDER
+    # TC cumulative inflow = pre_tc cum + tc monthly inflow
+    tc_cum = ws.cell(
+        row=sum_inflow_cum_row, column=tax_credit_col,
+        value=f"={pre_tc_col_letter}{sum_inflow_cum_row}+{tc_col_letter}{sum_inflow_total_row}",
+    )
+    tc_cum.number_format = CURRENCY_FORMAT_TOTAL
+    tc_cum.font   = Font(bold=True, italic=True)
+    tc_cum.border = THIN_BORDER
+
+    # ── Cumulative cash position ───────────────────────────────────────────────
+    sum_cash_pos_row = sum_inflow_cum_row + 2
+    ws.cell(row=sum_cash_pos_row, column=DESC_COL, value="CUMULATIVE CASH POSITION").font = Font(bold=True, size=11)
+    ws.cell(row=sum_cash_pos_row, column=DESC_COL).fill   = CASH_POS_FILL
+    ws.cell(row=sum_cash_pos_row, column=DESC_COL).border = THIN_BORDER
+    for m_idx in range(num_months):
+        col = FIRST_WEEK_COL + m_idx
+        col_letter = get_column_letter(col)
+        cell = ws.cell(
+            row=sum_cash_pos_row, column=col,
+            value=f"={col_letter}{sum_inflow_cum_row}-{col_letter}{sum_cum_row}",
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font   = Font(bold=True)
+        cell.fill   = CASH_POS_FILL
+        cell.border = THIN_BORDER
+    for extra_col, extra_letter in ((pre_tc_col, pre_tc_col_letter), (tax_credit_col, tc_col_letter)):
+        ec = ws.cell(
+            row=sum_cash_pos_row, column=extra_col,
+            value=f"={extra_letter}{sum_inflow_cum_row}-{last_month_col_letter}{sum_cum_row}",
+        )
+        ec.number_format = CURRENCY_FORMAT_TOTAL
+        ec.font   = Font(bold=True)
+        ec.fill   = CASH_POS_FILL
+        ec.border = THIN_BORDER
+
+    # ── Interest cost (sum of weekly interest from Summary CF) ────────────────
+    sum_interest_cost_row = sum_cash_pos_row + 2
+    sum_interest_rate_row = sum_interest_cost_row + 1
+
+    ws.cell(row=sum_interest_cost_row, column=DESC_COL, value="INTEREST COST").font = Font(bold=True, size=11)
+    ws.cell(row=sum_interest_cost_row, column=DESC_COL).fill   = INTEREST_FILL
+    ws.cell(row=sum_interest_cost_row, column=DESC_COL).border = THIN_BORDER
+    for m_idx, (year, month) in enumerate(month_order):
+        col = FIRST_WEEK_COL + m_idx
+        cell = ws.cell(
+            row=sum_interest_cost_row, column=col,
+            value=sc_sum(year, month, sc_interest_cost_row),
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font   = Font(bold=True)
+        cell.fill   = INTEREST_FILL
+        cell.border = THIN_BORDER
+    for extra_col, sc_letter in ((pre_tc_col, sc_pre_tc_letter), (tax_credit_col, sc_tc_letter)):
+        ec = ws.cell(
+            row=sum_interest_cost_row, column=extra_col,
+            value=f"={SUMMARY}!{sc_letter}{sc_interest_cost_row}",
+        )
+        ec.number_format = CURRENCY_FORMAT_TOTAL
+        ec.font   = Font(bold=True)
+        ec.fill   = INTEREST_FILL
+        ec.border = THIN_BORDER
+    interest_grand = ws.cell(
+        row=sum_interest_cost_row, column=TOTAL_COL,
+        value=f"=SUM({first_data_col_letter}{sum_interest_cost_row}:{tc_col_letter}{sum_interest_cost_row})",
+    )
+    interest_grand.number_format = CURRENCY_FORMAT_TOTAL
+    interest_grand.font   = Font(bold=True)
+    interest_grand.fill   = INTEREST_FILL
+    interest_grand.border = THIN_BORDER
+
+    ws.cell(row=sum_interest_rate_row, column=DESC_COL, value="Annual Interest Rate").font = Font(
+        bold=True, size=10, italic=True,
+    )
+    ws.cell(row=sum_interest_rate_row, column=DESC_COL).border = THIN_BORDER
+    rate_link = ws.cell(
+        row=sum_interest_rate_row, column=TOTAL_COL,
+        value=f"={SUMMARY}!$C${sc_interest_rate_row}",
+    )
+    rate_link.number_format = "0.00%"
+    rate_link.font   = Font(bold=True)
+    rate_link.border = THIN_BORDER
+
+    # ── Financing cost summary (totals linked from Summary CF) ────────────────
+    sum_fin_interest_row = sum_interest_rate_row + 2
+    sum_fin_setup_row    = sum_fin_interest_row + 1
+    sum_fin_legal_row    = sum_fin_setup_row + 1
+    sum_fin_total_row    = sum_fin_legal_row + 1
+    cash_pos_range = f"{first_data_col_letter}{sum_cash_pos_row}:{last_month_col_letter}{sum_cash_pos_row}"
+
+    ws.cell(row=sum_fin_interest_row, column=DESC_COL, value="Interest Cost").font = Font(bold=True)
+    ws.cell(row=sum_fin_interest_row, column=DESC_COL).fill   = FINANCING_FILL
+    ws.cell(row=sum_fin_interest_row, column=DESC_COL).border = THIN_BORDER
+    c = ws.cell(row=sum_fin_interest_row, column=TOTAL_COL, value=f"=C{sum_interest_cost_row}")
+    c.number_format = CURRENCY_FORMAT_TOTAL; c.font = Font(bold=True); c.fill = FINANCING_FILL; c.border = THIN_BORDER
+
+    ws.cell(row=sum_fin_setup_row, column=DESC_COL, value="Setup Fee (1.5% of peak loan)").font = Font(bold=True)
+    ws.cell(row=sum_fin_setup_row, column=DESC_COL).fill   = FINANCING_FILL
+    ws.cell(row=sum_fin_setup_row, column=DESC_COL).border = THIN_BORDER
+    c = ws.cell(
+        row=sum_fin_setup_row, column=TOTAL_COL,
+        value=f"=IF(MIN({cash_pos_range})<0,-MIN({cash_pos_range})*0.015,0)",
+    )
+    c.number_format = CURRENCY_FORMAT_TOTAL; c.font = Font(bold=True); c.fill = FINANCING_FILL; c.border = THIN_BORDER
+
+    ws.cell(row=sum_fin_legal_row, column=DESC_COL, value="Legal Cost").font = Font(bold=True)
+    ws.cell(row=sum_fin_legal_row, column=DESC_COL).fill   = FINANCING_FILL
+    ws.cell(row=sum_fin_legal_row, column=DESC_COL).border = THIN_BORDER
+    c = ws.cell(row=sum_fin_legal_row, column=TOTAL_COL, value=f"={SUMMARY}!C{sc_fin_legal_row}")
+    c.number_format = CURRENCY_FORMAT_TOTAL; c.font = Font(bold=True); c.fill = FINANCING_FILL; c.border = THIN_BORDER
+
+    ws.cell(row=sum_fin_total_row, column=DESC_COL, value="TOTAL FINANCING COST").font = Font(bold=True, size=11)
+    ws.cell(row=sum_fin_total_row, column=DESC_COL).fill   = FINANCING_TOTAL_FILL
+    ws.cell(row=sum_fin_total_row, column=DESC_COL).border = THIN_BORDER
+    c = ws.cell(
+        row=sum_fin_total_row, column=TOTAL_COL,
+        value=f"=SUM(C{sum_fin_interest_row}:C{sum_fin_legal_row})",
+    )
+    c.number_format = CURRENCY_FORMAT_TOTAL; c.font = Font(bold=True); c.fill = FINANCING_TOTAL_FILL; c.border = THIN_BORDER
+
+    _apply_requested_cashflow_formatting(
+        ws,
+        max_col=tax_credit_col,
+        totals_rows={sum_totals_row, sum_cum_row, sum_inflow_total_row, sum_inflow_cum_row, sum_fin_total_row},
+        outflow_min_row=5,
+        outflow_max_row=sum_cum_row,
+        inflow_min_row=sum_inflow_hdr_row,
+        inflow_max_row=sum_inflow_cum_row,
+        cash_pos_row=sum_cash_pos_row,
+        interest_cost_row=sum_interest_cost_row,
+        financing_min_row=sum_fin_interest_row,
+        financing_max_row=sum_fin_total_row,
+        interest_rate_row=sum_interest_rate_row,
+        keep_paycycle_colors=False,
+    )
+
+    # ── Column widths and freeze panes ────────────────────────────────────────
+    ws.column_dimensions[get_column_letter(CODE_COL)].width  = 10
+    ws.column_dimensions[get_column_letter(DESC_COL)].width  = 35
+    ws.column_dimensions[get_column_letter(TOTAL_COL)].width = 15
+    for m_idx in range(num_months):
+        ws.column_dimensions[get_column_letter(FIRST_WEEK_COL + m_idx)].width = 14
+    ws.column_dimensions[get_column_letter(pre_tc_col)].width  = 14
+    ws.column_dimensions[get_column_letter(tax_credit_col)].width = 14
+    ws.freeze_panes = ws.cell(row=DATA_START_ROW, column=FIRST_WEEK_COL)
+
+
 def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters) -> BytesIO:
     """Generate a complete cashflow Excel workbook.
 
@@ -1413,6 +1845,7 @@ def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters) -
 
     _write_main_sheet(wb, output, params)
     _write_summary_cf_sheet(wb, output, params)
+    _write_monthly_cf_sheet(wb, output, params)
     _write_vertical_cf_sheet(wb, output)
     _write_summary_sheet(wb, output, params)
     _write_parameters_sheet(wb, params)
