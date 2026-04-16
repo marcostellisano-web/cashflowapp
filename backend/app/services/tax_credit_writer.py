@@ -2050,6 +2050,7 @@ _BB_GRAND_TOTAL     = "='Breakout Budget'!Q2"   # col Q  (17) Grand Total
 _BB_PROV_LABOUR     = "='Breakout Budget'!AC2"  # col AC (29) Provincial Labour
 _BB_FED_LABOUR      = "='Breakout Budget'!V2"   # col V  (22) Federal Labour
 _BB_PROV_SVC_LABOUR = "='Breakout Budget'!AF2"  # col AF (32) Provincial Services Labour
+_BB_SVC_PROPERTY    = "='Breakout Budget'!AG2"  # col AG (33) Services Property
 _BB_FED_SVC_LABOUR  = "='Breakout Budget'!X2"   # col X  (24) Federal Services Labour
 _BB_MEALS           = "='Breakout Budget'!AI2"  # col AI (35) Meals
 
@@ -2417,10 +2418,10 @@ def _write_opstc_sheet(ws, title: str) -> None:
     data_row(R_PC, "Total Production Cost", c_val=_BB_GRAND_TOTAL)
 
     R_ONT_LAB = 10
-    data_row(R_ONT_LAB, "Estimate of Total Ont. Labour", c_val=_BB_PROV_LABOUR)
+    data_row(R_ONT_LAB, "Estimate of Total Ont. Labour", c_val=_BB_PROV_SVC_LABOUR)
 
     R_ONT_SVC = 11
-    data_row(R_ONT_SVC, "Estimate of Total Ont. Services", c_val=_BB_PROV_SVC_LABOUR)
+    data_row(R_ONT_SVC, "Estimate of Total Ont. Services", c_val=_BB_SVC_PROPERTY)
 
     R_SUBTOTAL = 12
     data_row(R_SUBTOTAL, "Subtotal", c_val=f"=C{R_ONT_LAB}+C{R_ONT_SVC}")
@@ -2476,12 +2477,12 @@ def _write_opstc_sheet(ws, title: str) -> None:
     data_row(R_FED_SVC_LAB, "Labour expenditure", c_val=_BB_FED_SVC_LABOUR)
 
     R_ASSIST = 32
-    data_row(R_ASSIST, "less  Assistance", c_input=True)
+    data_row(R_ASSIST, "less  Assistance",
+             c_val=f"=C{R_ONT_LAB}*0.215")
 
     R_SUB = 33
     data_row(R_SUB, "Sub-Total",
-             c_val=(f"=C{R_FED_SVC_LAB}"
-                    f"-IF(ISNUMBER(C{R_ASSIST}),C{R_ASSIST},0)"))
+             c_val=f"=C{R_FED_SVC_LAB}-C{R_ASSIST}")
 
     R_OWN = 34
     data_row(R_OWN, "Percentage of ownership",
