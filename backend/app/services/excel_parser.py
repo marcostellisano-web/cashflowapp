@@ -324,6 +324,7 @@ def _parse_account_details_tab(wb: openpyxl.Workbook) -> list[BudgetDetailRow]:
                 description=desc,
                 amount=_num("amount"),
                 unit=_txt("unit"),
+                x=_txt("x"),
                 unit2=_txt("unit2"),
                 currency=_txt("currency"),
                 rate=_num("rate"),

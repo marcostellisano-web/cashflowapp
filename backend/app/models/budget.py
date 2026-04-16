@@ -27,6 +27,7 @@ class BudgetDetailRow(BaseModel):
     description: str
     amount: float | None = None
     unit: str | None = None
+    x: str | None = None
     unit2: str | None = None
     currency: str | None = None
     rate: float | None = None
