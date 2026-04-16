@@ -2046,10 +2046,12 @@ def _write_breakout_budget(
 # ---------------------------------------------------------------------------
 
 # Cross-sheet references to Breakout Budget's pinned Row 2 ("TOTAL")
-_BB_GRAND_TOTAL = "='Breakout Budget'!Q2"   # col Q  (17) Grand Total
-_BB_PROV_LABOUR = "='Breakout Budget'!AC2"  # col AC (29) Provincial Labour
-_BB_FED_LABOUR  = "='Breakout Budget'!V2"   # col V  (22) Federal Labour
-_BB_MEALS       = "='Breakout Budget'!AI2"  # col AI (35) Meals
+_BB_GRAND_TOTAL     = "='Breakout Budget'!Q2"   # col Q  (17) Grand Total
+_BB_PROV_LABOUR     = "='Breakout Budget'!AC2"  # col AC (29) Provincial Labour
+_BB_FED_LABOUR      = "='Breakout Budget'!V2"   # col V  (22) Federal Labour
+_BB_PROV_SVC_LABOUR = "='Breakout Budget'!AF2"  # col AF (32) Provincial Services Labour
+_BB_FED_SVC_LABOUR  = "='Breakout Budget'!X2"   # col X  (24) Federal Services Labour
+_BB_MEALS           = "='Breakout Budget'!AI2"  # col AI (35) Meals
 
 # Light yellow fill for user-editable input cells
 _INPUT_FILL = PatternFill(start_color="FFFDE7", end_color="FFFDE7", fill_type="solid")
@@ -2325,6 +2327,214 @@ def _write_ofttc_sheet(ws, title: str) -> None:
            align=_RIGHT, fmt=_PCT_FORMAT)
 
 
+def _write_opstc_sheet(ws, title: str) -> None:
+    """Ontario – SVS (OPSTC + PSTC) calculation sheet, linked to Breakout Budget Row 2.
+
+    Sections:
+      A  Ontario Services Tax Credit (OPSTC @ 21.5% of Ont. Labour + Services)
+      B  Federal Services Tax Credit – Ontario Producer (PSTC @ 16% of net labour)
+      Total Tax Credit = OPSTC + PSTC
+    """
+    ws.title = "Ontario - OPSTC"
+
+    ROW_H = 16
+    _GFI = _SECTION_HEADER_FILL
+
+    ws.column_dimensions["A"].width = 45
+    ws.column_dimensions["B"].width = 12
+    ws.column_dimensions["C"].width = 16
+
+    # ── low-level helpers ──────────────────────────────────────────
+    def _plain(row, col, value=None, font=None, fill=None, align=None, fmt=None):
+        ws.row_dimensions[row].height = ROW_H
+        c = ws.cell(row=row, column=col, value=value)
+        c.font      = font  or _NORMAL
+        c.border    = _NO_BORDER
+        c.alignment = align or _LEFT
+        if fill: c.fill = fill
+        if fmt:  c.number_format = fmt
+        return c
+
+    def _lined(row, col, value=None, font=None, fill=None, align=None, fmt=None):
+        ws.row_dimensions[row].height = ROW_H
+        c = ws.cell(row=row, column=col, value=value)
+        c.font      = font  or _BOLD
+        c.border    = _NO_BORDER
+        c.fill      = fill or _GFI
+        c.alignment = align or _LEFT
+        if fmt: c.number_format = fmt
+        return c
+
+    # ── row-level helpers ──────────────────────────────────────────
+    def blank_row(row):
+        for col in range(1, 4):
+            _plain(row, col)
+
+    def grey_row(row, label="", c_val=None, c_fmt=_ACCOUNTING_FORMAT):
+        _lined(row, 1, label, fill=_GFI)
+        _lined(row, 2, fill=_GFI)
+        _lined(row, 3, c_val, fill=_GFI, align=_RIGHT, fmt=c_fmt)
+
+    def label_row(row, text, font=None):
+        _plain(row, 1, text, font=font or _NORMAL)
+        _plain(row, 2)
+        _plain(row, 3)
+
+    def data_row(row, label, b_val=None, c_val=None, bold=False,
+                 c_fmt=_ACCOUNTING_FORMAT, b_input=False, c_input=False):
+        _plain(row, 1, label, font=_BOLD if bold else _NORMAL)
+        b = _plain(row, 2, b_val, align=_CENTER)
+        if b_input: b.fill = _INPUT_FILL
+        c = _plain(row, 3, c_val, font=_BOLD if bold else _NORMAL,
+                   align=_RIGHT, fmt=c_fmt)
+        if c_input: c.fill = _INPUT_FILL
+
+    # ══════════════════════════════════════════════════════════════
+    # Title block
+    # ══════════════════════════════════════════════════════════════
+    for col in range(1, 4):
+        _plain(1, col, fill=_TITLE_GREEN_FILL)
+    _plain(1, 1, "ONTARIO \u2013 SVS (OPSTC + PSTC)",
+           font=_BOLD_ITALIC, fill=_TITLE_GREEN_FILL)
+
+    blank_row(2)
+
+    _plain(3, 1, title, font=_BOLD)
+    _plain(3, 2); _plain(3, 3)
+
+    label_row(4, "Tax Credit Calculation", font=_BOLD)
+
+    blank_row(5)
+
+    # ══════════════════════════════════════════════════════════════
+    # ONTARIO SERVICES TAX CREDIT
+    # ══════════════════════════════════════════════════════════════
+    grey_row(6, "ONTARIO SERVICES TAX CREDIT")
+    blank_row(7)
+    label_row(8, "A")
+
+    R_PC = 9
+    data_row(R_PC, "Total Production Cost", c_val=_BB_GRAND_TOTAL)
+
+    R_ONT_LAB = 10
+    data_row(R_ONT_LAB, "Estimate of Total Ont. Labour", c_val=_BB_PROV_LABOUR)
+
+    R_ONT_SVC = 11
+    data_row(R_ONT_SVC, "Estimate of Total Ont. Services", c_val=_BB_PROV_SVC_LABOUR)
+
+    R_SUBTOTAL = 12
+    data_row(R_SUBTOTAL, "Subtotal", c_val=f"=C{R_ONT_LAB}+C{R_ONT_SVC}")
+
+    data_row(13, "Proportion of labour",
+             c_val=f"=C{R_ONT_LAB}/C{R_PC}", c_fmt=_PCT_FORMAT)
+
+    blank_row(14)
+    label_row(15, "B")
+
+    R_B_LAB_SVC = 16
+    data_row(R_B_LAB_SVC, "Estimate of total Labour+Services expenditure",
+             c_val=f"=C{R_SUBTOTAL}")
+
+    R_EQUITY = 17; R_DEFS_P = 18; R_OTHERS = 19
+    data_row(R_EQUITY, "Reduction", b_val="Equity",    c_input=True)
+    data_row(R_DEFS_P, "",          b_val="Deferrals",  c_input=True)
+    data_row(R_OTHERS, "",          b_val="Others",     c_input=True)
+
+    R_NET_P = 20
+    data_row(R_NET_P, "Net Production cost", bold=True,
+             c_val=(f"=C{R_B_LAB_SVC}"
+                    f"-IF(ISNUMBER(C{R_EQUITY}),C{R_EQUITY},0)"
+                    f"-IF(ISNUMBER(C{R_DEFS_P}),C{R_DEFS_P},0)"
+                    f"-IF(ISNUMBER(C{R_OTHERS}),C{R_OTHERS},0)"))
+
+    blank_row(21)
+    label_row(22, "C")
+    blank_row(23)
+
+    R_ONT_LAB_SVC_C = 24
+    data_row(R_ONT_LAB_SVC_C, "Ontario Labour + Services", c_val=f"=C{R_NET_P}")
+
+    R_OPSTC = 25
+    data_row(R_OPSTC, "General OPSTC (\u00d721.5%)", bold=True,
+             c_val=f"=C{R_ONT_LAB_SVC_C}*0.215")
+
+    data_row(26, "Percentage of budget",
+             c_val=f"=C{R_OPSTC}/C{R_PC}", c_fmt=_PCT_FORMAT)
+
+    # ══════════════════════════════════════════════════════════════
+    # FEDERAL SERVICES TAX CREDIT – ONTARIO PRODUCER
+    # ══════════════════════════════════════════════════════════════
+    grey_row(27, "FEDERAL SERVICES TAX CREDIT \u2013 ONTARIO PRODUCER")
+    blank_row(28)
+
+    R_FED_PC = 29
+    data_row(R_FED_PC, "Total Production cost", c_val=f"=C{R_PC}")
+
+    blank_row(30)
+
+    R_FED_SVC_LAB = 31
+    data_row(R_FED_SVC_LAB, "Labour expenditure", c_val=_BB_FED_SVC_LABOUR)
+
+    R_ASSIST = 32
+    data_row(R_ASSIST, "less  Assistance", c_input=True)
+
+    R_SUB = 33
+    data_row(R_SUB, "Sub-Total",
+             c_val=(f"=C{R_FED_SVC_LAB}"
+                    f"-IF(ISNUMBER(C{R_ASSIST}),C{R_ASSIST},0)"))
+
+    R_OWN = 34
+    data_row(R_OWN, "Percentage of ownership",
+             c_val=1.0, c_input=True, c_fmt="0%")
+
+    R_NET_LAB = 35
+    data_row(R_NET_LAB, "Net Labour Expenditure", bold=True,
+             c_val=f"=C{R_SUB}*C{R_OWN}")
+
+    blank_row(36)
+
+    R_FED_CR = 37
+    data_row(R_FED_CR, "Total Federal Services Tax Credit", bold=True,
+             c_val=f"=C{R_NET_LAB}*0.16")
+
+    data_row(38, "Percentage of budget",
+             c_val=f"=C{R_FED_CR}/C{R_PC}", c_fmt=_PCT_FORMAT)
+
+    R_TOTAL = 39
+    grey_row(R_TOTAL, "TOTAL TAX CREDIT",
+             c_val=f"=C{R_OPSTC}+C{R_FED_CR}",
+             c_fmt='#,##0" $"')
+
+    # ── Post-processing: outline borders ──────────────────────────
+    CALC_START = 6
+    CALC_END   = R_TOTAL
+    _GREY_ROWS = {CALC_START, 27, CALC_END}
+
+    for row in range(CALC_START, CALC_END + 1):
+        is_grey  = row in _GREY_ROWS
+        is_start = row == CALC_START
+        is_end   = row == CALC_END
+        for col in range(1, 4):
+            ws.cell(row=row, column=col).border = Border(
+                top    = _THIN if (is_grey or is_start) else None,
+                bottom = _THIN if (is_grey or is_end)   else None,
+                left   = _THIN if col == 1               else None,
+                right  = _THIN if col == 3               else None,
+            )
+
+    blank_row(40)
+
+    _plain(41, 1, "Total Production Cost", font=_BOLD_ITALIC)
+    _plain(41, 2)
+    _plain(41, 3, f"=C{R_PC}", font=_BOLD_ITALIC,
+           align=_RIGHT, fmt=_ACCOUNTING_FORMAT)
+
+    _plain(42, 1, "Percentage of Total Tax Credits", font=_BOLD_ITALIC)
+    _plain(42, 2)
+    _plain(42, 3, f"=C{R_TOTAL}/C{R_PC}", font=_BOLD_ITALIC,
+           align=_RIGHT, fmt=_PCT_FORMAT)
+
+
 def write_bible_excel(entries: list[dict]) -> BytesIO:
     """Export the full breakout bible as a formatted Excel workbook.
 
@@ -2442,6 +2652,9 @@ def write_tax_credit_excel(
 
     ws_breakout = wb.create_sheet("Breakout Budget")
     _write_breakout_budget(ws_breakout, budget, overrides or {}, effective_bible)
+
+    ws_opstc = wb.create_sheet("Ontario - OPSTC")
+    _write_opstc_sheet(ws_opstc, title)
 
     ws_ofttc = wb.create_sheet("Ontario - OFTTC")
     _write_ofttc_sheet(ws_ofttc, title)
