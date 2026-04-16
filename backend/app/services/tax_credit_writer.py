@@ -469,10 +469,12 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
         "Currency",
         "Rate",
         "Unit 3",
+        "4X",
+        "Unit 4",
         "Subtotal",
     ]
 
-    widths = [12, 34, 40, 10, 10, 6, 10, 10, 12, 10, 14]
+    widths = [12, 34, 40, 10, 10, 6, 10, 10, 12, 10, 6, 10, 14]
     for idx, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = width
 
@@ -483,7 +485,7 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
         cell.border = _NO_BORDER
         cell.fill = _LIGHT_GRAY_FILL
 
-    for col in range(1, 12):
+    for col in range(1, 14):
         top_cell = ws.cell(row=1, column=col)
         top_cell.border = Border(
             left=top_cell.border.left,
@@ -497,11 +499,11 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
         top=ws.cell(row=1, column=1).border.top,
         bottom=ws.cell(row=1, column=1).border.bottom,
     )
-    ws.cell(row=1, column=11).border = Border(
-        left=ws.cell(row=1, column=11).border.left,
+    ws.cell(row=1, column=13).border = Border(
+        left=ws.cell(row=1, column=13).border.left,
         right=_THIN,
-        top=ws.cell(row=1, column=11).border.top,
-        bottom=ws.cell(row=1, column=11).border.bottom,
+        top=ws.cell(row=1, column=13).border.top,
+        bottom=ws.cell(row=1, column=13).border.bottom,
     )
 
     category_by_account: dict[str, str] = {}
@@ -524,7 +526,7 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
         grouped.setdefault(prefix, []).append(row)
 
     def _set_outline_border(start_row: int, end_row: int) -> None:
-        for col in range(1, 12):
+        for col in range(1, 14):
             top_cell = ws.cell(row=start_row, column=col)
             top_cell.border = Border(
                 left=top_cell.border.left,
@@ -547,7 +549,7 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
                 top=left_cell.border.top,
                 bottom=left_cell.border.bottom,
             )
-            right_cell = ws.cell(row=row, column=11)
+            right_cell = ws.cell(row=row, column=13)
             right_cell.border = Border(
                 left=right_cell.border.left,
                 right=_THIN,
@@ -592,18 +594,18 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
         ]
         rows_for_group.sort()
 
-        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=12)
         label_cell = ws.cell(row=row_idx, column=1, value=group_labels[group_key])
         label_cell.font = _BOLD
         label_cell.alignment = _LEFT
         label_cell.fill = _LIGHT_GRAY_FILL
 
         if rows_for_group:
-            amount_formula = f"=SUM({','.join(f'K{r}' for r in rows_for_group)})"
+            amount_formula = f"=SUM({','.join(f'M{r}' for r in rows_for_group)})"
         else:
             amount_formula = "=0"
 
-        amount_cell = ws.cell(row=row_idx, column=11, value=amount_formula)
+        amount_cell = ws.cell(row=row_idx, column=13, value=amount_formula)
         amount_cell.font = _BOLD
         amount_cell.alignment = _RIGHT
         amount_cell.fill = _LIGHT_GRAY_FILL
@@ -625,7 +627,7 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
         section_start = row_idx
 
         label = topsheet_name_by_prefix.get(prefix, "")
-        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=11)
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=13)
         section_cell = ws.cell(
             row=row_idx,
             column=1,
@@ -647,11 +649,13 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
                 detail.description,
                 detail.amount,
                 detail.unit,
-                "x",
+                detail.x or "x",
                 detail.unit2,
                 detail.currency,
                 detail.rate,
                 detail.unit3,
+                "x",
+                detail.unit4,
                 detail.subtotal,
             ]
 
@@ -661,25 +665,25 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
                 cell.border = _NO_BORDER
                 if col in (1, 2, 3):
                     cell.alignment = _LEFT
-                elif col in (4, 11):
+                elif col in (4, 13):
                     cell.alignment = _RIGHT
                 else:
                     cell.alignment = _CENTER
-                if col in (4, 9, 11) and isinstance(value, (int, float)):
+                if col in (4, 9, 13) and isinstance(value, (int, float)):
                     cell.number_format = CURRENCY_FORMAT
 
             row_idx += 1
 
         section_detail_end = row_idx - 1
 
-        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=12)
         total_label = ws.cell(row=row_idx, column=1, value=f"{_format_topsheet_code(prefix)} TOTAL")
         total_label.font = _BOLD
         total_label.alignment = _LEFT
         total_label.fill = _LIGHT_GRAY_FILL
 
-        total_formula = f"=SUM(K{section_detail_start}:K{section_detail_end})"
-        total_value = ws.cell(row=row_idx, column=11, value=total_formula)
+        total_formula = f"=SUM(M{section_detail_start}:M{section_detail_end})"
+        total_value = ws.cell(row=row_idx, column=13, value=total_formula)
         total_value.font = _BOLD
         total_value.alignment = _RIGHT
         total_value.fill = _LIGHT_GRAY_FILL
@@ -694,23 +698,23 @@ def _write_detail_budget(ws, budget: ParsedBudget) -> None:
 
     # ── Grand Total row ──────────────────────────────────────────────────────
     all_section_rows = sorted(section_total_rows_by_prefix.values())
-    ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
+    ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=12)
     gt_label = ws.cell(row=row_idx, column=1, value="GRAND TOTAL")
     gt_label.font = _WHITE_BOLD
     gt_label.alignment = _LEFT
     gt_label.fill = _GRAND_TOTAL_FILL
 
     if all_section_rows:
-        refs = ",".join(f"K{r}" for r in all_section_rows)
-        gt_val = ws.cell(row=row_idx, column=11, value=f"=SUM({refs})")
+        refs = ",".join(f"M{r}" for r in all_section_rows)
+        gt_val = ws.cell(row=row_idx, column=13, value=f"=SUM({refs})")
     else:
-        gt_val = ws.cell(row=row_idx, column=11, value=0)
+        gt_val = ws.cell(row=row_idx, column=13, value=0)
     gt_val.font = _WHITE_BOLD
     gt_val.alignment = _RIGHT
     gt_val.fill = _GRAND_TOTAL_FILL
     gt_val.number_format = CURRENCY_FORMAT
 
-    for col in range(1, 12):
+    for col in range(1, 14):
         ws.cell(row=row_idx, column=col).border = _THIN_BORDER
 
     ws.freeze_panes = "A2"
@@ -1241,49 +1245,57 @@ def _write_breakout_budget(
             seen_currencies.append(cur)
     seen_currencies.sort()
 
-    # Fixed analysis columns (A–I = 1–9; analysis columns 10–27; currencies at end)
+    # Fixed columns (A–Q = 1–17; analysis columns 18–35; currencies at end)
     #
-    # 10: Foreign              – "FOR" indicator
-    # 11: Foreign Spend        – Grand Total when Foreign = "FOR"
-    # 12: Canadian Spend       – Grand Total minus Foreign Spend
-    # 13: Fed Labour %         – basis %
-    # 14: Federal Labour       – calc $
-    # 15: Fed Svc Labour %     – basis %
-    # 16: Federal Svc Labour   – calc $
-    # 17: Non-Prov             – "OUT" indicator
-    # 18: Non-Provincial Spend – calc $
-    # 19: Provincial Spend     – Grand Total minus Non-Provincial Spend
-    # 20: Prov Labour %        – basis %
-    # 21: Provincial Labour    – calc $
-    # 22: Prov Svc Labour %    – basis %
-    # 23: Svc Property %       – basis %
-    # 24: Provincial Svc Labour– calc $
-    # 25: Services Property    – calc $
-    # 26: Internals            – Grand Total for Internal OH rows
-    # 27: Meals                – Grand Total for meal/per-diem rows
-    # 28+: one column per distinct currency
-    foreign_col: int                  = 10
-    foreign_spend_calc_col: int       = 11
-    canadian_spend_calc_col: int      = 12
-    fed_labour_basis_col: int         = 13
-    fed_labour_calc_col: int          = 14
-    fed_svc_basis_col: int            = 15
-    fed_svc_calc_col: int             = 16
-    non_prov_basis_col: int           = 17
-    non_prov_calc_col: int            = 18
-    provincial_spend_calc_col: int    = 19
-    prov_labour_basis_col: int        = 20
-    prov_labour_calc_col: int         = 21
-    prov_svc_basis_col: int           = 22
-    svc_property_basis_col: int       = 23
-    prov_svc_calc_col: int            = 24
-    svc_property_calc_col: int        = 25
-    internals_col: int                = 26
-    meals_col: int                    = 27
+    #  7: Amount               – raw amount from budget
+    #  8: Unit                 – unit of measure
+    #  9: x                    – literal "x"
+    # 10: Unit 2               – secondary unit
+    # 11: Rate                 – rate per unit
+    # 12: Unit 3               – tertiary unit
+    # 13: 4X                   – second "times" separator
+    # 14: Unit 4               – quaternary unit
+    # 18: Foreign              – "FOR" indicator
+    # 19: Foreign Spend        – Grand Total when Foreign = "FOR"
+    # 20: Canadian Spend       – Grand Total minus Foreign Spend
+    # 21: Fed Labour %         – basis %
+    # 22: Federal Labour       – calc $
+    # 23: Fed Svc Labour %     – basis %
+    # 24: Federal Svc Labour   – calc $
+    # 25: Non-Prov             – "OUT" indicator
+    # 26: Non-Provincial Spend – calc $
+    # 27: Provincial Spend     – Grand Total minus Non-Provincial Spend
+    # 28: Prov Labour %        – basis %
+    # 29: Provincial Labour    – calc $
+    # 30: Prov Svc Labour %    – basis %
+    # 31: Svc Property %       – basis %
+    # 32: Provincial Svc Labour– calc $
+    # 33: Services Property    – calc $
+    # 34: Internals            – Grand Total for Internal OH rows
+    # 35: Meals                – Grand Total for meal/per-diem rows
+    # 36+: one column per distinct currency
+    foreign_col: int                  = 18
+    foreign_spend_calc_col: int       = 19
+    canadian_spend_calc_col: int      = 20
+    fed_labour_basis_col: int         = 21
+    fed_labour_calc_col: int          = 22
+    fed_svc_basis_col: int            = 23
+    fed_svc_calc_col: int             = 24
+    non_prov_basis_col: int           = 25
+    non_prov_calc_col: int            = 26
+    provincial_spend_calc_col: int    = 27
+    prov_labour_basis_col: int        = 28
+    prov_labour_calc_col: int         = 29
+    prov_svc_basis_col: int           = 30
+    svc_property_basis_col: int       = 31
+    prov_svc_calc_col: int            = 32
+    svc_property_calc_col: int        = 33
+    internals_col: int                = 34
+    meals_col: int                    = 35
 
     # Currency grand-total columns come after all fixed columns
     currency_col_map: dict[str, int] = {
-        cur: 27 + i + 1 for i, cur in enumerate(seen_currencies)
+        cur: 35 + i + 1 for i, cur in enumerate(seen_currencies)
     }
 
     # basis_cols order must match raw_basis tuple from BREAKOUT_BIBLE:
@@ -1309,6 +1321,14 @@ def _write_breakout_budget(
         "Agg%",
         "Groups",
         "Currency",
+        "Amount",
+        "Unit",
+        "x",
+        "Unit 2",
+        "Rate",
+        "Unit 3",
+        "4X",
+        "Unit 4",
         "Subtotal",
         "Fringes",
         "Grand Total",
@@ -1339,7 +1359,7 @@ def _write_breakout_budget(
 
     num_cols = len(headers)
     widths = (
-        [12, 34, 40, 8, 28, 10, 14, 14, 14]    # A–I
+        [12, 34, 40, 8, 28, 10, 10, 8, 4, 10, 10, 8, 4, 10, 14, 14, 14]    # A–Q
         + [10, 18, 18]                           # Foreign, Foreign Spend, Canadian Spend
         + [13, 18, 16, 24]                       # Fed Labour %, Federal Labour, Fed Svc Labour %, Federal Services Labour
         + [10, 22, 22]                           # Non-Prov, Non-Provincial Spend, Provincial Spend
@@ -1353,9 +1373,10 @@ def _write_breakout_budget(
 
     # ── Column groups (collapsed by default, expandable) ─────────────────────
     _HIDDEN_GROUPS = [
-        [4, 5],           # D–E:   Agg%, Groups
-        [15, 16],         # O–P:   Fed Svc Labour %, Federal Services Labour
-        [22, 23, 24, 25], # V–Y:   Prov Svc Labour %, Svc Property %, Provincial Services Labour, Services Property
+        [4, 5],                          # D–E:   Agg%, Groups
+        [7, 8, 9, 10, 11, 12, 13, 14],  # G–N:   Amount, Unit, x, Unit 2, Rate, Unit 3, 4X, Unit 4
+        [23, 24],                        # W–X:   Fed Svc Labour %, Federal Services Labour
+        [30, 31, 32, 33],                # AD–AG: Prov Svc Labour %, Svc Property %, Provincial Services Labour, Services Property
     ]
     for group in _HIDDEN_GROUPS:
         for col in group:
@@ -1461,16 +1482,16 @@ def _write_breakout_budget(
         label_cell.fill = _LIGHT_GRAY_FILL
 
         if rows_for_group:
-            refs_g = ','.join(f'G{r}' for r in rows_for_group)
-            refs_h = ','.join(f'H{r}' for r in rows_for_group)
-            refs_i = ','.join(f'I{r}' for r in rows_for_group)
-            subtotal_formula   = f"=SUM({refs_g})"
-            fringes_formula    = f"=SUM({refs_h})"
-            grandtotal_formula = f"=SUM({refs_i})"
+            refs_o = ','.join(f'O{r}' for r in rows_for_group)
+            refs_p = ','.join(f'P{r}' for r in rows_for_group)
+            refs_q = ','.join(f'Q{r}' for r in rows_for_group)
+            subtotal_formula   = f"=SUM({refs_o})"
+            fringes_formula    = f"=SUM({refs_p})"
+            grandtotal_formula = f"=SUM({refs_q})"
         else:
             subtotal_formula = fringes_formula = grandtotal_formula = "=0"
 
-        for col, formula in zip((7, 8, 9), (subtotal_formula, fringes_formula, grandtotal_formula)):
+        for col, formula in zip((15, 16, 17), (subtotal_formula, fringes_formula, grandtotal_formula)):
             c = ws.cell(row=row_idx, column=col, value=formula)
             c.font = _BOLD
             c.alignment = _RIGHT
@@ -1525,7 +1546,7 @@ def _write_breakout_budget(
         # Canadian Spend: Grand Total minus Foreign Spend at this aggregate row
         fs_letter = get_column_letter(foreign_spend_calc_col)
         c = ws.cell(row=row_idx, column=canadian_spend_calc_col,
-                    value=f"=I{row_idx}-{fs_letter}{row_idx}")
+                    value=f"=Q{row_idx}-{fs_letter}{row_idx}")
         c.font = _BOLD
         c.alignment = _RIGHT
         c.fill = _LIGHT_GRAY_FILL
@@ -1534,7 +1555,7 @@ def _write_breakout_budget(
         # Provincial Spend: Grand Total minus Non-Provincial Spend at this aggregate row
         np_calc_letter = get_column_letter(non_prov_calc_col)
         c = ws.cell(row=row_idx, column=provincial_spend_calc_col,
-                    value=f"=I{row_idx}-{np_calc_letter}{row_idx}")
+                    value=f"=Q{row_idx}-{np_calc_letter}{row_idx}")
         c.font = _BOLD
         c.alignment = _RIGHT
         c.fill = _LIGHT_GRAY_FILL
@@ -1592,7 +1613,7 @@ def _write_breakout_budget(
             group_label = detail.groups if detail.groups else _derive_group_label(prefix)
             is_fringes_row = detail.agg is not None and detail.agg > 0
 
-            subtotal_col = f"G{row_idx}"
+            subtotal_col = f"O{row_idx}"
             agg_col = f"D{row_idx}"
 
             row_data = [
@@ -1602,9 +1623,17 @@ def _write_breakout_budget(
                 (detail.agg,         _CENTER, _PERCENTAGE_FORMAT),
                 (group_label,        _LEFT,   None),
                 (detail.currency,    _CENTER, None),
+                (detail.amount,      _RIGHT,  _ACCOUNTING_FORMAT),
+                (detail.unit,        _CENTER, None),
+                (detail.x or "x",   _CENTER, None),
+                (detail.unit2,       _CENTER, None),
+                (detail.rate,        _RIGHT,  _ACCOUNTING_FORMAT),
+                (detail.unit3,       _CENTER, None),
+                ("x",                _CENTER, None),
+                (detail.unit4,       _CENTER, None),
                 (detail.subtotal,    _RIGHT,  _ACCOUNTING_FORMAT),
                 (f"={subtotal_col}*{agg_col}" if is_fringes_row else 0, _RIGHT, _ACCOUNTING_FORMAT),
-                (f"=G{row_idx}+H{row_idx}", _RIGHT, _ACCOUNTING_FORMAT),
+                (f"=O{row_idx}+P{row_idx}", _RIGHT, _ACCOUNTING_FORMAT),
             ]
 
             for col, (value, align, num_fmt) in enumerate(row_data, start=1):
@@ -1615,10 +1644,10 @@ def _write_breakout_budget(
                 if num_fmt:
                     cell.number_format = num_fmt
 
-            # Currency grand total columns: =I{row} if matching currency, else 0
+            # Currency grand total columns: =Q{row} if matching currency, else 0
             row_currency = (detail.currency or "").strip().upper()
             for cur, col in currency_col_map.items():
-                value = f"=I{row_idx}" if row_currency == cur else 0
+                value = f"=Q{row_idx}" if row_currency == cur else 0
                 c = ws.cell(row=row_idx, column=col, value=value)
                 c.font = _NORMAL
                 c.border = _NO_BORDER
@@ -1626,7 +1655,7 @@ def _write_breakout_budget(
                 c.number_format = _ACCOUNTING_FORMAT
 
             # Internals column: if "Internal OH" appears anywhere in the Groups cell (E), return grand total
-            internals_value = f'=IF(ISNUMBER(SEARCH("Internal OH",E{row_idx})),I{row_idx},0)'
+            internals_value = f'=IF(ISNUMBER(SEARCH("Internal OH",E{row_idx})),Q{row_idx},0)'
             c = ws.cell(row=row_idx, column=internals_col, value=internals_value)
             c.font = _NORMAL
             c.border = _NO_BORDER
@@ -1637,7 +1666,7 @@ def _write_breakout_budget(
             meals_value = (
                 f'=IF(OR(ISNUMBER(SEARCH("Diem",C{row_idx})),'
                 f'A{row_idx}="2840",A{row_idx}="3201",A{row_idx}="3210",A{row_idx}="3215",A{row_idx}="3320"),'
-                f'I{row_idx},0)'
+                f'Q{row_idx},0)'
             )
             c = ws.cell(row=row_idx, column=meals_col, value=meals_value)
             c.font = _NORMAL
@@ -1706,7 +1735,7 @@ def _write_breakout_budget(
 
             # Canadian Spend: Grand Total minus Foreign Spend (auditable formula)
             fs_letter = get_column_letter(foreign_spend_calc_col)
-            canadian_formula = f"=I{row_idx}-{fs_letter}{row_idx}"
+            canadian_formula = f"=Q{row_idx}-{fs_letter}{row_idx}"
             c = ws.cell(row=row_idx, column=canadian_spend_calc_col, value=canadian_formula)
             c.font = _NORMAL
             c.border = _NO_BORDER
@@ -1718,14 +1747,14 @@ def _write_breakout_budget(
             for_l = get_column_letter(foreign_col)
             calc_formulas = [
                 # Non-Provincial Spend: triggered by either "OUT" (bible) or "FOR" (foreign currency)
-                f'=IF(OR({np_l}{row_idx}="OUT",{for_l}{row_idx}="FOR"),I{row_idx},0)',
-                f'=IF({pl_l}{row_idx}>0,G{row_idx}*{pl_l}{row_idx},0)',
-                f'=IF({fl_l}{row_idx}>0,G{row_idx}*{fl_l}{row_idx},0)',
-                f'=IF({psl_l}{row_idx}>0,G{row_idx}*{psl_l}{row_idx},0)',
-                f'=IF({sp_l}{row_idx}>0,I{row_idx}*{sp_l}{row_idx},0)',
-                f'=IF({fsl_l}{row_idx}>0,G{row_idx}*{fsl_l}{row_idx},0)',
+                f'=IF(OR({np_l}{row_idx}="OUT",{for_l}{row_idx}="FOR"),Q{row_idx},0)',
+                f'=IF({pl_l}{row_idx}>0,O{row_idx}*{pl_l}{row_idx},0)',
+                f'=IF({fl_l}{row_idx}>0,O{row_idx}*{fl_l}{row_idx},0)',
+                f'=IF({psl_l}{row_idx}>0,O{row_idx}*{psl_l}{row_idx},0)',
+                f'=IF({sp_l}{row_idx}>0,Q{row_idx}*{sp_l}{row_idx},0)',
+                f'=IF({fsl_l}{row_idx}>0,O{row_idx}*{fsl_l}{row_idx},0)',
                 # Foreign Spend: Grand Total when the Foreign column reads "FOR"
-                f'=IF({for_l}{row_idx}="FOR",I{row_idx},0)',
+                f'=IF({for_l}{row_idx}="FOR",Q{row_idx},0)',
             ]
             for ccol, cval in zip(calc_cols, calc_formulas):
                 c = ws.cell(row=row_idx, column=ccol, value=cval)
@@ -1737,7 +1766,7 @@ def _write_breakout_budget(
             # Provincial Spend: Grand Total minus Non-Provincial Spend (auditable formula)
             np_calc_letter = get_column_letter(non_prov_calc_col)
             c = ws.cell(row=row_idx, column=provincial_spend_calc_col,
-                        value=f"=I{row_idx}-{np_calc_letter}{row_idx}")
+                        value=f"=Q{row_idx}-{np_calc_letter}{row_idx}")
             c.font = _NORMAL
             c.border = _NO_BORDER
             c.alignment = _RIGHT
@@ -1754,7 +1783,7 @@ def _write_breakout_budget(
         total_label_cell.alignment = _LEFT
         total_label_cell.fill = _LIGHT_GRAY_FILL
 
-        for col, letter in zip((7, 8, 9), ("G", "H", "I")):
+        for col, letter in zip((15, 16, 17), ("O", "P", "Q")):
             formula = f"=SUM({letter}{section_detail_start}:{letter}{section_detail_end})"
             c = ws.cell(row=row_idx, column=col, value=formula)
             c.font = _BOLD
@@ -1798,7 +1827,7 @@ def _write_breakout_budget(
         # Canadian Spend: Grand Total minus Foreign Spend at this section row
         fs_letter = get_column_letter(foreign_spend_calc_col)
         c = ws.cell(row=row_idx, column=canadian_spend_calc_col,
-                    value=f"=I{row_idx}-{fs_letter}{row_idx}")
+                    value=f"=Q{row_idx}-{fs_letter}{row_idx}")
         c.font = _BOLD
         c.alignment = _RIGHT
         c.fill = _LIGHT_GRAY_FILL
@@ -1807,7 +1836,7 @@ def _write_breakout_budget(
         # Provincial Spend: Grand Total minus Non-Provincial Spend at this section row
         np_calc_letter = get_column_letter(non_prov_calc_col)
         c = ws.cell(row=row_idx, column=provincial_spend_calc_col,
-                    value=f"=I{row_idx}-{np_calc_letter}{row_idx}")
+                    value=f"=Q{row_idx}-{np_calc_letter}{row_idx}")
         c.font = _BOLD
         c.alignment = _RIGHT
         c.fill = _LIGHT_GRAY_FILL
@@ -1840,7 +1869,7 @@ def _write_breakout_budget(
     gt_label.fill = _GRAND_TOTAL_FILL
 
     if all_section_rows:
-        for col, letter in zip((7, 8, 9), ("G", "H", "I")):
+        for col, letter in zip((15, 16, 17), ("O", "P", "Q")):
             refs = ",".join(f"{letter}{r}" for r in all_section_rows)
             c = ws.cell(row=row_idx, column=col, value=f"=SUM({refs})")
             c.font = _WHITE_BOLD
@@ -1880,7 +1909,7 @@ def _write_breakout_budget(
         # Canadian Spend: Grand Total minus Foreign Spend at the grand total row
         fs_letter = get_column_letter(foreign_spend_calc_col)
         c = ws.cell(row=row_idx, column=canadian_spend_calc_col,
-                    value=f"=I{row_idx}-{fs_letter}{row_idx}")
+                    value=f"=Q{row_idx}-{fs_letter}{row_idx}")
         c.font = _WHITE_BOLD
         c.alignment = _RIGHT
         c.fill = _GRAND_TOTAL_FILL
@@ -1889,7 +1918,7 @@ def _write_breakout_budget(
         # Provincial Spend: Grand Total minus Non-Provincial Spend at the grand total row
         np_calc_letter = get_column_letter(non_prov_calc_col)
         c = ws.cell(row=row_idx, column=provincial_spend_calc_col,
-                    value=f"=I{row_idx}-{np_calc_letter}{row_idx}")
+                    value=f"=Q{row_idx}-{np_calc_letter}{row_idx}")
         c.font = _WHITE_BOLD
         c.alignment = _RIGHT
         c.fill = _GRAND_TOTAL_FILL
@@ -1905,7 +1934,7 @@ def _write_breakout_budget(
             c.fill = _GRAND_TOTAL_FILL
             c.number_format = _ACCOUNTING_FORMAT
     else:
-        for col in range(7, num_cols + 1):
+        for col in range(17, num_cols + 1):
             c = ws.cell(row=row_idx, column=col, value=0)
             c.font = _WHITE_BOLD
             c.alignment = _RIGHT
@@ -1920,7 +1949,7 @@ def _write_breakout_budget(
 
     # All dollar-amount columns (accounting format) — used in both summary rows
     accounting_cols = [
-        7, 8, 9,
+        15, 16, 17,
         foreign_spend_calc_col, canadian_spend_calc_col,
         fed_labour_calc_col, fed_svc_calc_col,
         non_prov_calc_col, provincial_spend_calc_col,
@@ -1957,7 +1986,7 @@ def _write_breakout_budget(
     for col in accounting_cols:
         letter = get_column_letter(col)
         c = ws.cell(row=3, column=col,
-                    value=f"=IFERROR({letter}{grand_total_row}/I{grand_total_row},0)")
+                    value=f"=IFERROR({letter}{grand_total_row}/Q{grand_total_row},0)")
         c.font = _BOLD
         c.alignment = _RIGHT
         c.fill = _LIGHT_GRAY_FILL
@@ -2016,10 +2045,10 @@ def _write_breakout_budget(
 # ---------------------------------------------------------------------------
 
 # Cross-sheet references to Breakout Budget's pinned Row 2 ("TOTAL")
-_BB_GRAND_TOTAL = "='Breakout Budget'!I2"   # col I  (9)  Grand Total
-_BB_PROV_LABOUR = "='Breakout Budget'!U2"   # col U  (21) Provincial Labour
-_BB_FED_LABOUR  = "='Breakout Budget'!N2"   # col N  (14) Federal Labour
-_BB_MEALS       = "='Breakout Budget'!AA2"  # col AA (27) Meals
+_BB_GRAND_TOTAL = "='Breakout Budget'!Q2"   # col Q  (17) Grand Total
+_BB_PROV_LABOUR = "='Breakout Budget'!AC2"  # col AC (29) Provincial Labour
+_BB_FED_LABOUR  = "='Breakout Budget'!V2"   # col V  (22) Federal Labour
+_BB_MEALS       = "='Breakout Budget'!AI2"  # col AI (35) Meals
 
 # Light yellow fill for user-editable input cells
 _INPUT_FILL = PatternFill(start_color="FFFDE7", end_color="FFFDE7", fill_type="solid")
