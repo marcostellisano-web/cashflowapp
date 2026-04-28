@@ -7,6 +7,7 @@ import ParametersUploader from './components/parameters/ParametersUploader';
 import ProductionForm from './components/parameters/ProductionForm';
 import CurveAssigner from './components/distribution/CurveAssigner';
 import DownloadButton from './components/output/DownloadButton';
+import CombinedDownloadButton from './components/output/CombinedDownloadButton';
 import TaxCreditOutput from './components/tax-credit/TaxCreditOutput';
 import BibleEditor from './components/bible/BibleEditor';
 import type { ParsedBudget } from './types/budget';
@@ -199,11 +200,26 @@ export default function App() {
                 </div>
               </div>
               {budget && params && distributions.length > 0 && (
-                <DownloadButton
-                  budget={budget}
-                  parameters={params}
-                  distributions={distributions}
-                />
+                <div className="flex flex-col items-center gap-3 w-full">
+                  <DownloadButton
+                    budget={budget}
+                    parameters={params}
+                    distributions={distributions}
+                  />
+                  <div className="flex items-center gap-3 w-64">
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-xs text-gray-400">or</span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+                  <CombinedDownloadButton
+                    budget={budget}
+                    parameters={params}
+                    distributions={distributions}
+                  />
+                  <p className="text-xs text-gray-400 text-center max-w-xs">
+                    Combined report includes all cashflow sheets plus the full tax credit filing budget in one file.
+                  </p>
+                </div>
               )}
             </div>
           )}

@@ -2618,29 +2618,23 @@ def write_bible_excel(entries: list[dict]) -> BytesIO:
     return buffer
 
 
-def write_tax_credit_excel(
+def populate_tax_credit_workbook(
+    wb: Workbook,
     budget: ParsedBudget,
     title: str,
     overrides: dict | None = None,
     global_bible: dict | None = None,
-) -> BytesIO:
-    """Build a tax credit filing workbook and return as BytesIO.
+) -> None:
+    """Write all tax credit sheets into an existing workbook.
 
     ``overrides``     — maps account_code → BreakoutOverride (project-specific).
     ``global_bible``  — maps account_code → (non_prov, pl, fl, psl, sp, fsl) tuple,
                         superseding BREAKOUT_BIBLE defaults before project overrides
                         are applied.
     """
-    # Build effective bible: hardcoded defaults → global customisations
     effective_bible = dict(BREAKOUT_BIBLE)
     if global_bible:
         effective_bible.update(global_bible)
-
-    wb = Workbook()
-
-    # Remove the default empty sheet
-    default_sheet = wb.active
-    wb.remove(default_sheet)
 
     ws_topsheet = wb.create_sheet("Topsheet")
     _write_topsheet(ws_topsheet, budget, title)
@@ -2659,6 +2653,20 @@ def write_tax_credit_excel(
 
     ws_ofttc = wb.create_sheet("Ontario - OFTTC")
     _write_ofttc_sheet(ws_ofttc, title)
+
+
+def write_tax_credit_excel(
+    budget: ParsedBudget,
+    title: str,
+    overrides: dict | None = None,
+    global_bible: dict | None = None,
+) -> BytesIO:
+    """Build a tax credit filing workbook and return as BytesIO."""
+    wb = Workbook()
+    default_sheet = wb.active
+    wb.remove(default_sheet)
+
+    populate_tax_credit_workbook(wb, budget, title, overrides, global_bible)
 
     buffer = BytesIO()
     wb.save(buffer)

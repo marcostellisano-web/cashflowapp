@@ -1836,13 +1836,8 @@ def _write_monthly_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
     ws.freeze_panes = ws.cell(row=DATA_START_ROW, column=FIRST_WEEK_COL)
 
 
-def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters) -> BytesIO:
-    """Generate a complete cashflow Excel workbook.
-
-    Returns a BytesIO buffer containing the .xlsx file.
-    """
-    wb = Workbook()
-
+def populate_cashflow_workbook(wb: Workbook, output: CashflowOutput, params: ProductionParameters) -> None:
+    """Write all cashflow sheets into an existing workbook."""
     _write_main_sheet(wb, output, params)
     _write_summary_cf_sheet(wb, output, params)
     _write_monthly_cf_sheet(wb, output, params)
@@ -1850,6 +1845,14 @@ def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters) -
     _write_summary_sheet(wb, output, params)
     _write_parameters_sheet(wb, params)
 
+
+def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters) -> BytesIO:
+    """Generate a complete cashflow Excel workbook.
+
+    Returns a BytesIO buffer containing the .xlsx file.
+    """
+    wb = Workbook()
+    populate_cashflow_workbook(wb, output, params)
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)

@@ -61,6 +61,23 @@ export async function generateCashflowExcel(
   return res.blob();
 }
 
+export async function generateCombinedExcel(
+  budget: ParsedBudget,
+  parameters: ProductionParameters,
+  distributions: LineItemDistribution[],
+): Promise<Blob> {
+  const res = await fetch(`${BASE}/combined/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ budget, parameters, distributions }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Generation failed');
+  }
+  return res.blob();
+}
+
 export async function listCashflowTemplates(): Promise<string[]> {
   const res = await fetch(`${BASE}/cashflow/templates`);
   if (!res.ok) throw new Error('Failed to list cashflow templates');
