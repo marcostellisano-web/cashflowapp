@@ -152,15 +152,15 @@ def _get_outflow_component_codes(
         for i, detail in enumerate(detail_rows):
             # Primary: the row itself is tagged "Internal OH"
             is_internal_oh = bool(detail.groups and "internal oh" in detail.groups.lower())
-            # Secondary: "Total Fringes" row immediately following an Internal OH row
-            # (mirrors the formula: IF(AND(H="Total Fringes", SEARCH("Internal OH", D_prev))))
-            is_trailing_fringes = (
-                i > 0
-                and detail.description
-                and detail.description.strip().lower() == "total fringes"
-                and bool(detail_rows[i - 1].groups)
-                and "internal oh" in detail_rows[i - 1].groups.lower()
-            )
+            # Secondary: "Total Fringes" row tied to a preceding Internal OH row.
+            # The source spreadsheets vary by template, so "Total Fringes" can
+            # appear in different text columns; accept either description/groups.
+            detail_desc = (detail.description or "").strip().lower()
+            detail_group = (detail.groups or "").strip().lower()
+            is_total_fringes = detail_desc == "total fringes" or detail_group == "total fringes"
+
+            prev_groups = (detail_rows[i - 1].groups or "").lower() if i > 0 else ""
+            is_trailing_fringes = i > 0 and is_total_fringes and "internal oh" in prev_groups
             if is_internal_oh or is_trailing_fringes:
                 clean = detail.account.replace(".", "").replace(" ", "").strip()
                 if len(clean) >= 4 and clean[:4].isdigit():
