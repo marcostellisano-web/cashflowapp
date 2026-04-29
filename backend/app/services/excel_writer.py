@@ -128,21 +128,26 @@ SUMMARY_ACCOUNTS: list[tuple[str, str]] = [
 
 def _get_outflow_component_codes(
     budget: ParsedBudget | None, cashflow_rows: list
-) -> tuple[set[str], set[str]]:
-    """Return (financing_codes, internal_oh_codes) for the outflow component rows.
+) -> tuple[set[str], dict[str, float]]:
+    """Return (financing_codes, internal_oh_amounts) for the outflow component rows.
 
-    financing_codes  — rows whose account code normalizes to 7220 (interim financing)
-    internal_oh_codes — rows whose Account Details entries carry the group "Internal OH"
+    financing_codes    — rows whose account code normalizes to 7220 (interim financing)
+    internal_oh_amounts — maps cashflow row code → the Internal OH subtotal amount from
+                          Account Details.  When a code has mixed rows (only some are OH),
+                          this is less than the full cashflow total; applying the ratio
+                          fraction * weekly_amounts gives accurate per-week OH spending.
     """
     financing_codes: set[str] = set()
-    internal_oh_codes: set[str] = set()
 
     for row in cashflow_rows:
         if row.code.replace(".", "").replace(" ", "").strip().zfill(4) == "7220":
             financing_codes.add(row.code)
 
+    internal_oh_amounts: dict[str, float] = {}
+
     if budget is not None and budget.detail_rows:
-        internal_oh_parents: set[str] = set()
+        # Accumulate OH subtotals per 4-digit parent code from Account Details rows
+        oh_by_parent: dict[str, float] = {}
         detail_rows = budget.detail_rows
         for i, detail in enumerate(detail_rows):
             # Primary: the row itself is tagged "Internal OH"
@@ -159,15 +164,21 @@ def _get_outflow_component_codes(
             if is_internal_oh or is_trailing_fringes:
                 clean = detail.account.replace(".", "").replace(" ", "").strip()
                 if len(clean) >= 4 and clean[:4].isdigit():
-                    internal_oh_parents.add(clean[:4])
+                    parent = clean[:4]
                 elif len(clean) >= 2 and clean[:2].isdigit():
-                    internal_oh_parents.add(clean[:2].zfill(2) + "00")
+                    parent = clean[:2].zfill(2) + "00"
+                else:
+                    continue
+                oh_by_parent[parent] = oh_by_parent.get(parent, 0.0) + detail.subtotal
 
+        # Map accumulated OH subtotals to cashflow row codes
         for row in cashflow_rows:
-            if row.code.replace(".", "").replace(" ", "").strip().zfill(4) in internal_oh_parents:
-                internal_oh_codes.add(row.code)
+            normalized = row.code.replace(".", "").replace(" ", "").strip().zfill(4)
+            oh_amount = oh_by_parent.get(normalized)
+            if oh_amount is not None and oh_amount > 0:
+                internal_oh_amounts[row.code] = oh_amount
 
-    return financing_codes, internal_oh_codes
+    return financing_codes, internal_oh_amounts
 
 
 def _get_summary_code(code: str) -> str:
@@ -750,17 +761,21 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     financing_outflow_row = fin_total_row + 3
     hard_costs_row        = fin_total_row + 4
 
-    financing_codes, internal_oh_codes = _get_outflow_component_codes(budget, output.rows)
+    financing_codes, internal_oh_amounts = _get_outflow_component_codes(budget, output.rows)
 
     internals_weekly = [0.0] * num_weeks
     internals_total  = 0.0
     fin_out_weekly   = [0.0] * num_weeks
     fin_out_total    = 0.0
     for row_data in output.rows:
-        if row_data.code in internal_oh_codes:
-            internals_total += row_data.total
+        oh_amount = internal_oh_amounts.get(row_data.code)
+        if oh_amount is not None and oh_amount > 0:
+            # For mixed codes (only a portion is Internal OH), scale weekly amounts
+            # by the fraction of the cashflow total that is OH-tagged.
+            fraction = min(1.0, oh_amount / row_data.total) if row_data.total > 0 else 1.0
+            internals_total += oh_amount
             for j, amount in enumerate(row_data.weekly_amounts):
-                internals_weekly[j] += amount
+                internals_weekly[j] += amount * fraction
         if row_data.code in financing_codes:
             fin_out_total += row_data.total
             for j, amount in enumerate(row_data.weekly_amounts):
