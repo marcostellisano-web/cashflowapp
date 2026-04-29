@@ -126,17 +126,20 @@ SUMMARY_ACCOUNTS: list[tuple[str, str]] = [
 ]
 
 
-def _build_excluded_codes(budget: ParsedBudget | None, cashflow_rows: list) -> set[str]:
-    """Return codes to exclude from the hard costs outflow row.
+def _get_outflow_component_codes(
+    budget: ParsedBudget | None, cashflow_rows: list
+) -> tuple[set[str], set[str]]:
+    """Return (financing_codes, internal_oh_codes) for the outflow component rows.
 
-    Excludes interim financing (code 7220) and any code whose Account Details
-    rows carry the group label "Internal OH".
+    financing_codes  — rows whose account code normalizes to 7220 (interim financing)
+    internal_oh_codes — rows whose Account Details entries carry the group "Internal OH"
     """
-    excluded: set[str] = set()
+    financing_codes: set[str] = set()
+    internal_oh_codes: set[str] = set()
 
     for row in cashflow_rows:
         if row.code.replace(".", "").replace(" ", "").strip().zfill(4) == "7220":
-            excluded.add(row.code)
+            financing_codes.add(row.code)
 
     if budget is not None and budget.detail_rows:
         internal_oh_parents: set[str] = set()
@@ -150,9 +153,9 @@ def _build_excluded_codes(budget: ParsedBudget | None, cashflow_rows: list) -> s
 
         for row in cashflow_rows:
             if row.code.replace(".", "").replace(" ", "").strip().zfill(4) in internal_oh_parents:
-                excluded.add(row.code)
+                internal_oh_codes.add(row.code)
 
-    return excluded
+    return financing_codes, internal_oh_codes
 
 
 def _get_summary_code(code: str) -> str:
@@ -730,28 +733,72 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     fin_total_cell.fill = FINANCING_TOTAL_FILL
     fin_total_cell.border = THIN_BORDER
 
-    # Hard costs outflow (2 rows below TOTAL FINANCING COST)
-    # All outflows except interim financing (code 7220) and Internal OH group
-    hard_costs_row = fin_total_row + 2
-    excluded_codes = _build_excluded_codes(budget, output.rows)
+    # Outflow components + hard costs (starting 2 rows below TOTAL FINANCING COST)
+    internals_outflow_row = fin_total_row + 2
+    financing_outflow_row = fin_total_row + 3
+    hard_costs_row        = fin_total_row + 4
 
-    hard_costs_weekly = [0.0] * num_weeks
-    hard_costs_total = 0.0
+    financing_codes, internal_oh_codes = _get_outflow_component_codes(budget, output.rows)
+
+    internals_weekly = [0.0] * num_weeks
+    internals_total  = 0.0
+    fin_out_weekly   = [0.0] * num_weeks
+    fin_out_total    = 0.0
     for row_data in output.rows:
-        if row_data.code not in excluded_codes:
-            hard_costs_total += row_data.total
+        if row_data.code in internal_oh_codes:
+            internals_total += row_data.total
             for j, amount in enumerate(row_data.weekly_amounts):
-                hard_costs_weekly[j] += amount
+                internals_weekly[j] += amount
+        if row_data.code in financing_codes:
+            fin_out_total += row_data.total
+            for j, amount in enumerate(row_data.weekly_amounts):
+                fin_out_weekly[j] += amount
 
+    # INTERNALS OUTFLOW row
+    ws.cell(row=internals_outflow_row, column=DESC_COL, value="INTERNALS OUTFLOW").font = Font(bold=True, size=11)
+    ws.cell(row=internals_outflow_row, column=DESC_COL).border = THIN_BORDER
+    int_total_cell = ws.cell(row=internals_outflow_row, column=TOTAL_COL, value=round(internals_total, 2))
+    int_total_cell.number_format = CURRENCY_FORMAT_TOTAL
+    int_total_cell.font = Font(bold=True)
+    int_total_cell.border = THIN_BORDER
+    for i, amount in enumerate(internals_weekly):
+        col = FIRST_WEEK_COL + i
+        cell = ws.cell(row=internals_outflow_row, column=col, value=round(amount, 2) if amount else 0)
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font = Font(bold=True)
+        cell.border = THIN_BORDER
+
+    # FINANCING OUTFLOW row
+    ws.cell(row=financing_outflow_row, column=DESC_COL, value="FINANCING OUTFLOW").font = Font(bold=True, size=11)
+    ws.cell(row=financing_outflow_row, column=DESC_COL).border = THIN_BORDER
+    fin_out_total_cell = ws.cell(row=financing_outflow_row, column=TOTAL_COL, value=round(fin_out_total, 2))
+    fin_out_total_cell.number_format = CURRENCY_FORMAT_TOTAL
+    fin_out_total_cell.font = Font(bold=True)
+    fin_out_total_cell.border = THIN_BORDER
+    for i, amount in enumerate(fin_out_weekly):
+        col = FIRST_WEEK_COL + i
+        cell = ws.cell(row=financing_outflow_row, column=col, value=round(amount, 2) if amount else 0)
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font = Font(bold=True)
+        cell.border = THIN_BORDER
+
+    # HARD COSTS OUTFLOW row — formula: WEEKLY TOTAL minus internals and financing
     ws.cell(row=hard_costs_row, column=DESC_COL, value="HARD COSTS OUTFLOW").font = Font(bold=True, size=11)
     ws.cell(row=hard_costs_row, column=DESC_COL).border = THIN_BORDER
-    hc_total_cell = ws.cell(row=hard_costs_row, column=TOTAL_COL, value=round(hard_costs_total, 2))
+    hc_total_cell = ws.cell(
+        row=hard_costs_row, column=TOTAL_COL,
+        value=f"=C{totals_row}-C{internals_outflow_row}-C{financing_outflow_row}",
+    )
     hc_total_cell.number_format = CURRENCY_FORMAT_TOTAL
     hc_total_cell.font = Font(bold=True)
     hc_total_cell.border = THIN_BORDER
-    for i, amount in enumerate(hard_costs_weekly):
+    for i in range(num_weeks):
         col = FIRST_WEEK_COL + i
-        cell = ws.cell(row=hard_costs_row, column=col, value=round(amount, 2) if amount else 0)
+        col_letter = get_column_letter(col)
+        cell = ws.cell(
+            row=hard_costs_row, column=col,
+            value=f"={col_letter}{totals_row}-{col_letter}{internals_outflow_row}-{col_letter}{financing_outflow_row}",
+        )
         cell.number_format = CURRENCY_FORMAT_TOTAL
         cell.font = Font(bold=True)
         cell.border = THIN_BORDER
@@ -772,7 +819,11 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         keep_paycycle_colors=has_payroll,
     )
 
-    # Apply fill and border to hard costs row after formatting (formatting resets fills)
+    # Apply fills and borders after formatting (formatting resets all fills)
+    for component_row in (internals_outflow_row, financing_outflow_row):
+        for col in range(CODE_COL, last_week_col + 1):
+            ws.cell(row=component_row, column=col).fill = SUBTLE_TOTAL_FILL
+        _apply_outside_border(ws, component_row, component_row, CODE_COL, last_week_col)
     for col in range(CODE_COL, last_week_col + 1):
         ws.cell(row=hard_costs_row, column=col).fill = HARD_COSTS_FILL
     _apply_outside_border(ws, hard_costs_row, hard_costs_row, CODE_COL, last_week_col)
@@ -1220,30 +1271,33 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
     c.number_format = CURRENCY_FORMAT_TOTAL
     c.font = Font(bold=True); c.fill = FINANCING_TOTAL_FILL; c.border = THIN_BORDER
 
-    # Hard costs outflow (2 rows below TOTAL FINANCING COST) — values linked from Cashflow sheet
-    detail_fin_total_row = detail_fin_legal_row + 1
-    detail_hard_costs_row = detail_fin_total_row + 2
-    sum_hard_costs_row = sum_fin_total_row + 2
+    # Outflow components + hard costs — row offsets mirror the main Cashflow sheet
+    detail_fin_total_row         = detail_fin_legal_row + 1
+    detail_internals_outflow_row = detail_fin_total_row + 2
+    detail_financing_outflow_row = detail_fin_total_row + 3
+    detail_hard_costs_row        = detail_fin_total_row + 4
+    sum_internals_outflow_row    = sum_fin_total_row + 2
+    sum_financing_outflow_row    = sum_fin_total_row + 3
+    sum_hard_costs_row           = sum_fin_total_row + 4
 
-    ws.cell(row=sum_hard_costs_row, column=DESC_COL, value="HARD COSTS OUTFLOW").font = Font(bold=True, size=11)
-    ws.cell(row=sum_hard_costs_row, column=DESC_COL).border = THIN_BORDER
-    hc_total_cell = ws.cell(
-        row=sum_hard_costs_row, column=TOTAL_COL,
-        value=f"={DETAIL}!C{detail_hard_costs_row}",
-    )
-    hc_total_cell.number_format = CURRENCY_FORMAT_TOTAL
-    hc_total_cell.font = Font(bold=True)
-    hc_total_cell.border = THIN_BORDER
-    for i in range(num_weeks):
-        col = FIRST_WEEK_COL + i
-        col_letter = get_column_letter(col)
-        cell = ws.cell(
-            row=sum_hard_costs_row, column=col,
-            value=f"={DETAIL}!{col_letter}{detail_hard_costs_row}",
-        )
-        cell.number_format = CURRENCY_FORMAT_TOTAL
-        cell.font = Font(bold=True)
-        cell.border = THIN_BORDER
+    def _link_row(label: str, sum_row: int, detail_row: int, bold_size: int = 11) -> None:
+        ws.cell(row=sum_row, column=DESC_COL, value=label).font = Font(bold=True, size=bold_size)
+        ws.cell(row=sum_row, column=DESC_COL).border = THIN_BORDER
+        tc = ws.cell(row=sum_row, column=TOTAL_COL, value=f"={DETAIL}!C{detail_row}")
+        tc.number_format = CURRENCY_FORMAT_TOTAL
+        tc.font = Font(bold=True)
+        tc.border = THIN_BORDER
+        for i in range(num_weeks):
+            col = FIRST_WEEK_COL + i
+            col_letter = get_column_letter(col)
+            c = ws.cell(row=sum_row, column=col, value=f"={DETAIL}!{col_letter}{detail_row}")
+            c.number_format = CURRENCY_FORMAT_TOTAL
+            c.font = Font(bold=True)
+            c.border = THIN_BORDER
+
+    _link_row("INTERNALS OUTFLOW", sum_internals_outflow_row, detail_internals_outflow_row)
+    _link_row("FINANCING OUTFLOW", sum_financing_outflow_row, detail_financing_outflow_row)
+    _link_row("HARD COSTS OUTFLOW", sum_hard_costs_row, detail_hard_costs_row)
 
     _apply_requested_cashflow_formatting(
         ws,
@@ -1261,7 +1315,11 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         keep_paycycle_colors=has_payroll,
     )
 
-    # Apply fill and border to hard costs row after formatting (formatting resets fills)
+    # Apply fills and borders after formatting (formatting resets all fills)
+    for component_row in (sum_internals_outflow_row, sum_financing_outflow_row):
+        for col in range(CODE_COL, last_week_col + 1):
+            ws.cell(row=component_row, column=col).fill = SUBTLE_TOTAL_FILL
+        _apply_outside_border(ws, component_row, component_row, CODE_COL, last_week_col)
     for col in range(CODE_COL, last_week_col + 1):
         ws.cell(row=sum_hard_costs_row, column=col).fill = HARD_COSTS_FILL
     _apply_outside_border(ws, sum_hard_costs_row, sum_hard_costs_row, CODE_COL, last_week_col)
