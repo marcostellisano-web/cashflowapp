@@ -8,6 +8,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side, numbers
 from openpyxl.utils import get_column_letter
 
+from app.models.budget import ParsedBudget
 from app.models.cashflow import CashflowOutput
 from app.models.production import ProductionParameters
 
@@ -45,6 +46,8 @@ CASH_POS_FILL = PatternFill(start_color="D9D2EA", end_color="D9D2EA", fill_type=
 INTEREST_FILL = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")       # Light salmon/red
 FINANCING_FILL = PatternFill(start_color="FDE9D9", end_color="FDE9D9", fill_type="solid")      # Soft peach
 FINANCING_TOTAL_FILL = PatternFill(start_color="F4B183", end_color="F4B183", fill_type="solid") # Warm orange
+
+HARD_COSTS_FILL = PatternFill(start_color="C6D9F0", end_color="C6D9F0", fill_type="solid")  # Medium blue
 
 DATA_START_ROW = 6
 CODE_COL = 1
@@ -121,6 +124,35 @@ SUMMARY_ACCOUNTS: list[tuple[str, str]] = [
     ("8100", "COMPLETION GUARANTEE"),
     ("8200", "COST OF ISSUE"),
 ]
+
+
+def _build_excluded_codes(budget: ParsedBudget | None, cashflow_rows: list) -> set[str]:
+    """Return codes to exclude from the hard costs outflow row.
+
+    Excludes interim financing (code 7220) and any code whose Account Details
+    rows carry the group label "Internal OH".
+    """
+    excluded: set[str] = set()
+
+    for row in cashflow_rows:
+        if row.code.replace(".", "").replace(" ", "").strip().zfill(4) == "7220":
+            excluded.add(row.code)
+
+    if budget is not None and budget.detail_rows:
+        internal_oh_parents: set[str] = set()
+        for detail in budget.detail_rows:
+            if detail.groups and "internal oh" in detail.groups.lower():
+                clean = detail.account.replace(".", "").replace(" ", "").strip()
+                if len(clean) >= 4 and clean[:4].isdigit():
+                    internal_oh_parents.add(clean[:4])
+                elif len(clean) >= 2 and clean[:2].isdigit():
+                    internal_oh_parents.add(clean[:2].zfill(2) + "00")
+
+        for row in cashflow_rows:
+            if row.code.replace(".", "").replace(" ", "").strip().zfill(4) in internal_oh_parents:
+                excluded.add(row.code)
+
+    return excluded
 
 
 def _get_summary_code(code: str) -> str:
@@ -225,7 +257,7 @@ def _apply_requested_cashflow_formatting(
     _apply_outside_border(ws, financing_min_row, financing_max_row, CODE_COL, TOTAL_COL)
 
 
-def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionParameters):
+def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionParameters, budget: ParsedBudget | None = None):
     """Write the main Cashflow sheet."""
     ws = wb.active
     ws.title = "Cashflow"
@@ -698,6 +730,32 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     fin_total_cell.fill = FINANCING_TOTAL_FILL
     fin_total_cell.border = THIN_BORDER
 
+    # Hard costs outflow (2 rows below TOTAL FINANCING COST)
+    # All outflows except interim financing (code 7220) and Internal OH group
+    hard_costs_row = fin_total_row + 2
+    excluded_codes = _build_excluded_codes(budget, output.rows)
+
+    hard_costs_weekly = [0.0] * num_weeks
+    hard_costs_total = 0.0
+    for row_data in output.rows:
+        if row_data.code not in excluded_codes:
+            hard_costs_total += row_data.total
+            for j, amount in enumerate(row_data.weekly_amounts):
+                hard_costs_weekly[j] += amount
+
+    ws.cell(row=hard_costs_row, column=DESC_COL, value="HARD COSTS OUTFLOW").font = Font(bold=True, size=11)
+    ws.cell(row=hard_costs_row, column=DESC_COL).border = THIN_BORDER
+    hc_total_cell = ws.cell(row=hard_costs_row, column=TOTAL_COL, value=round(hard_costs_total, 2))
+    hc_total_cell.number_format = CURRENCY_FORMAT_TOTAL
+    hc_total_cell.font = Font(bold=True)
+    hc_total_cell.border = THIN_BORDER
+    for i, amount in enumerate(hard_costs_weekly):
+        col = FIRST_WEEK_COL + i
+        cell = ws.cell(row=hard_costs_row, column=col, value=round(amount, 2) if amount else 0)
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font = Font(bold=True)
+        cell.border = THIN_BORDER
+
     _apply_requested_cashflow_formatting(
         ws,
         max_col=tax_credit_col,
@@ -713,6 +771,11 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         interest_rate_row=interest_rate_row,
         keep_paycycle_colors=has_payroll,
     )
+
+    # Apply fill and border to hard costs row after formatting (formatting resets fills)
+    for col in range(CODE_COL, last_week_col + 1):
+        ws.cell(row=hard_costs_row, column=col).fill = HARD_COSTS_FILL
+    _apply_outside_border(ws, hard_costs_row, hard_costs_row, CODE_COL, last_week_col)
 
     # Column widths
     ws.column_dimensions[get_column_letter(CODE_COL)].width = 10
@@ -1157,6 +1220,31 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
     c.number_format = CURRENCY_FORMAT_TOTAL
     c.font = Font(bold=True); c.fill = FINANCING_TOTAL_FILL; c.border = THIN_BORDER
 
+    # Hard costs outflow (2 rows below TOTAL FINANCING COST) — values linked from Cashflow sheet
+    detail_fin_total_row = detail_fin_legal_row + 1
+    detail_hard_costs_row = detail_fin_total_row + 2
+    sum_hard_costs_row = sum_fin_total_row + 2
+
+    ws.cell(row=sum_hard_costs_row, column=DESC_COL, value="HARD COSTS OUTFLOW").font = Font(bold=True, size=11)
+    ws.cell(row=sum_hard_costs_row, column=DESC_COL).border = THIN_BORDER
+    hc_total_cell = ws.cell(
+        row=sum_hard_costs_row, column=TOTAL_COL,
+        value=f"={DETAIL}!C{detail_hard_costs_row}",
+    )
+    hc_total_cell.number_format = CURRENCY_FORMAT_TOTAL
+    hc_total_cell.font = Font(bold=True)
+    hc_total_cell.border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        col_letter = get_column_letter(col)
+        cell = ws.cell(
+            row=sum_hard_costs_row, column=col,
+            value=f"={DETAIL}!{col_letter}{detail_hard_costs_row}",
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font = Font(bold=True)
+        cell.border = THIN_BORDER
+
     _apply_requested_cashflow_formatting(
         ws,
         max_col=tax_credit_col,
@@ -1172,6 +1260,11 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         interest_rate_row=sum_interest_rate_row,
         keep_paycycle_colors=has_payroll,
     )
+
+    # Apply fill and border to hard costs row after formatting (formatting resets fills)
+    for col in range(CODE_COL, last_week_col + 1):
+        ws.cell(row=sum_hard_costs_row, column=col).fill = HARD_COSTS_FILL
+    _apply_outside_border(ws, sum_hard_costs_row, sum_hard_costs_row, CODE_COL, last_week_col)
 
     # ── Column widths and freeze panes ───────────────────────────────────────
     ws.column_dimensions[get_column_letter(CODE_COL)].width  = 10
@@ -1836,14 +1929,14 @@ def _write_monthly_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
     ws.freeze_panes = ws.cell(row=DATA_START_ROW, column=FIRST_WEEK_COL)
 
 
-def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters) -> BytesIO:
+def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters, budget: ParsedBudget | None = None) -> BytesIO:
     """Generate a complete cashflow Excel workbook.
 
     Returns a BytesIO buffer containing the .xlsx file.
     """
     wb = Workbook()
 
-    _write_main_sheet(wb, output, params)
+    _write_main_sheet(wb, output, params, budget=budget)
     _write_summary_cf_sheet(wb, output, params)
     _write_monthly_cf_sheet(wb, output, params)
     _write_vertical_cf_sheet(wb, output)

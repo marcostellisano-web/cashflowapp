@@ -33,7 +33,7 @@ async def generate_cashflow_excel(request: GenerateRequest):
         parameters=request.parameters,
         distributions=request.distributions,
     )
-    buffer = write_cashflow_excel(output, request.parameters)
+    buffer = write_cashflow_excel(output, request.parameters, budget=request.budget)
     filename = f"{request.parameters.title.replace(' ', '_')}_cashflow.xlsx"
 
     return Response(
