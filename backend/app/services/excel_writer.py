@@ -143,8 +143,20 @@ def _get_outflow_component_codes(
 
     if budget is not None and budget.detail_rows:
         internal_oh_parents: set[str] = set()
-        for detail in budget.detail_rows:
-            if detail.groups and "internal oh" in detail.groups.lower():
+        detail_rows = budget.detail_rows
+        for i, detail in enumerate(detail_rows):
+            # Primary: the row itself is tagged "Internal OH"
+            is_internal_oh = bool(detail.groups and "internal oh" in detail.groups.lower())
+            # Secondary: "Total Fringes" row immediately following an Internal OH row
+            # (mirrors the formula: IF(AND(H="Total Fringes", SEARCH("Internal OH", D_prev))))
+            is_trailing_fringes = (
+                i > 0
+                and detail.description
+                and detail.description.strip().lower() == "total fringes"
+                and bool(detail_rows[i - 1].groups)
+                and "internal oh" in detail_rows[i - 1].groups.lower()
+            )
+            if is_internal_oh or is_trailing_fringes:
                 clean = detail.account.replace(".", "").replace(" ", "").strip()
                 if len(clean) >= 4 and clean[:4].isdigit():
                     internal_oh_parents.add(clean[:4])
