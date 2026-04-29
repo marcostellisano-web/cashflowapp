@@ -8,6 +8,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side, numbers
 from openpyxl.utils import get_column_letter
 
+from app.models.budget import ParsedBudget
 from app.models.cashflow import CashflowOutput
 from app.models.production import ProductionParameters
 
@@ -45,6 +46,8 @@ CASH_POS_FILL = PatternFill(start_color="D9D2EA", end_color="D9D2EA", fill_type=
 INTEREST_FILL = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")       # Light salmon/red
 FINANCING_FILL = PatternFill(start_color="FDE9D9", end_color="FDE9D9", fill_type="solid")      # Soft peach
 FINANCING_TOTAL_FILL = PatternFill(start_color="F4B183", end_color="F4B183", fill_type="solid") # Warm orange
+
+HARD_COSTS_FILL = PatternFill(start_color="C6D9F0", end_color="C6D9F0", fill_type="solid")  # Medium blue
 
 DATA_START_ROW = 6
 CODE_COL = 1
@@ -121,6 +124,61 @@ SUMMARY_ACCOUNTS: list[tuple[str, str]] = [
     ("8100", "COMPLETION GUARANTEE"),
     ("8200", "COST OF ISSUE"),
 ]
+
+
+def _get_outflow_component_codes(
+    budget: ParsedBudget | None, cashflow_rows: list
+) -> tuple[set[str], dict[str, float]]:
+    """Return (financing_codes, internal_oh_amounts) for the outflow component rows.
+
+    financing_codes    — rows whose account code normalizes to 7220 (interim financing)
+    internal_oh_amounts — maps cashflow row code → the Internal OH subtotal amount from
+                          Account Details.  When a code has mixed rows (only some are OH),
+                          this is less than the full cashflow total; applying the ratio
+                          fraction * weekly_amounts gives accurate per-week OH spending.
+    """
+    financing_codes: set[str] = set()
+
+    for row in cashflow_rows:
+        if row.code.replace(".", "").replace(" ", "").strip().zfill(4) == "7220":
+            financing_codes.add(row.code)
+
+    internal_oh_amounts: dict[str, float] = {}
+
+    if budget is not None and budget.detail_rows:
+        # Accumulate OH subtotals per 4-digit parent code from Account Details rows
+        oh_by_parent: dict[str, float] = {}
+        detail_rows = budget.detail_rows
+        for i, detail in enumerate(detail_rows):
+            # Primary: the row itself is tagged "Internal OH"
+            is_internal_oh = bool(detail.groups and "internal oh" in detail.groups.lower())
+            # Secondary: "Total Fringes" row immediately following an Internal OH row
+            # (mirrors the formula: IF(AND(H="Total Fringes", SEARCH("Internal OH", D_prev))))
+            is_trailing_fringes = (
+                i > 0
+                and detail.description
+                and detail.description.strip().lower() == "total fringes"
+                and bool(detail_rows[i - 1].groups)
+                and "internal oh" in detail_rows[i - 1].groups.lower()
+            )
+            if is_internal_oh or is_trailing_fringes:
+                clean = detail.account.replace(".", "").replace(" ", "").strip()
+                if len(clean) >= 4 and clean[:4].isdigit():
+                    parent = clean[:4]
+                elif len(clean) >= 2 and clean[:2].isdigit():
+                    parent = clean[:2].zfill(2) + "00"
+                else:
+                    continue
+                oh_by_parent[parent] = oh_by_parent.get(parent, 0.0) + detail.subtotal
+
+        # Map accumulated OH subtotals to cashflow row codes
+        for row in cashflow_rows:
+            normalized = row.code.replace(".", "").replace(" ", "").strip().zfill(4)
+            oh_amount = oh_by_parent.get(normalized)
+            if oh_amount is not None and oh_amount > 0:
+                internal_oh_amounts[row.code] = oh_amount
+
+    return financing_codes, internal_oh_amounts
 
 
 def _get_summary_code(code: str) -> str:
@@ -225,7 +283,7 @@ def _apply_requested_cashflow_formatting(
     _apply_outside_border(ws, financing_min_row, financing_max_row, CODE_COL, TOTAL_COL)
 
 
-def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionParameters):
+def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionParameters, budget: ParsedBudget | None = None):
     """Write the main Cashflow sheet."""
     ws = wb.active
     ws.title = "Cashflow"
@@ -698,6 +756,80 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
     fin_total_cell.fill = FINANCING_TOTAL_FILL
     fin_total_cell.border = THIN_BORDER
 
+    # Outflow components + hard costs (starting 2 rows below TOTAL FINANCING COST)
+    internals_outflow_row = fin_total_row + 2
+    financing_outflow_row = fin_total_row + 3
+    hard_costs_row        = fin_total_row + 4
+
+    financing_codes, internal_oh_amounts = _get_outflow_component_codes(budget, output.rows)
+
+    internals_weekly = [0.0] * num_weeks
+    internals_total  = 0.0
+    fin_out_weekly   = [0.0] * num_weeks
+    fin_out_total    = 0.0
+    for row_data in output.rows:
+        oh_amount = internal_oh_amounts.get(row_data.code)
+        if oh_amount is not None and oh_amount > 0:
+            # For mixed codes (only a portion is Internal OH), scale weekly amounts
+            # by the fraction of the cashflow total that is OH-tagged.
+            fraction = min(1.0, oh_amount / row_data.total) if row_data.total > 0 else 1.0
+            internals_total += oh_amount
+            for j, amount in enumerate(row_data.weekly_amounts):
+                internals_weekly[j] += amount * fraction
+        if row_data.code in financing_codes:
+            fin_out_total += row_data.total
+            for j, amount in enumerate(row_data.weekly_amounts):
+                fin_out_weekly[j] += amount
+
+    # INTERNALS OUTFLOW row
+    ws.cell(row=internals_outflow_row, column=DESC_COL, value="INTERNALS OUTFLOW").font = Font(bold=True, size=11)
+    ws.cell(row=internals_outflow_row, column=DESC_COL).border = THIN_BORDER
+    int_total_cell = ws.cell(row=internals_outflow_row, column=TOTAL_COL, value=round(internals_total, 2))
+    int_total_cell.number_format = CURRENCY_FORMAT_TOTAL
+    int_total_cell.font = Font(bold=True)
+    int_total_cell.border = THIN_BORDER
+    for i, amount in enumerate(internals_weekly):
+        col = FIRST_WEEK_COL + i
+        cell = ws.cell(row=internals_outflow_row, column=col, value=round(amount, 2) if amount else 0)
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font = Font(bold=True)
+        cell.border = THIN_BORDER
+
+    # FINANCING OUTFLOW row
+    ws.cell(row=financing_outflow_row, column=DESC_COL, value="FINANCING OUTFLOW").font = Font(bold=True, size=11)
+    ws.cell(row=financing_outflow_row, column=DESC_COL).border = THIN_BORDER
+    fin_out_total_cell = ws.cell(row=financing_outflow_row, column=TOTAL_COL, value=round(fin_out_total, 2))
+    fin_out_total_cell.number_format = CURRENCY_FORMAT_TOTAL
+    fin_out_total_cell.font = Font(bold=True)
+    fin_out_total_cell.border = THIN_BORDER
+    for i, amount in enumerate(fin_out_weekly):
+        col = FIRST_WEEK_COL + i
+        cell = ws.cell(row=financing_outflow_row, column=col, value=round(amount, 2) if amount else 0)
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font = Font(bold=True)
+        cell.border = THIN_BORDER
+
+    # HARD COSTS OUTFLOW row — formula: WEEKLY TOTAL minus internals and financing
+    ws.cell(row=hard_costs_row, column=DESC_COL, value="HARD COSTS OUTFLOW").font = Font(bold=True, size=11)
+    ws.cell(row=hard_costs_row, column=DESC_COL).border = THIN_BORDER
+    hc_total_cell = ws.cell(
+        row=hard_costs_row, column=TOTAL_COL,
+        value=f"=C{totals_row}-C{internals_outflow_row}-C{financing_outflow_row}",
+    )
+    hc_total_cell.number_format = CURRENCY_FORMAT_TOTAL
+    hc_total_cell.font = Font(bold=True)
+    hc_total_cell.border = THIN_BORDER
+    for i in range(num_weeks):
+        col = FIRST_WEEK_COL + i
+        col_letter = get_column_letter(col)
+        cell = ws.cell(
+            row=hard_costs_row, column=col,
+            value=f"={col_letter}{totals_row}-{col_letter}{internals_outflow_row}-{col_letter}{financing_outflow_row}",
+        )
+        cell.number_format = CURRENCY_FORMAT_TOTAL
+        cell.font = Font(bold=True)
+        cell.border = THIN_BORDER
+
     _apply_requested_cashflow_formatting(
         ws,
         max_col=tax_credit_col,
@@ -713,6 +845,15 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
         interest_rate_row=interest_rate_row,
         keep_paycycle_colors=has_payroll,
     )
+
+    # Apply fills and borders after formatting (formatting resets all fills)
+    for component_row in (internals_outflow_row, financing_outflow_row):
+        for col in range(CODE_COL, last_week_col + 1):
+            ws.cell(row=component_row, column=col).fill = SUBTLE_TOTAL_FILL
+        _apply_outside_border(ws, component_row, component_row, CODE_COL, last_week_col)
+    for col in range(CODE_COL, last_week_col + 1):
+        ws.cell(row=hard_costs_row, column=col).fill = HARD_COSTS_FILL
+    _apply_outside_border(ws, hard_costs_row, hard_costs_row, CODE_COL, last_week_col)
 
     # Column widths
     ws.column_dimensions[get_column_letter(CODE_COL)].width = 10
@@ -1157,6 +1298,34 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
     c.number_format = CURRENCY_FORMAT_TOTAL
     c.font = Font(bold=True); c.fill = FINANCING_TOTAL_FILL; c.border = THIN_BORDER
 
+    # Outflow components + hard costs — row offsets mirror the main Cashflow sheet
+    detail_fin_total_row         = detail_fin_legal_row + 1
+    detail_internals_outflow_row = detail_fin_total_row + 2
+    detail_financing_outflow_row = detail_fin_total_row + 3
+    detail_hard_costs_row        = detail_fin_total_row + 4
+    sum_internals_outflow_row    = sum_fin_total_row + 2
+    sum_financing_outflow_row    = sum_fin_total_row + 3
+    sum_hard_costs_row           = sum_fin_total_row + 4
+
+    def _link_row(label: str, sum_row: int, detail_row: int, bold_size: int = 11) -> None:
+        ws.cell(row=sum_row, column=DESC_COL, value=label).font = Font(bold=True, size=bold_size)
+        ws.cell(row=sum_row, column=DESC_COL).border = THIN_BORDER
+        tc = ws.cell(row=sum_row, column=TOTAL_COL, value=f"={DETAIL}!C{detail_row}")
+        tc.number_format = CURRENCY_FORMAT_TOTAL
+        tc.font = Font(bold=True)
+        tc.border = THIN_BORDER
+        for i in range(num_weeks):
+            col = FIRST_WEEK_COL + i
+            col_letter = get_column_letter(col)
+            c = ws.cell(row=sum_row, column=col, value=f"={DETAIL}!{col_letter}{detail_row}")
+            c.number_format = CURRENCY_FORMAT_TOTAL
+            c.font = Font(bold=True)
+            c.border = THIN_BORDER
+
+    _link_row("INTERNALS OUTFLOW", sum_internals_outflow_row, detail_internals_outflow_row)
+    _link_row("FINANCING OUTFLOW", sum_financing_outflow_row, detail_financing_outflow_row)
+    _link_row("HARD COSTS OUTFLOW", sum_hard_costs_row, detail_hard_costs_row)
+
     _apply_requested_cashflow_formatting(
         ws,
         max_col=tax_credit_col,
@@ -1172,6 +1341,15 @@ def _write_summary_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         interest_rate_row=sum_interest_rate_row,
         keep_paycycle_colors=has_payroll,
     )
+
+    # Apply fills and borders after formatting (formatting resets all fills)
+    for component_row in (sum_internals_outflow_row, sum_financing_outflow_row):
+        for col in range(CODE_COL, last_week_col + 1):
+            ws.cell(row=component_row, column=col).fill = SUBTLE_TOTAL_FILL
+        _apply_outside_border(ws, component_row, component_row, CODE_COL, last_week_col)
+    for col in range(CODE_COL, last_week_col + 1):
+        ws.cell(row=sum_hard_costs_row, column=col).fill = HARD_COSTS_FILL
+    _apply_outside_border(ws, sum_hard_costs_row, sum_hard_costs_row, CODE_COL, last_week_col)
 
     # ── Column widths and freeze panes ───────────────────────────────────────
     ws.column_dimensions[get_column_letter(CODE_COL)].width  = 10
@@ -1836,14 +2014,14 @@ def _write_monthly_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
     ws.freeze_panes = ws.cell(row=DATA_START_ROW, column=FIRST_WEEK_COL)
 
 
-def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters) -> BytesIO:
+def write_cashflow_excel(output: CashflowOutput, params: ProductionParameters, budget: ParsedBudget | None = None) -> BytesIO:
     """Generate a complete cashflow Excel workbook.
 
     Returns a BytesIO buffer containing the .xlsx file.
     """
     wb = Workbook()
 
-    _write_main_sheet(wb, output, params)
+    _write_main_sheet(wb, output, params, budget=budget)
     _write_summary_cf_sheet(wb, output, params)
     _write_monthly_cf_sheet(wb, output, params)
     _write_vertical_cf_sheet(wb, output)

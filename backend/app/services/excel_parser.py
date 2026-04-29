@@ -287,6 +287,7 @@ def _parse_account_details_tab(wb: openpyxl.Workbook) -> list[BudgetDetailRow]:
 
     header_row, col_map = detected
     rows: list[BudgetDetailRow] = []
+    last_account = ""
     for row_idx in range(header_row + 1, (ws.max_row or 0) + 1):
         account_val = ws.cell(row=row_idx, column=col_map["account"]).value
         desc_val = ws.cell(row=row_idx, column=col_map["description"]).value
@@ -299,7 +300,17 @@ def _parse_account_details_tab(wb: openpyxl.Workbook) -> list[BudgetDetailRow]:
         desc = str(desc_val or "").strip()
         subtotal = _parse_amount(subtotal_val) or 0.0
 
-        if not account or subtotal <= 0:
+        if account:
+            last_account = account
+
+        if not account:
+            # "Total Fringes" aggregate rows in Movie Magic often have no account
+            # number. Inherit the parent account so they can be matched later.
+            if subtotal > 0 and desc.strip().lower() == "total fringes" and last_account:
+                account = last_account
+            else:
+                continue
+        elif subtotal <= 0:
             continue
 
         def _txt(col_name: str) -> str | None:
