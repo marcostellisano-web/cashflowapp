@@ -1999,7 +1999,9 @@ def _write_monthly_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
     def _link_monthly_row(label: str, sum_row: int, detail_row: int, bold_size: int = 11) -> None:
         ws.cell(row=sum_row, column=DESC_COL, value=label).font = Font(bold=True, size=bold_size)
         ws.cell(row=sum_row, column=DESC_COL).border = THIN_BORDER
-        tc = ws.cell(row=sum_row, column=TOTAL_COL, value=f"=Cashflow!C{detail_row}")
+        last_month_letter = get_column_letter(last_month_col)
+        first_month_letter = get_column_letter(FIRST_WEEK_COL)
+        tc = ws.cell(row=sum_row, column=TOTAL_COL, value=f"=SUM({first_month_letter}{sum_row}:{last_month_letter}{sum_row})")
         tc.number_format = CURRENCY_FORMAT_TOTAL
         tc.font = Font(bold=True)
         tc.border = THIN_BORDER
