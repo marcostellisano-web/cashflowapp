@@ -1987,6 +1987,38 @@ def _write_monthly_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
     )
     c.number_format = CURRENCY_FORMAT_TOTAL; c.font = Font(bold=True); c.fill = FINANCING_TOTAL_FILL; c.border = THIN_BORDER
 
+    # Outflow components + hard costs (linked from the Cashflow sheet)
+    detail_fin_total_row         = sc_fin_legal_row + 1
+    detail_internals_outflow_row = detail_fin_total_row + 2
+    detail_financing_outflow_row = detail_fin_total_row + 3
+    detail_hard_costs_row        = detail_fin_total_row + 4
+    sum_internals_outflow_row    = sum_fin_total_row + 2
+    sum_financing_outflow_row    = sum_fin_total_row + 3
+    sum_hard_costs_row           = sum_fin_total_row + 4
+
+    def _link_monthly_row(label: str, sum_row: int, detail_row: int, bold_size: int = 11) -> None:
+        ws.cell(row=sum_row, column=DESC_COL, value=label).font = Font(bold=True, size=bold_size)
+        ws.cell(row=sum_row, column=DESC_COL).border = THIN_BORDER
+        tc = ws.cell(row=sum_row, column=TOTAL_COL, value=f"=Cashflow!C{detail_row}")
+        tc.number_format = CURRENCY_FORMAT_TOTAL
+        tc.font = Font(bold=True)
+        tc.border = THIN_BORDER
+        for m_idx, (year, month) in enumerate(month_order):
+            col = FIRST_WEEK_COL + m_idx
+            c = ws.cell(row=sum_row, column=col, value=sc_sum(year, month, detail_row))
+            c.number_format = CURRENCY_FORMAT_TOTAL
+            c.font = Font(bold=True)
+            c.border = THIN_BORDER
+        for extra_col, sc_letter in ((pre_tc_col, sc_pre_tc_letter), (tax_credit_col, sc_tc_letter)):
+            ec = ws.cell(row=sum_row, column=extra_col, value=f"={SUMMARY}!{sc_letter}{detail_row}")
+            ec.number_format = CURRENCY_FORMAT_TOTAL
+            ec.font = Font(bold=True)
+            ec.border = THIN_BORDER
+
+    _link_monthly_row("INTERNALS OUTFLOW", sum_internals_outflow_row, detail_internals_outflow_row)
+    _link_monthly_row("FINANCING OUTFLOW", sum_financing_outflow_row, detail_financing_outflow_row)
+    _link_monthly_row("HARD COSTS OUTFLOW", sum_hard_costs_row, detail_hard_costs_row)
+
     _apply_requested_cashflow_formatting(
         ws,
         max_col=tax_credit_col,
@@ -2002,6 +2034,15 @@ def _write_monthly_cf_sheet(wb: Workbook, output: CashflowOutput, params: Produc
         interest_rate_row=sum_interest_rate_row,
         keep_paycycle_colors=False,
     )
+
+    # Apply fills and borders after formatting (formatting resets all fills)
+    for component_row in (sum_internals_outflow_row, sum_financing_outflow_row):
+        for col in range(CODE_COL, tax_credit_col + 1):
+            ws.cell(row=component_row, column=col).fill = SUBTLE_TOTAL_FILL
+        _apply_outside_border(ws, component_row, component_row, CODE_COL, tax_credit_col)
+    for col in range(CODE_COL, tax_credit_col + 1):
+        ws.cell(row=sum_hard_costs_row, column=col).fill = HARD_COSTS_FILL
+    _apply_outside_border(ws, sum_hard_costs_row, sum_hard_costs_row, CODE_COL, tax_credit_col)
 
     # ── Column widths and freeze panes ────────────────────────────────────────
     ws.column_dimensions[get_column_letter(CODE_COL)].width  = 10
