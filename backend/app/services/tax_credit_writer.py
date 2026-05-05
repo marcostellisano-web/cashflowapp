@@ -2803,13 +2803,13 @@ def _write_breakdown_sheet(ws, title: str) -> None:
 
     # ── Rows 24–26: OPCS ──────────────────────────────────────────────────────
     _label(R_FINANC, "Interim Financing")
-    _amount(R_FINANC, _sumif_acct("7220"))
+    _amount(R_FINANC, _sumif_acct("7220"), pct_formula=f"=C{R_FINANC}/C{R_TOTAL}")
 
     _label(R_LEGAL, "Legal Fees")
-    _amount(R_LEGAL, _sumif_acct("7110"))
+    _amount(R_LEGAL, _sumif_acct("7110"), pct_formula=f"=C{R_LEGAL}/C{R_TOTAL}")
 
     _label(R_INSUR, "Insurance")
-    _amount(R_INSUR, _sumif_acct("7101"))
+    _amount(R_INSUR, _sumif_acct("7101"), pct_formula=f"=C{R_INSUR}/C{R_TOTAL}")
 
     # ── Row 27: blank ─────────────────────────────────────────────────────────
     _blank(27)
