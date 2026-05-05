@@ -2618,363 +2618,217 @@ def write_bible_excel(entries: list[dict]) -> BytesIO:
     return buffer
 
 
-# Additional cross-references to Breakout Budget row 2 used by the Breakdown sheet
-_BB_FOR_SPEND = "='Breakout Budget'!S2"   # col S  (19) Foreign Spend
-_BB_CAN_SPEND = "='Breakout Budget'!T2"   # col T  (20) Canadian Spend
-_BB_NON_PROV  = "='Breakout Budget'!Z2"   # col Z  (26) Non-Provincial Spend
-_BB_INTERNALS = "='Breakout Budget'!AH2"  # col AH (34) Internals
-
-
 def _write_breakdown_sheet(ws, title: str) -> None:
-    """Breakdown overview sheet – key budget metrics tied back to Breakout Budget."""
+    """Breakdown overview sheet – clean summary linked to Breakout Budget and Topsheet."""
     ws.title = "Breakdown"
 
-    # Section fill colours
-    _GREEN_FILL  = PatternFill(start_color="D9EAD3", end_color="D9EAD3", fill_type="solid")
-    _PINK_FILL   = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
-    _BLUE_FILL   = PatternFill(start_color="DEEAF1", end_color="DEEAF1", fill_type="solid")
-
     # ── Column widths ─────────────────────────────────────────────────────────
-    col_widths = {
-        "A": 15, "B": 40, "C": 14, "D": 12,
-        "E": 3,
-        "F": 32, "G": 14, "H": 8, "I": 14, "J": 14,
-    }
-    for letter, width in col_widths.items():
-        ws.column_dimensions[letter].width = width
+    ws.column_dimensions["A"].width = 3    # indent
+    ws.column_dimensions["B"].width = 28   # labels
+    ws.column_dimensions["C"].width = 16   # primary amounts
+    ws.column_dimensions["D"].width = 12   # % formulas
 
     ROW_H   = 16
-    FMT_CAD = CURRENCY_FORMAT      # '#,##0'
+    FMT_CAD = CURRENCY_FORMAT   # '#,##0'
     FMT_PCT = '0.00%'
-    FMT_ACC = '_(* #,##0_);_(* (#,##0);_(* "-"_);_(@_)'
 
-    # ── Low-level cell writer ─────────────────────────────────────────────────
-    def _c(row, col, value=None, font=None, fill=None, align=None, fmt=None, border=None):
+    # ── Helpers ───────────────────────────────────────────────────────────────
+    def _c(row, col, value=None, font=None, fill=None, align=None, fmt=None):
         ws.row_dimensions[row].height = ROW_H
         c = ws.cell(row=row, column=col, value=value)
-        c.font      = font   or _NORMAL
-        c.border    = border or _NO_BORDER
-        c.alignment = align  or _LEFT
+        c.font      = font  or _NORMAL
+        c.border    = _NO_BORDER
+        c.alignment = align or _LEFT
         if fill is not None: c.fill = fill
         if fmt  is not None: c.number_format = fmt
         return c
 
-    def _input(row, col, value=None, fmt=None, align=None):
-        """Yellow-fill user-editable cell."""
-        return _c(row, col, value, fill=_INPUT_FILL, fmt=fmt, align=align or _RIGHT)
+    def _label(row, text, bold=False):
+        _c(row, 2, text, font=_BOLD if bold else _NORMAL)
 
-    def _section_hdr(row, label, fill):
-        """Section header row spanning cols A–D (fill only, no cell merge)."""
+    def _amount(row, formula_or_value, pct_formula=None):
+        _c(row, 3, formula_or_value, align=_RIGHT, fmt=FMT_CAD)
+        if pct_formula is not None:
+            _c(row, 4, pct_formula, align=_RIGHT, fmt=FMT_PCT)
+
+    def _blank(row):
         ws.row_dimensions[row].height = ROW_H
-        c = ws.cell(row=row, column=1, value=label)
-        c.font      = _BOLD
-        c.fill      = fill
-        c.border    = _NO_BORDER
-        c.alignment = _LEFT
-        for col in range(2, 5):
-            cell = ws.cell(row=row, column=col)
-            cell.fill   = fill
-            cell.border = _NO_BORDER
 
-    def _sumif(code: str) -> str:
+    def _sumif_acct(code: str) -> str:
+        """SUMIF on Breakout Budget account column (col A) → Grand Total (col Q)."""
         return (
             f"=SUMIF('Breakout Budget'!$A:$A,\"{code}*\","
             f"'Breakout Budget'!$Q:$Q)"
         )
 
-    # ── Row number constants ──────────────────────────────────────────────────
-    R_TITLE   = 2
-    R_HDR     = 3
-    R_META    = 4   # budget version | eps | USD/CAD | base currency | location | CANCON
-    R_DRAFT   = 5   # CURRENT DRAFT  /  right-table column headers
-    R_TOTB    = 6   # TOTAL BUDGET   /  right: CAD row
-    R_PEREP   = 7   # PER EP         /  right: USD row
+    def _sumif_desc(text: str) -> str:
+        """SUMIF on Breakout Budget description column (col C) → Grand Total (col Q)."""
+        return (
+            f"=SUMIF('Breakout Budget'!$C:$C,\"*{text}*\","
+            f"'Breakout Budget'!$Q:$Q)"
+        )
+
+    # ── Row constants ─────────────────────────────────────────────────────────
+    R_HDR      = 1   # "Project Title" header
+    R_EPS      = 2   # Episodes      (user links)
+    R_VER      = 3   # Budget Version (user links)
+    R_FX       = 4   # FX             (user links)
+    # 5: blank
+    R_TOTAL    = 6   # Total Budget
+    R_PER_EP   = 7   # Per Ep
     # 8: blank
-    R_BC      = 9   # B+C            /  right: TOTAL
-    R_PEREP_R = 10  # blank left     /  right: PER EP
-    R_USD_SP  = 11  # USD SPEND
-    R_NON_ONT = 12  # NON-ONTARIO SPEND  /  right-table-2: title header
-    R_OFC_FOR = 13  # OUT OF CAN FOREIGN /  right-table-2: TOTAL BUDGET
-    R_PEREPR2 = 14  # blank              /  right-table-2: PER EP
-    R_TC_EST  = 15  # blank              /  right-table-2: TAX CREDIT EST.
-    R_INT_HDR = 16  # Internals hdr      /  right-table-2: 12.2% row
-    R_CIN_INT = 17  # Cineflix Internals /  right-table-2: INTERNALS
-    R_AZ_INT  = 18  # Alex & Zack        /  right-table-2: 24.1% sub-row
-    R_TOT_INT = 19  # Total Internals
-    # 20: blank
-    R_FEES_H  = 21  # Fees section header  /  right: Production Partner header
-    R_EP_FEE  = 22  # 0401 EP - Cineflix
-    R_PR_FEE  = 23  # 0405 Producer - Cineflix
-    R_TOT_FEE = 24  # Total EP Fees
-    # 25: blank
-    R_PROD_FE = 26  # 7201 Production Fee
-    R_PP_TOT  = 27  # blank left  /  right: Production Partner Total
-    R_TOT_OVH = 28  # Total Overhead
-    # 29: blank
-    R_OPCS_H  = 30  # OPCS header
-    R_FINANC  = 31  # 7220 Financing
-    R_LEGAL   = 32  # 7110 Legal Fees
-    R_INSUR   = 33  # 7101 Insurance
-    R_TRAVEL  = 34  # 3395 Travel
-    R_AUDIT   = 35  # 7125 Audit
-    R_PROMO   = 36  # 7040 Promotion
-    R_BANK    = 37  # 7130 Bank Fees
-    # 38: blank
-    R_TCF_H   = 39  # Tax Credit Filing header
-    R_ONT_CR  = 40  # Ontario Creates
-    R_CAVCO   = 41  # CAVCO
-    R_SODEC   = 42  # SODEC
+    R_NON_PROV = 9   # Non-Provincial Spend
+    R_FOR_SP   = 10  # Foreign Spend
+    R_BC       = 11  # B+C
+    # 12: blank
+    R_CAD_SP   = 13  # CAD Spend
+    R_USD_SP   = 14  # USD Spend
+    # 15: blank
+    R_INT      = 16  # Internals
+    R_TC_EST   = 17  # Tax Credit Est. (user links)
+    # 18: blank
+    R_EP_FEE   = 19  # EP Fee    (0401)
+    R_PR_FEE   = 20  # Producer Fee (0405)
+    R_OVERHEAD = 21  # Overhead  (7201)
+    R_PROD_FEE = 22  # Production Fee (8001)
+    # 23: blank
+    R_FINANC   = 24  # Interim Financing (7220)
+    R_LEGAL    = 25  # Legal Fees        (7110)
+    R_INSUR    = 26  # Insurance         (7101)
+    # 27: blank
+    R_ONT_CR   = 28  # Ontario Creates
+    R_CAVCO    = 29  # CAVCO
 
-    # ── Row 1: spacer ─────────────────────────────────────────────────────────
-    ws.row_dimensions[1].height = 6
-
-    # ── Row 2: show title / format ────────────────────────────────────────────
-    ws.row_dimensions[R_TITLE].height = 20
-    _c(R_TITLE, 2, title, font=_TITLE_FONT, fill=_TITLE_GREEN_FILL)
-    _input(R_TITLE, 4, None, align=_CENTER)   # user enters format e.g. "30x60"
-    for col in (1, 3, 5, 6, 7, 8, 9, 10):
-        _c(R_TITLE, col, fill=_TITLE_GREEN_FILL)
-
-    # ── Row 3: column-header labels ───────────────────────────────────────────
-    for label, col in [
-        ("Budget Version", 2), ("Eps", 3), ("USD/CAD", 4),
-        ("Base Currency", 6), ("Location", 7), ("CANCON", 8),
-    ]:
-        _c(R_HDR, col, label, font=_BOLD)
-
-    # ── Row 4: user-editable inputs ───────────────────────────────────────────
-    _input(R_META, 2, None, fmt="0")       # budget version
-    _input(R_META, 3, None, fmt="0")       # eps  ← used as divisor below
-    _input(R_META, 4, None, fmt="0.00")    # USD/CAD exchange rate
-    _input(R_META, 6, None)                # base currency (text)
-    _input(R_META, 7, None)                # location (text)
-    _input(R_META, 8, None)                # CANCON (text)
-
-    # Convenience aliases for formula composition
-    EPS  = f"C{R_META}"    # number of episodes
-    RATE = f"D{R_META}"    # USD/CAD rate
-
-    # ── Row 5: CURRENT DRAFT banner / right-table column headers ─────────────
+    # ── Row 1: "Project Title" header ─────────────────────────────────────────
+    ws.row_dimensions[R_HDR].height = ROW_H
     for col in range(1, 5):
-        _c(R_DRAFT, col, fill=_SECTION_HEADER_FILL)
-    _c(R_DRAFT, 1, "CURRENT DRAFT", font=_BOLD_ITALIC, fill=_SECTION_HEADER_FILL)
-    for label, col in [("PAR", 7), ("fx", 8), ("CAD", 9), ("USD", 10)]:
-        _c(R_DRAFT, col, label, font=_BOLD, align=_RIGHT)
+        ws.cell(row=R_HDR, column=col).fill   = _SECTION_HEADER_FILL
+        ws.cell(row=R_HDR, column=col).border = _NO_BORDER
+    _c(R_HDR, 1, title, font=_BOLD, fill=_SECTION_HEADER_FILL)
 
-    # ── Row 6: TOTAL BUDGET / right-table CAD row ────────────────────────────
-    _c(R_TOTB, 2, "TOTAL BUDGET", font=_BOLD)
-    _c(R_TOTB, 3, _BB_GRAND_TOTAL, font=_BOLD, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_TOTB, 6, "CAD", font=_BOLD)
-    _c(R_TOTB, 7, _BB_CAN_SPEND, align=_RIGHT, fmt=FMT_CAD)
-    # H6: blank (no fx for CAD row)
-    _c(R_TOTB, 9, _BB_CAN_SPEND, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_TOTB, 10, f"={_BB_CAN_SPEND[1:]}/{RATE}", align=_RIGHT, fmt=FMT_CAD)
+    # ── Rows 2–4: metadata (left blank – user links cells themselves) ─────────
+    _label(R_EPS, "Episodes")
+    _label(R_VER, "Budget Version")
+    _label(R_FX,  "FX")
 
-    # ── Row 7: PER EP / right-table USD row ──────────────────────────────────
-    _c(R_PEREP, 2, "PER EP")
-    _c(R_PEREP, 3, f"=C{R_TOTB}/{EPS}", align=_RIGHT, fmt=FMT_CAD)
-    _c(R_PEREP, 6, "USD")
-    _c(R_PEREP, 7, _BB_FOR_SPEND, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_PEREP, 8, f"={RATE}", align=_RIGHT, fmt="0.00")
-    _c(R_PEREP, 9, f"={_BB_FOR_SPEND[1:]}*{RATE}", align=_RIGHT, fmt=FMT_CAD)
-    _c(R_PEREP, 10, _BB_FOR_SPEND, align=_RIGHT, fmt=FMT_CAD)
+    # ── Row 5: blank ──────────────────────────────────────────────────────────
+    _blank(5)
 
-    # Row 8: blank
-    ws.row_dimensions[8].height = ROW_H
+    # ── Row 6: Total Budget ───────────────────────────────────────────────────
+    _label(R_TOTAL, "Total Budget", bold=True)
+    _amount(R_TOTAL, "='Breakout Budget'!Q2")
 
-    # ── Row 9: B+C (editable) / right-table TOTAL row ────────────────────────
-    _c(R_BC, 2, "B+C", font=_BOLD)
-    _input(R_BC, 3)                                           # user enters B+C
-    _c(R_BC, 4, f"=C{R_BC}/C{R_TOTB}", align=_RIGHT, fmt=FMT_PCT)  # % of total
-    _c(R_BC, 6, "TOTAL", font=_BOLD)
-    _c(R_BC, 7, f"=G{R_TOTB}+G{R_PEREP}", align=_RIGHT, fmt=FMT_CAD)
-    # H9: blank
-    _c(R_BC, 9, f"=I{R_TOTB}+I{R_PEREP}", font=_BOLD, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_BC, 10, f"=J{R_TOTB}+J{R_PEREP}", font=_BOLD, align=_RIGHT, fmt=FMT_CAD)
+    # ── Row 7: Per Ep ─────────────────────────────────────────────────────────
+    _label(R_PER_EP, "Per Ep")
+    _amount(R_PER_EP, f"=C{R_TOTAL}/C{R_EPS}")
 
-    # ── Row 10: blank left / right-table PER EP ───────────────────────────────
-    ws.row_dimensions[R_PEREP_R].height = ROW_H
-    _c(R_PEREP_R, 6, "PER EP")
-    _c(R_PEREP_R, 7, f"=G{R_BC}/{EPS}", align=_RIGHT, fmt=FMT_CAD)
-    _c(R_PEREP_R, 9, f"=I{R_BC}/{EPS}", align=_RIGHT, fmt=FMT_CAD)
-    _c(R_PEREP_R, 10, f"=J{R_BC}/{EPS}", align=_RIGHT, fmt=FMT_CAD)
+    # ── Row 8: blank ──────────────────────────────────────────────────────────
+    _blank(8)
 
-    # ── Row 11: USD SPEND ─────────────────────────────────────────────────────
-    _c(R_USD_SP, 2, "USD SPEND")
-    _c(R_USD_SP, 3, _BB_FOR_SPEND, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_USD_SP, 4, f"=C{R_USD_SP}/C{R_TOTB}", align=_RIGHT, fmt=FMT_PCT)
+    # ── Row 9: Non-Provincial Spend ───────────────────────────────────────────
+    _label(R_NON_PROV, "Non-Provincial Spend")
+    _amount(R_NON_PROV, "='Breakout Budget'!Z2")
 
-    # ── Row 12: NON-ONTARIO SPEND / right-table-2 title ──────────────────────
-    _c(R_NON_ONT, 2, "NON-ONTARIO SPEND")
-    _c(R_NON_ONT, 3, _BB_NON_PROV, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_NON_ONT, 4, f"=C{R_NON_ONT}/C{R_TOTB}", align=_RIGHT, fmt=FMT_PCT)
-    _c(R_NON_ONT, 6, title, font=_BOLD)           # show name header
-    _c(R_NON_ONT, 10, "USD", font=_BOLD, align=_RIGHT)
+    # ── Row 10: Foreign Spend ─────────────────────────────────────────────────
+    _label(R_FOR_SP, "Foreign Spend")
+    _amount(R_FOR_SP, "='Breakout Budget'!S2")
 
-    # ── Row 13: OUT OF CAN FOREIGN / right-table-2 TOTAL BUDGET ─────────────
-    _c(R_OFC_FOR, 2, "OUT OF CAN FOREIGN")
-    _c(R_OFC_FOR, 3, _BB_FOR_SPEND, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_OFC_FOR, 4, f"=C{R_OFC_FOR}/C{R_TOTB}", align=_RIGHT, fmt=FMT_PCT)
-    _c(R_OFC_FOR, 6, "TOTAL BUDGET", font=_BOLD)
-    _c(R_OFC_FOR, 7, f"=I{R_BC}", font=_BOLD, align=_RIGHT, fmt=FMT_CAD)   # total CAD
-    _c(R_OFC_FOR, 10, f"=J{R_BC}", font=_BOLD, align=_RIGHT, fmt=FMT_CAD)  # total USD
+    # ── Row 11: B+C (from Topsheet) ───────────────────────────────────────────
+    _label(R_BC, "B+C", bold=True)
+    _amount(R_BC,
+        "=INDEX('Topsheet'!C:C,"
+        "MATCH(\"TOTAL \"\"B\"\" + \"\"C\"\"*\",'Topsheet'!B:B,0))"
+    )
 
-    # ── Row 14: blank / right-table-2 PER EP ─────────────────────────────────
-    ws.row_dimensions[R_PEREPR2].height = ROW_H
-    _c(R_PEREPR2, 6, "PER EP")
-    _c(R_PEREPR2, 7, f"=I{R_BC}/{EPS}", align=_RIGHT, fmt=FMT_CAD)
-    _c(R_PEREPR2, 10, f"=J{R_BC}/{EPS}", align=_RIGHT, fmt=FMT_CAD)
+    # ── Row 12: blank ─────────────────────────────────────────────────────────
+    _blank(12)
 
-    # ── Row 15: blank / right-table-2 TAX CREDIT EST. ───────────────────────
-    ws.row_dimensions[R_TC_EST].height = ROW_H
-    _c(R_TC_EST, 6, "TAX CREDIT EST. (90%)")
-    # Estimate: provincial labour × 35% (OFTTC rate)
-    _c(R_TC_EST, 7, f"={_BB_PROV_LABOUR[1:]}*0.35", align=_RIGHT, fmt=FMT_CAD)
-    _input(R_TC_EST, 8, 0.90, fmt=FMT_PCT, align=_RIGHT)    # editable confidence factor
-    _c(R_TC_EST, 10, f"=G{R_TC_EST}/{RATE}", align=_RIGHT, fmt=FMT_CAD)
+    # ── Row 13: CAD Spend (explicit CAD currency column in Breakout Budget) ───
+    _label(R_CAD_SP, "CAD Spend")
+    _amount(R_CAD_SP,
+        "=INDEX('Breakout Budget'!2:2,"
+        "MATCH(\"CAD Grand Total\",'Breakout Budget'!1:1,0))"
+    )
 
-    # ── Row 16: Internals header / right-table-2 12.2% row ───────────────────
-    _section_hdr(R_INT_HDR, "Internals", _GREEN_FILL)
-    _c(R_INT_HDR, 6, f"=G{R_TC_EST}/G{R_OFC_FOR}", align=_RIGHT, fmt=FMT_PCT)
-    _c(R_INT_HDR, 10, f"=J{R_TC_EST}/J{R_OFC_FOR}", align=_RIGHT, fmt=FMT_PCT)
+    # ── Row 14: USD Spend (explicit USD currency column in Breakout Budget) ───
+    _label(R_USD_SP, "USD Spend")
+    _amount(R_USD_SP,
+        "=INDEX('Breakout Budget'!2:2,"
+        "MATCH(\"USD Grand Total\",'Breakout Budget'!1:1,0))"
+    )
 
-    # ── Row 17: Cineflix Internals / right-table-2 INTERNALS ─────────────────
-    _c(R_CIN_INT, 2, "Cineflix Internals")
-    _c(R_CIN_INT, 3, _BB_INTERNALS, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_CIN_INT, 4, f"=C{R_CIN_INT}/C{R_TOTB}", align=_RIGHT, fmt=FMT_PCT)
-    _c(R_CIN_INT, 6, "INTERNALS", font=_BOLD)
-    _c(R_CIN_INT, 7, _BB_INTERNALS, font=_BOLD, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_CIN_INT, 10, f"={_BB_INTERNALS[1:]}/{RATE}", font=_BOLD, align=_RIGHT, fmt=FMT_CAD)
+    # ── Row 15: blank ─────────────────────────────────────────────────────────
+    _blank(15)
 
-    # ── Row 18: Alex & Zack / right-table-2 24.1% sub-row ───────────────────
-    _c(R_AZ_INT, 2, "Alex & Zack – 40% of Production Fee")
-    _c(R_AZ_INT, 3, f"={_sumif('7201')[1:]}*0.4", align=_RIGHT, fmt=FMT_CAD)
-    _c(R_AZ_INT, 4, f"=C{R_AZ_INT}/C{R_TOTB}", align=_RIGHT, fmt=FMT_PCT)
-    _c(R_AZ_INT, 6, f"=G{R_CIN_INT}/G{R_OFC_FOR}", align=_RIGHT, fmt=FMT_PCT)
+    # ── Row 16: Internals ─────────────────────────────────────────────────────
+    _label(R_INT, "Internals")
+    _amount(R_INT,
+        "='Breakout Budget'!AH2",
+        pct_formula=f"=C{R_INT}/C{R_TOTAL}",
+    )
 
-    # ── Row 19: Total Internals ───────────────────────────────────────────────
-    _c(R_TOT_INT, 2, "Total Internals", font=_BOLD)
-    _c(R_TOT_INT, 3, f"=C{R_CIN_INT}+C{R_AZ_INT}", font=_BOLD, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_TOT_INT, 4, f"=C{R_TOT_INT}/C{R_TOTB}", font=_BOLD, align=_RIGHT, fmt=FMT_PCT)
+    # ── Row 17: Tax Credit Est. (left blank – user links) ─────────────────────
+    _label(R_TC_EST, "Tax Credit Est.")
 
-    # Row 20: blank
-    ws.row_dimensions[20].height = ROW_H
+    # ── Row 18: blank ─────────────────────────────────────────────────────────
+    _blank(18)
 
-    # ── Row 21: Fees header / Production Partner header ───────────────────────
-    _section_hdr(R_FEES_H, "Fees", _PINK_FILL)
-    _c(R_FEES_H, 4, "% of B+C", font=_BOLD, fill=_PINK_FILL, align=_CENTER)
-    _c(R_FEES_H, 6, "Production Partner / Participation", font=_BOLD)
+    # ── Rows 19–22: Fees ──────────────────────────────────────────────────────
+    _label(R_EP_FEE, "EP Fee")
+    _amount(R_EP_FEE,
+        _sumif_acct("0401"),
+        pct_formula=f"=C{R_EP_FEE}/C{R_BC}",
+    )
 
-    # ── Row 22: 0401 EP – Cineflix ────────────────────────────────────────────
-    _c(R_EP_FEE, 1, "0401")
-    _c(R_EP_FEE, 2, "EP – Cineflix")
-    _c(R_EP_FEE, 3, _sumif("0401"), align=_RIGHT, fmt=FMT_CAD)
-    _c(R_EP_FEE, 4, f"=C{R_EP_FEE}/C{R_BC}", align=_RIGHT, fmt=FMT_PCT)
+    _label(R_PR_FEE, "Producer Fee")
+    _amount(R_PR_FEE,
+        _sumif_acct("0405"),
+        pct_formula=f"=C{R_PR_FEE}/C{R_BC}",
+    )
 
-    # ── Row 23: 0405 Producer – Cineflix ─────────────────────────────────────
-    _c(R_PR_FEE, 1, "0405")
-    _c(R_PR_FEE, 2, "Producer – Cineflix")
-    _c(R_PR_FEE, 3, _sumif("0405"), align=_RIGHT, fmt=FMT_CAD)
-    _c(R_PR_FEE, 4, f"=C{R_PR_FEE}/C{R_BC}", align=_RIGHT, fmt=FMT_PCT)
+    _label(R_OVERHEAD, "Overhead")
+    _amount(R_OVERHEAD,
+        _sumif_acct("7201"),
+        pct_formula=f"=C{R_OVERHEAD}/C{R_BC}",
+    )
 
-    # ── Row 24: Total EP Fees ─────────────────────────────────────────────────
-    _c(R_TOT_FEE, 2, "Total EP Fees", font=_BOLD)
-    _c(R_TOT_FEE, 3, f"=C{R_EP_FEE}+C{R_PR_FEE}", font=_BOLD, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_TOT_FEE, 4, f"=C{R_TOT_FEE}/C{R_BC}", font=_BOLD, align=_RIGHT, fmt=FMT_PCT)
+    _label(R_PROD_FEE, "Production Fee")
+    _amount(R_PROD_FEE,
+        _sumif_acct("8001"),
+        pct_formula=f"=C{R_PROD_FEE}/(C{R_TOTAL}-C{R_PROD_FEE})",
+    )
 
-    # Row 25: blank
-    ws.row_dimensions[25].height = ROW_H
+    # ── Row 23: blank ─────────────────────────────────────────────────────────
+    _blank(23)
 
-    # ── Row 26: 7201 Production Fee ───────────────────────────────────────────
-    _c(R_PROD_FE, 1, "7201")
-    _c(R_PROD_FE, 2, "Production Fee (net of M.Wolfe Fee)")
-    _c(R_PROD_FE, 3, _sumif("7201"), align=_RIGHT, fmt=FMT_CAD)
-    _c(R_PROD_FE, 4, f"=C{R_PROD_FE}/C{R_BC}", align=_RIGHT, fmt=FMT_PCT)
+    # ── Rows 24–26: OPCS ──────────────────────────────────────────────────────
+    _label(R_FINANC, "Interim Financing")
+    _amount(R_FINANC, _sumif_acct("7220"))
 
-    # ── Row 27: blank left / Production Partner Total (right) ────────────────
-    ws.row_dimensions[R_PP_TOT].height = ROW_H
-    _c(R_PP_TOT, 6, "Total", font=_BOLD)
-    _c(R_PP_TOT, 7, 0, font=_BOLD, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_PP_TOT, 8, f"=IF(G{R_OFC_FOR}>0,G{R_PP_TOT}/G{R_OFC_FOR},0)",
-       align=_RIGHT, fmt=FMT_PCT)
+    _label(R_LEGAL, "Legal Fees")
+    _amount(R_LEGAL, _sumif_acct("7110"))
 
-    # ── Row 28: Total Overhead ────────────────────────────────────────────────
-    _c(R_TOT_OVH, 2, "Total Overhead", font=_BOLD)
-    _c(R_TOT_OVH, 3, f"=C{R_PROD_FE}", font=_BOLD, align=_RIGHT, fmt=FMT_CAD)
-    _c(R_TOT_OVH, 4, f"=C{R_TOT_OVH}/C{R_BC}", font=_BOLD, align=_RIGHT, fmt=FMT_PCT)
+    _label(R_INSUR, "Insurance")
+    _amount(R_INSUR, _sumif_acct("7101"))
 
-    # Row 29: blank
-    ws.row_dimensions[29].height = ROW_H
+    # ── Row 27: blank ─────────────────────────────────────────────────────────
+    _blank(27)
 
-    # ── Row 30: OPCS header ───────────────────────────────────────────────────
-    _section_hdr(R_OPCS_H, "OPCS", _BLUE_FILL)
+    # ── Row 28: Ontario Creates ───────────────────────────────────────────────
+    _label(R_ONT_CR, "Ontario Creates")
+    _amount(R_ONT_CR,
+        _sumif_desc("OMDC"),
+        pct_formula=f"=MIN(5000,0.0006*C{R_TOTAL})",
+    )
 
-    # ── Row 31: 7220 Financing ────────────────────────────────────────────────
-    _c(R_FINANC, 1, "7220")
-    _c(R_FINANC, 2, "Financing – 4.5% Target")
-    _c(R_FINANC, 3, _sumif("7220"), align=_RIGHT, fmt=FMT_CAD)
-    _c(R_FINANC, 4, f"=C{R_FINANC}/C{R_TOTB}", align=_RIGHT, fmt=FMT_PCT)
+    # ── Row 29: CAVCO ─────────────────────────────────────────────────────────
+    _label(R_CAVCO, "CAVCO")
+    _amount(R_CAVCO,
+        _sumif_desc("CAVCO"),
+        pct_formula=f"=0.003*C{R_BC}",
+    )
 
-    # ── Row 32: 7110 Legal Fees ───────────────────────────────────────────────
-    _c(R_LEGAL, 1, "7110")
-    _c(R_LEGAL, 2, "Legal Fees")
-    _c(R_LEGAL, 3, _sumif("7110"), align=_RIGHT, fmt=FMT_CAD)
-    _c(R_LEGAL, 4, f"=C{R_LEGAL}/C{R_TOTB}", align=_RIGHT, fmt=FMT_PCT)
-
-    # ── Row 33: 7101 Insurance ────────────────────────────────────────────────
-    _c(R_INSUR, 1, "7101")
-    _c(R_INSUR, 2, "Insurance")
-    _c(R_INSUR, 3, _sumif("7101"), align=_RIGHT, fmt=FMT_CAD)
-    _c(R_INSUR, 4, f"=C{R_INSUR}/C{R_TOTB}", align=_RIGHT, fmt=FMT_PCT)
-
-    # ── Row 34: 3395 Travel ───────────────────────────────────────────────────
-    _c(R_TRAVEL, 1, "3395")
-    _c(R_TRAVEL, 2, "Travel")
-    _c(R_TRAVEL, 3, _sumif("3395"), align=_RIGHT, fmt=FMT_CAD)
-
-    # ── Row 35: 7125 Audit ────────────────────────────────────────────────────
-    _c(R_AUDIT, 1, "7125")
-    _c(R_AUDIT, 2, "Audit")
-    _c(R_AUDIT, 3, _sumif("7125"), align=_RIGHT, fmt=FMT_CAD)
-
-    # ── Row 36: 7040 Promotion ────────────────────────────────────────────────
-    _c(R_PROMO, 1, "7040")
-    _c(R_PROMO, 2, "Promotion")
-    _c(R_PROMO, 3, _sumif("7040"), align=_RIGHT, fmt=FMT_CAD)
-    _input(R_PROMO, 4, None, fmt=FMT_CAD, align=_RIGHT)   # target amount (editable)
-
-    # ── Row 37: 7130 Bank Fees ────────────────────────────────────────────────
-    _c(R_BANK, 1, "7130")
-    _c(R_BANK, 2, "Bank Fees")
-    _c(R_BANK, 3, _sumif("7130"), align=_RIGHT, fmt=FMT_CAD)
-
-    # Row 38: blank
-    ws.row_dimensions[38].height = ROW_H
-
-    # ── Row 39: Tax Credit Filing header ──────────────────────────────────────
-    _section_hdr(R_TCF_H, "Tax Credit Filing", _BLUE_FILL)
-    _c(R_TCF_H, 3, "Current Fee", font=_BOLD, fill=_BLUE_FILL, align=_CENTER)
-    _c(R_TCF_H, 4, "Target", font=_BOLD, fill=_BLUE_FILL, align=_CENTER)
-
-    # ── Row 40: Ontario Creates ───────────────────────────────────────────────
-    _c(R_ONT_CR, 1, "Ontario Creates")
-    _c(R_ONT_CR, 2, "Ontario Creates")
-    _input(R_ONT_CR, 3, None, fmt=FMT_CAD, align=_RIGHT)   # current fee (editable)
-    _input(R_ONT_CR, 4, None, fmt=FMT_CAD, align=_RIGHT)   # target (editable)
-
-    # ── Row 41: CAVCO ─────────────────────────────────────────────────────────
-    _c(R_CAVCO, 1, "CAVCO")
-    _c(R_CAVCO, 2, "CAVCO")
-    _input(R_CAVCO, 3, None, fmt=FMT_CAD, align=_RIGHT)    # current fee (editable)
-    # Target: formula tied to B+C (shows #VALUE! when B+C is text)
-    _c(R_CAVCO, 4, f"=C{R_BC}*0.001", align=_RIGHT, fmt=FMT_CAD)
-
-    # ── Row 42: SODEC ─────────────────────────────────────────────────────────
-    _c(R_SODEC, 2, "SODEC")
-    _input(R_SODEC, 3, None, fmt=FMT_CAD, align=_RIGHT)    # current fee (editable)
-    _input(R_SODEC, 4, None, fmt=FMT_CAD, align=_RIGHT)    # target (editable)
-
-    ws.freeze_panes = "A5"
+    ws.freeze_panes = "B2"
 
 
 def write_tax_credit_excel(
