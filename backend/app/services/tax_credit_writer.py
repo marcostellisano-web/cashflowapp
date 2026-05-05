@@ -2650,11 +2650,13 @@ def _write_breakdown_sheet(ws, title: str) -> None:
         font = _BOLD if bold else (_ITALIC if italic else _NORMAL)
         _c(row, 2, text, font=font)
 
-    def _amount(row, formula_or_value, pct_formula=None, bold=False):
+    def _amount(row, formula_or_value, pct_formula=None, bold=False,
+                pct_fmt=None):
         font = _BOLD if bold else _NORMAL
         _c(row, 3, formula_or_value, font=font, align=_RIGHT, fmt=FMT_CAD)
         if pct_formula is not None:
-            _c(row, 4, pct_formula, font=font, align=_RIGHT, fmt=FMT_PCT)
+            _c(row, 4, pct_formula, font=font, align=_RIGHT,
+               fmt=pct_fmt if pct_fmt is not None else FMT_PCT)
 
     def _blank(row):
         ws.row_dimensions[row].height = ROW_H
@@ -2738,11 +2740,13 @@ def _write_breakdown_sheet(ws, title: str) -> None:
 
     # ── Row 9: Non-Provincial Spend ───────────────────────────────────────────
     _label(R_NON_PROV, "Non-Provincial Spend")
-    _amount(R_NON_PROV, "='Breakout Budget'!Z2")
+    _amount(R_NON_PROV, "='Breakout Budget'!Z2",
+            pct_formula=f"=C{R_NON_PROV}/C{R_TOTAL}")
 
     # ── Row 10: Foreign Spend ─────────────────────────────────────────────────
     _label(R_FOR_SP, "Foreign Spend")
-    _amount(R_FOR_SP, "='Breakout Budget'!S2")
+    _amount(R_FOR_SP, "='Breakout Budget'!S2",
+            pct_formula=f"=C{R_FOR_SP}/C{R_TOTAL}")
 
     # ── Row 11: B+C (bold) ────────────────────────────────────────────────────
     _label(R_BC, "B+C", bold=True)
@@ -2828,6 +2832,7 @@ def _write_breakdown_sheet(ws, title: str) -> None:
     _amount(R_ONT_CR,
         _sumif_desc("OMDC"),
         pct_formula=f"=MIN(5000,0.0006*C{R_TOTAL})",
+        pct_fmt=FMT_CAD,
     )
 
     # ── Row 29: CAVCO ─────────────────────────────────────────────────────────
@@ -2835,6 +2840,7 @@ def _write_breakdown_sheet(ws, title: str) -> None:
     _amount(R_CAVCO,
         _sumif_desc("CAVCO"),
         pct_formula=f"=0.003*C{R_BC}",
+        pct_fmt=FMT_CAD,
     )
     _divider(R_CAVCO)
 
