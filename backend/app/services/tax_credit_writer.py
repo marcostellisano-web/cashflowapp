@@ -2623,104 +2623,115 @@ def _write_breakdown_sheet(ws, title: str) -> None:
     ws.title = "Breakdown"
 
     # ── Column widths ─────────────────────────────────────────────────────────
-    ws.column_dimensions["A"].width = 3    # indent
-    ws.column_dimensions["B"].width = 28   # labels
-    ws.column_dimensions["C"].width = 16   # primary amounts
+    ws.column_dimensions["A"].width = 3    # blank indent
+    ws.column_dimensions["B"].width = 32   # labels
+    ws.column_dimensions["C"].width = 18   # primary amounts
     ws.column_dimensions["D"].width = 12   # % formulas
 
-    ROW_H   = 16
-    FMT_CAD = CURRENCY_FORMAT   # '#,##0'
-    FMT_PCT = '0.00%'
+    ROW_H    = 16
+    FMT_CAD  = CURRENCY_FORMAT   # '#,##0'
+    FMT_PCT  = '0.00%'
+    _ITALIC  = Font(italic=True, size=10)
+    _DIV_BORDER = Border(bottom=_THIN)   # thin line used as section divider
 
     # ── Helpers ───────────────────────────────────────────────────────────────
-    def _c(row, col, value=None, font=None, fill=None, align=None, fmt=None):
+    def _c(row, col, value=None, font=None, fill=None, align=None, fmt=None,
+           border=None):
         ws.row_dimensions[row].height = ROW_H
         c = ws.cell(row=row, column=col, value=value)
-        c.font      = font  or _NORMAL
-        c.border    = _NO_BORDER
-        c.alignment = align or _LEFT
-        if fill is not None: c.fill = fill
-        if fmt  is not None: c.number_format = fmt
+        c.font      = font   or _NORMAL
+        c.border    = border or _NO_BORDER
+        c.alignment = align  or _LEFT
+        if fill   is not None: c.fill         = fill
+        if fmt    is not None: c.number_format = fmt
         return c
 
-    def _label(row, text, bold=False):
-        _c(row, 2, text, font=_BOLD if bold else _NORMAL)
+    def _label(row, text, bold=False, italic=False):
+        font = _BOLD if bold else (_ITALIC if italic else _NORMAL)
+        _c(row, 2, text, font=font)
 
-    def _amount(row, formula_or_value, pct_formula=None):
-        _c(row, 3, formula_or_value, align=_RIGHT, fmt=FMT_CAD)
+    def _amount(row, formula_or_value, pct_formula=None, bold=False):
+        font = _BOLD if bold else _NORMAL
+        _c(row, 3, formula_or_value, font=font, align=_RIGHT, fmt=FMT_CAD)
         if pct_formula is not None:
-            _c(row, 4, pct_formula, align=_RIGHT, fmt=FMT_PCT)
+            _c(row, 4, pct_formula, font=font, align=_RIGHT, fmt=FMT_PCT)
 
     def _blank(row):
         ws.row_dimensions[row].height = ROW_H
 
+    def _divider(row):
+        """Thin bottom border across label + value columns to separate sections."""
+        for col in (2, 3, 4):
+            ws.cell(row=row, column=col).border = _DIV_BORDER
+
     def _sumif_acct(code: str) -> str:
-        """SUMIF on Breakout Budget account column (col A) → Grand Total (col Q)."""
         return (
             f"=SUMIF('Breakout Budget'!$A:$A,\"{code}*\","
             f"'Breakout Budget'!$Q:$Q)"
         )
 
     def _sumif_desc(text: str) -> str:
-        """SUMIF on Breakout Budget description column (col C) → Grand Total (col Q)."""
         return (
             f"=SUMIF('Breakout Budget'!$C:$C,\"*{text}*\","
             f"'Breakout Budget'!$Q:$Q)"
         )
 
     # ── Row constants ─────────────────────────────────────────────────────────
-    R_HDR      = 1   # "Project Title" header
-    R_EPS      = 2   # Episodes      (user links)
-    R_VER      = 3   # Budget Version (user links)
-    R_FX       = 4   # FX             (user links)
+    R_HDR      = 1
+    R_EPS      = 2
+    R_VER      = 3
+    R_FX       = 4
     # 5: blank
-    R_TOTAL    = 6   # Total Budget
-    R_PER_EP   = 7   # Per Ep
+    R_TOTAL    = 6
+    R_PER_EP   = 7
     # 8: blank
-    R_NON_PROV = 9   # Non-Provincial Spend
-    R_FOR_SP   = 10  # Foreign Spend
-    R_BC       = 11  # B+C
+    R_NON_PROV = 9
+    R_FOR_SP   = 10
+    R_BC       = 11
     # 12: blank
-    R_CAD_SP   = 13  # CAD Spend
-    R_USD_SP   = 14  # USD Spend
+    R_CAD_SP   = 13
+    R_USD_SP   = 14
     # 15: blank
-    R_INT      = 16  # Internals
-    R_TC_EST   = 17  # Tax Credit Est. (user links)
+    R_INT      = 16
+    R_TC_EST   = 17
     # 18: blank
-    R_EP_FEE   = 19  # EP Fee    (0401)
-    R_PR_FEE   = 20  # Producer Fee (0405)
-    R_OVERHEAD = 21  # Overhead  (7201)
-    R_PROD_FEE = 22  # Production Fee (8001)
+    R_EP_FEE   = 19
+    R_PR_FEE   = 20
+    R_OVERHEAD = 21
+    R_PROD_FEE = 22
     # 23: blank
-    R_FINANC   = 24  # Interim Financing (7220)
-    R_LEGAL    = 25  # Legal Fees        (7110)
-    R_INSUR    = 26  # Insurance         (7101)
+    R_FINANC   = 24
+    R_LEGAL    = 25
+    R_INSUR    = 26
     # 27: blank
-    R_ONT_CR   = 28  # Ontario Creates
-    R_CAVCO    = 29  # CAVCO
+    R_ONT_CR   = 28
+    R_CAVCO    = 29
 
-    # ── Row 1: "Project Title" header ─────────────────────────────────────────
-    ws.row_dimensions[R_HDR].height = ROW_H
+    # ── Row 1: header – A1 blank, title in B1, grey fill across A–D ──────────
+    ws.row_dimensions[R_HDR].height = 20
     for col in range(1, 5):
-        ws.cell(row=R_HDR, column=col).fill   = _SECTION_HEADER_FILL
-        ws.cell(row=R_HDR, column=col).border = _NO_BORDER
-    _c(R_HDR, 1, title, font=_BOLD, fill=_SECTION_HEADER_FILL)
+        c = ws.cell(row=R_HDR, column=col)
+        c.fill   = _SECTION_HEADER_FILL
+        c.border = _NO_BORDER
+    _c(R_HDR, 2, title, font=_BOLD, fill=_SECTION_HEADER_FILL)
 
-    # ── Rows 2–4: metadata (left blank – user links cells themselves) ─────────
-    _label(R_EPS, "Episodes")
-    _label(R_VER, "Budget Version")
-    _label(R_FX,  "FX")
+    # ── Rows 2–4: metadata (italic – user links these cells) ─────────────────
+    _label(R_EPS, "Episodes",      italic=True)
+    _label(R_VER, "Budget Version", italic=True)
+    _label(R_FX,  "FX",            italic=True)
+    _divider(R_FX)
 
     # ── Row 5: blank ──────────────────────────────────────────────────────────
     _blank(5)
 
-    # ── Row 6: Total Budget ───────────────────────────────────────────────────
+    # ── Row 6: Total Budget (bold) ────────────────────────────────────────────
     _label(R_TOTAL, "Total Budget", bold=True)
-    _amount(R_TOTAL, "='Breakout Budget'!Q2")
+    _amount(R_TOTAL, "='Breakout Budget'!Q2", bold=True)
 
     # ── Row 7: Per Ep ─────────────────────────────────────────────────────────
     _label(R_PER_EP, "Per Ep")
     _amount(R_PER_EP, f"=C{R_TOTAL}/C{R_EPS}")
+    _divider(R_PER_EP)
 
     # ── Row 8: blank ──────────────────────────────────────────────────────────
     _blank(8)
@@ -2733,70 +2744,67 @@ def _write_breakdown_sheet(ws, title: str) -> None:
     _label(R_FOR_SP, "Foreign Spend")
     _amount(R_FOR_SP, "='Breakout Budget'!S2")
 
-    # ── Row 11: B+C (from Topsheet) ───────────────────────────────────────────
+    # ── Row 11: B+C (bold) ────────────────────────────────────────────────────
     _label(R_BC, "B+C", bold=True)
     _amount(R_BC,
         "=INDEX('Topsheet'!C:C,"
-        "MATCH(\"TOTAL \"\"B\"\" + \"\"C\"\"*\",'Topsheet'!B:B,0))"
+        "MATCH(\"TOTAL \"\"B\"\" + \"\"C\"\"*\",'Topsheet'!B:B,0))",
+        bold=True,
     )
+    _divider(R_BC)
 
     # ── Row 12: blank ─────────────────────────────────────────────────────────
     _blank(12)
 
-    # ── Row 13: CAD Spend (explicit CAD currency column in Breakout Budget) ───
+    # ── Row 13: CAD Spend ─────────────────────────────────────────────────────
     _label(R_CAD_SP, "CAD Spend")
     _amount(R_CAD_SP,
         "=INDEX('Breakout Budget'!2:2,"
         "MATCH(\"CAD Grand Total\",'Breakout Budget'!1:1,0))"
     )
 
-    # ── Row 14: USD Spend (explicit USD currency column in Breakout Budget) ───
+    # ── Row 14: USD Spend ─────────────────────────────────────────────────────
     _label(R_USD_SP, "USD Spend")
     _amount(R_USD_SP,
         "=INDEX('Breakout Budget'!2:2,"
         "MATCH(\"USD Grand Total\",'Breakout Budget'!1:1,0))"
     )
+    _divider(R_USD_SP)
 
     # ── Row 15: blank ─────────────────────────────────────────────────────────
     _blank(15)
 
-    # ── Row 16: Internals ─────────────────────────────────────────────────────
-    _label(R_INT, "Internals")
+    # ── Row 16: Internals (bold) ──────────────────────────────────────────────
+    _label(R_INT, "Internals", bold=True)
     _amount(R_INT,
         "='Breakout Budget'!AH2",
         pct_formula=f"=C{R_INT}/C{R_TOTAL}",
+        bold=True,
     )
 
-    # ── Row 17: Tax Credit Est. (left blank – user links) ─────────────────────
-    _label(R_TC_EST, "Tax Credit Est.")
+    # ── Row 17: Tax Credit Est. (italic – user links) ─────────────────────────
+    _label(R_TC_EST, "Tax Credit Est.", italic=True)
+    _divider(R_TC_EST)
 
     # ── Row 18: blank ─────────────────────────────────────────────────────────
     _blank(18)
 
     # ── Rows 19–22: Fees ──────────────────────────────────────────────────────
     _label(R_EP_FEE, "EP Fee")
-    _amount(R_EP_FEE,
-        _sumif_acct("0401"),
-        pct_formula=f"=C{R_EP_FEE}/C{R_BC}",
-    )
+    _amount(R_EP_FEE, _sumif_acct("0401"), pct_formula=f"=C{R_EP_FEE}/C{R_BC}")
 
     _label(R_PR_FEE, "Producer Fee")
-    _amount(R_PR_FEE,
-        _sumif_acct("0405"),
-        pct_formula=f"=C{R_PR_FEE}/C{R_BC}",
-    )
+    _amount(R_PR_FEE, _sumif_acct("0405"), pct_formula=f"=C{R_PR_FEE}/C{R_BC}")
 
     _label(R_OVERHEAD, "Overhead")
-    _amount(R_OVERHEAD,
-        _sumif_acct("7201"),
-        pct_formula=f"=C{R_OVERHEAD}/C{R_BC}",
-    )
+    _amount(R_OVERHEAD, _sumif_acct("7201"), pct_formula=f"=C{R_OVERHEAD}/C{R_BC}")
 
     _label(R_PROD_FEE, "Production Fee")
     _amount(R_PROD_FEE,
         _sumif_acct("8001"),
         pct_formula=f"=C{R_PROD_FEE}/(C{R_TOTAL}-C{R_PROD_FEE})",
     )
+    _divider(R_PROD_FEE)
 
     # ── Row 23: blank ─────────────────────────────────────────────────────────
     _blank(23)
@@ -2810,6 +2818,7 @@ def _write_breakdown_sheet(ws, title: str) -> None:
 
     _label(R_INSUR, "Insurance")
     _amount(R_INSUR, _sumif_acct("7101"), pct_formula=f"=C{R_INSUR}/C{R_TOTAL}")
+    _divider(R_INSUR)
 
     # ── Row 27: blank ─────────────────────────────────────────────────────────
     _blank(27)
@@ -2827,6 +2836,7 @@ def _write_breakdown_sheet(ws, title: str) -> None:
         _sumif_desc("CAVCO"),
         pct_formula=f"=0.003*C{R_BC}",
     )
+    _divider(R_CAVCO)
 
     ws.freeze_panes = "B2"
 
