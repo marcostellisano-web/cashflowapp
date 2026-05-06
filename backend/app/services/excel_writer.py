@@ -149,19 +149,9 @@ def _get_outflow_component_codes(
         # Accumulate OH subtotals per 4-digit parent code from Account Details rows
         oh_by_parent: dict[str, float] = {}
         detail_rows = budget.detail_rows
-        for i, detail in enumerate(detail_rows):
-            # Primary: the row itself is tagged "Internal OH"
+        for detail in detail_rows:
             is_internal_oh = bool(detail.groups and "internal oh" in detail.groups.lower())
-            # Secondary: "Total Fringes" row immediately following an Internal OH row
-            # (mirrors the formula: IF(AND(H="Total Fringes", SEARCH("Internal OH", D_prev))))
-            is_trailing_fringes = (
-                i > 0
-                and detail.description
-                and detail.description.strip().lower() == "total fringes"
-                and bool(detail_rows[i - 1].groups)
-                and "internal oh" in detail_rows[i - 1].groups.lower()
-            )
-            if is_internal_oh or is_trailing_fringes:
+            if is_internal_oh:
                 clean = detail.account.replace(".", "").replace(" ", "").strip()
                 if len(clean) >= 4 and clean[:4].isdigit():
                     parent = clean[:4]
@@ -763,17 +753,31 @@ def _write_main_sheet(wb: Workbook, output: CashflowOutput, params: ProductionPa
 
     financing_codes, internal_oh_amounts = _get_outflow_component_codes(budget, output.rows)
 
+    # Pre-aggregate combined cashflow totals per code so that codes with multiple
+    # cashflow rows (e.g. two line items sharing the same account code) get one
+    # combined fraction rather than being counted independently.
+    code_combined_total: dict[str, float] = {}
+    for row_data in output.rows:
+        if row_data.code in internal_oh_amounts:
+            code_combined_total[row_data.code] = (
+                code_combined_total.get(row_data.code, 0.0) + row_data.total
+            )
+
     internals_weekly = [0.0] * num_weeks
     internals_total  = 0.0
+    counted_internals: set[str] = set()
     fin_out_weekly   = [0.0] * num_weeks
     fin_out_total    = 0.0
     for row_data in output.rows:
         oh_amount = internal_oh_amounts.get(row_data.code)
         if oh_amount is not None and oh_amount > 0:
-            # For mixed codes (only a portion is Internal OH), scale weekly amounts
-            # by the fraction of the cashflow total that is OH-tagged.
-            fraction = min(1.0, oh_amount / row_data.total) if row_data.total > 0 else 1.0
-            internals_total += oh_amount
+            # Fraction based on combined total across all rows sharing this code,
+            # so duplicate codes don't inflate the total or weekly distribution.
+            combined_total = code_combined_total.get(row_data.code, row_data.total)
+            fraction = min(1.0, oh_amount / combined_total) if combined_total > 0 else 1.0
+            if row_data.code not in counted_internals:
+                internals_total += oh_amount
+                counted_internals.add(row_data.code)
             for j, amount in enumerate(row_data.weekly_amounts):
                 internals_weekly[j] += amount * fraction
         if row_data.code in financing_codes:
