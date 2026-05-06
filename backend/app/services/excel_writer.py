@@ -148,8 +148,11 @@ def _get_outflow_component_codes(
     if budget is not None and budget.detail_rows:
         # Accumulate OH subtotals per 4-digit parent code from Account Details rows
         oh_by_parent: dict[str, float] = {}
-        detail_rows = budget.detail_rows
-        for detail in detail_rows:
+        for detail in budget.detail_rows:
+            # Skip "Total Fringes" aggregate rows — fringes are computed inline
+            # from the agg rate on each tagged row, matching the tax credit writer.
+            if "total fringes" in detail.description.lower():
+                continue
             is_internal_oh = bool(detail.groups and "internal oh" in detail.groups.lower())
             if is_internal_oh:
                 clean = detail.account.replace(".", "").replace(" ", "").strip()
@@ -159,7 +162,10 @@ def _get_outflow_component_codes(
                     parent = clean[:2].zfill(2) + "00"
                 else:
                     continue
-                oh_by_parent[parent] = oh_by_parent.get(parent, 0.0) + detail.subtotal
+                # Grand total = subtotal + fringes, where fringes = subtotal * agg rate.
+                # This mirrors the tax credit writer's column-Q formula (=O+P where P=O*D).
+                grand_total = detail.subtotal * (1.0 + (detail.agg or 0.0))
+                oh_by_parent[parent] = oh_by_parent.get(parent, 0.0) + grand_total
 
         # Map accumulated OH subtotals to cashflow row codes
         for row in cashflow_rows:
