@@ -132,7 +132,7 @@ _TIMING_DESCRIPTIONS: dict[str, str] = {
     "After Delivery":              "AP week ~4 weeks after final delivery",
     "Graphics":                    "Bi-weekly AP weeks from edit start through final online",
     "Insurance":                   "AP week ~2-3 weeks after prep start",
-    "Financing":                   "AP week nearest to September 30, pro-rated by total spend in each fiscal year (Nov 1–Oct 31)",
+    "Financing":                   "AP week nearest to September 30, pro-rated by total spend in each fiscal year (Oct 1–Sep 30)",
     "Mid Edit Lump":               "Single AP lump sum at the midpoint of the edit period",
 }
 

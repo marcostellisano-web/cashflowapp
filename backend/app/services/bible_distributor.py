@@ -926,7 +926,7 @@ def _financing(
 ) -> np.ndarray:
     """Paid on the AP week nearest September 30, pro-rated by fiscal-year spend.
 
-    Fiscal year runs Nov 1 – Oct 31.  Identifies every FY the production
+    Fiscal year runs Oct 1 – Sep 30.  Identifies every FY the production
     overlaps, splits the total proportionally by total dollar spend in each FY
     (using weekly_spend when provided, falling back to week count otherwise),
     and places each chunk on the AP week nearest September 30 of that FY.
@@ -939,25 +939,19 @@ def _financing(
     last_date = weeks[-1].week_commencing
 
     def fy_end_year(d: date) -> int:
-        return d.year if d.month <= 10 else d.year + 1
+        return d.year if d.month < 10 else d.year + 1
 
     start_fy = fy_end_year(first_date)
     end_fy = fy_end_year(last_date)
 
-    oct_dates: list[date] = []
     pay_dates: list[date] = []
     for fy_year in range(start_fy, end_fy + 1):
-        oct31 = date(fy_year, 10, 31)
-        while oct31.weekday() > 4:
-            oct31 -= timedelta(days=1)
-        oct_dates.append(oct31)
-
         sep30 = date(fy_year, 9, 30)
         while sep30.weekday() > 4:
             sep30 -= timedelta(days=1)
         pay_dates.append(sep30)
 
-    if not oct_dates:
+    if not pay_dates:
         all_weeks = _get_all_non_hiatus(weeks)
         ap = _filter_by_week_type(weeks, all_weeks, want_payroll=False)
         return _spread_at_indices(total, [ap[-1]] if ap else [n - 1], n)
@@ -965,9 +959,9 @@ def _financing(
     # Pro-rate by spend when available, otherwise fall back to week count
     if weekly_spend and len(weekly_spend) == n:
         segment_weights: list[float] = []
-        for oct_d in oct_dates:
-            fy_start = date(oct_d.year - 1, 11, 1)
-            fy_end = oct_d + timedelta(days=6)
+        for pay_d in pay_dates:
+            fy_start = date(pay_d.year - 1, 10, 1)
+            fy_end = date(pay_d.year, 9, 30) + timedelta(days=6)
             fy_spend = sum(
                 weekly_spend[i]
                 for i, w in enumerate(weeks)
@@ -977,9 +971,9 @@ def _financing(
     else:
         all_non_hiatus = _get_all_non_hiatus(weeks)
         segment_weights = []
-        for oct_d in oct_dates:
-            fy_start = date(oct_d.year - 1, 11, 1)
-            fy_end = oct_d + timedelta(days=6)
+        for pay_d in pay_dates:
+            fy_start = date(pay_d.year - 1, 10, 1)
+            fy_end = date(pay_d.year, 9, 30) + timedelta(days=6)
             count = sum(
                 1 for i in all_non_hiatus
                 if fy_start <= weeks[i].week_commencing <= fy_end

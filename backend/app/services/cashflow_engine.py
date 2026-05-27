@@ -184,7 +184,7 @@ def _compute_timeline_extension(
         elif pattern == TimingPattern.FINANCING:
             # Extend to end of September of the fiscal year containing final delivery
             delivery = resolved_final_delivery
-            fy_end_year = delivery.year if delivery.month <= 10 else delivery.year + 1
+            fy_end_year = delivery.year if delivery.month < 10 else delivery.year + 1
             sep30 = date(fy_end_year, 9, 30)
             end = max(end, sep30 + timedelta(weeks=1))
 
