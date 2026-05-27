@@ -1,32 +1,39 @@
 """Formula-based cashflow Excel workbook generator.
 
 Produces the standard workbook plus a "Timing" sheet with one editable row
-per timing category from the production bible (e.g. "Shoot Payroll",
-"Internals", "Travel", "Pick Lock", "After Delivery", …).
+per timing pattern from the Cashflow Timing Bible.  Patterns and titles match
+exactly what the Distribution tab of the website shows.
 
-Each Timing row contains 0/1 values across every week column, computed from
-the real production schedule (payroll weeks, shoot blocks, picture-lock dates,
-delivery dates, etc.).  Users can flip any 0 ↔ 1 to change when a cost is
-distributed.
+Each Timing row contains 0/1 values across every week column, computed by
+running the authoritative bible_distributor logic for that pattern.
 
-Cashflow weekly cells use:
-    =IFERROR( $C{row} * Timing!{col}${prow} / SUM(Timing!$D${prow}:$X${prow}), 0 )
+Cashflow column D holds the editable Pattern name.  Weekly cells (E+) use:
+    =IFERROR(
+      $C{row}
+      * INDEX(Timing!{col}$6:{col}$41, MATCH($D{row}, Timing!$A$6:$A$41, 0))
+      / SUM(OFFSET(Timing!$D$6, MATCH($D{row}, Timing!$A$6:$A$41, 0)-1, 0, 1, {n}))
+    , 0)
+
+Editing cell D or copy-pasting a pattern name from another row instantly
+re-routes the entire row's weekly distribution.
 """
 
 from __future__ import annotations
 
 import re
-from datetime import date, timedelta
 from io import BytesIO
 
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import column_index_from_string, get_column_letter
 
+from app.domain.timing_bible_data import DEFAULT_BIBLE
 from app.models.budget import ParsedBudget
 from app.models.cashflow import CashflowOutput
 from app.models.distribution import LineItemDistribution, PhaseAssignment
 from app.models.production import ProductionParameters
+from app.models.timing_bible import BibleEntry, TimingPattern
+from app.services.bible_distributor import distribute_bible_entry
 from app.services.excel_writer import (
     CURRENCY_FORMAT,
     DATA_START_ROW,
@@ -39,462 +46,173 @@ from app.services.excel_writer import (
     write_cashflow_excel,
 )
 
-# ── Bible: account code → timing title ───────────────────────────────────────
-# First 4 digits of account code → Timing Title label.
-# Codes with sub-accounts (e.g. "040501") are matched on the first 4 digits.
+# ── TimingPattern → human-readable title ─────────────────────────────────────
+# These titles match what is shown in the Distribution tab of the website.
 
-ACCOUNT_TIMING_MAP: dict[str, str] = {
-    "0220": "PP to End",
-    "0401": "Internals", "0405": "Internals", "0407": "Full Payroll",
-    "0408": "Full Payroll", "0410": "Full Payroll",
-    "0460": "Travel", "0461": "Travel", "0465": "Travel",
-    "0466": "Travel", "0470": "Travel", "0490": "Travel",
-    "0501": "Shoot Payroll", "0601": "Shoot Payroll", "0640": "Shoot Payroll",
-    "1001": "Shoot Payroll", "1010": "Shoot Payroll",
-    "1025": "Narrator",
-    "1070": "Casting",
-    "1095": "Narrator",
-    "1101": "Shoot Payroll", "1110": "Shoot Payroll",
-    "1201": "Internals", "1205": "Full Payroll",
-    "1210": "Shoot Payroll", "1220": "Shoot Payroll", "1223": "Shoot Payroll",
-    "1235": "Shoot Payroll", "1243": "Full Payroll",
-    "1248": "Internals", "1250": "Internals", "1254": "Internals",
-    "1270": "Shoot Payroll", "1301": "Shoot Payroll", "1310": "Shoot Payroll",
-    "1312": "Shoot Payroll", "1320": "Shoot Payroll", "1401": "Shoot Payroll",
-    "1495": "Shoot Payroll", "1501": "Shoot Payroll", "1510": "Shoot Payroll",
-    "1520": "Shoot Payroll", "1530": "Shoot Payroll",
-    "1601": "Shoot Payroll", "1610": "Shoot Payroll", "1616": "Shoot Payroll",
-    "1905": "Shoot Payroll", "1910": "Shoot Payroll",
-    "2001": "Shoot Payroll", "2010": "Shoot Payroll",
-    "2201": "Shoot Payroll", "2205": "Shoot Payroll", "2210": "Shoot Payroll",
-    "2212": "Shoot Payroll", "2220": "Shoot Payroll", "2250": "Shoot Payroll",
-    "2260": "Travel", "2263": "Travel",
-    "2270": "Still Photo",
-    "2301": "Shoot Payroll", "2310": "Shoot Payroll", "2320": "Shoot Payroll",
-    "2330": "Shoot Payroll", "2340": "Shoot Payroll", "2350": "Shoot Payroll",
-    "2401": "Shoot Payroll", "2410": "Shoot Payroll",
-    "2501": "Shoot Payroll",
-    "2801": "Internals", "2805": "Internals", "2807": "Internals",
-    "2810": "Internals", "2815": "Internals", "2820": "Internals",
-    "2830": "Internals", "2835": "Internals", "2840": "Internals",
-    "2845": "Internals",
-    "2901": "Monthly (shoot months)",
-    "2955": "Shoot Purchases",
-    "3020": "Monthly (shoot months)", "3095": "Monthly (shoot months)",
-    "3105": "Monthly (shoot months)",
-    "3110": "Shoot Rentals",
-    "3142": "Monthly (shoot months)", "3195": "Monthly (shoot months)",
-    "3210": "Per Diem", "3215": "Per Diem",
-    "3218": "Shoot Rentals",
-    "3225": "Pre-Shoot", "3260": "Pre-Shoot",
-    "3301": "Travel", "3310": "Travel",
-    "3320": "Per Diem", "3330": "Per Diem", "3335": "Per Diem",
-    "3340": "Monthly (shoot months)",
-    "3395": "Legal",
-    "3401": "Monthly (shoot months)", "3405": "Monthly (shoot months)",
-    "3412": "Monthly (shoot months)", "3415": "Monthly (shoot months)",
-    "3430": "Per Diem", "3440": "Per Diem", "3445": "Per Diem",
-    "3447": "Per Diem",
-    "3510": "Shoot Rentals", "3515": "Shoot Purchases",
-    "3545": "Shoot Purchases",
-    "3710": "Shoot Rentals", "3730": "Shoot Purchases",
-    "3740": "Shoot Purchases",
-    "3810": "Shoot Rentals", "3830": "Shoot Purchases",
-    "3850": "Shoot Rentals",
-    "3910": "Shoot Rentals", "3930": "Shoot Purchases",
-    "4110": "Shoot Rentals", "4130": "Shoot Purchases",
-    "4140": "Shoot Purchases", "4148": "Shoot Purchases",
-    "4210": "Shoot Rentals", "4212": "Shoot Purchases",
-    "4510": "Shoot Rentals", "4512": "Shoot Rentals",
-    "4515": "Shoot Rentals", "4525": "Shoot Rentals",
-    "4530": "Shoot Purchases",
-    "4595": "Shoot Rentals",
-    "4610": "Shoot Rentals", "4612": "Shoot Rentals",
-    "4630": "Shoot Purchases",
-    "4710": "Shoot Rentals", "4730": "Shoot Purchases",
-    "4795": "Shoot Purchases",
-    "4812": "Shoot Rentals", "4828": "Shoot Purchases",
-    "4830": "Shoot Purchases",
-    "5001": "Pre-Shoot",
-    "6001": "Edit Internals",
-    "6002": "PP to End",
-    "6010": "Edit", "6012": "Edit",
-    "6042": "Archive Research",
-    "6070": "Pick Lock",
-    "6101": "Edit Internals", "6110": "Edit Internals",
-    "6130": "Edit Internals",
-    "6215": "Edit Internals",
-    "6221": "Online Editor",
-    "6264": "Delivery copies",
-    "6325": "Mix",
-    "6610": "Composer",
-    "6670": "After Delivery", "6695": "After Delivery",
-    "6710": "Graphics", "6730": "Graphics", "6795": "Graphics",
-    "6890": "Pick Lock", "6892": "Pick Lock",
-    "7001": "Edit Internals",
-    "7025": "Still Photo",
-    "7040": "Pick Lock",
-    "7050": "Edit Internals",
-    "7101": "Insurance",
-    "7110": "Legal",
-    "7120": "After Delivery", "7125": "After Delivery",
-    "7130": "Full AP",
-    "7201": "Internals",
-    "7210": "After Delivery",
-    "7220": "Financing",
-    "7295": "After Delivery",
+_TIMING_PATTERN_TITLE: dict[TimingPattern, str] = {
+    TimingPattern.FULL_PAYROLL:                  "Full Payroll",
+    TimingPattern.PREP_TO_FIRST_SHOOT_PAYROLL:   "Prep to First Shoot",
+    TimingPattern.PREP_TO_LAST_SHOOT_PAYROLL:    "Prep to Last Shoot",
+    TimingPattern.PREP_TO_DELIVERY_PAYROLL:      "Prep to Delivery Payroll",
+    TimingPattern.PREP_TO_ROUGH_CUT_PAYROLL:     "Prep to Rough Cut",
+    TimingPattern.PP_MINUS_2_TO_DELIVERY_PAYROLL: "PP -2 to Delivery Payroll",
+    TimingPattern.PP_MINUS_1_TO_DELIVERY_PAYROLL: "PP -1 to Delivery Payroll",
+    TimingPattern.PP_TO_END:                     "PP to End",
+    TimingPattern.SHOOT_PAYROLL:                 "Shoot Payroll",
+    TimingPattern.EDIT_MINUS_2_TO_PIC_LOCK:      "Edit -2 to Picture Lock",
+    TimingPattern.EDIT_PAYROLL:                  "Edit Payroll",
+    TimingPattern.ARCHIVE_RESEARCH:              "Archive Research",
+    TimingPattern.NARRATOR:                      "Narrator",
+    TimingPattern.CASTING:                       "Casting",
+    TimingPattern.STILL_PHOTO:                   "Still Photo",
+    TimingPattern.ONLINE_EDITOR:                 "Online Editor",
+    TimingPattern.COMPOSER:                      "Composer",
+    TimingPattern.FULL_AP:                       "Full AP",
+    TimingPattern.PREP_TO_DELIVERY_AP:           "Prep to Delivery AP",
+    TimingPattern.INTERNALS:                     "Internals",
+    TimingPattern.EDIT_INTERNALS:                "Edit Internals",
+    TimingPattern.TRAVEL:                        "Travel",
+    TimingPattern.PER_DIEM:                      "Per Diem",
+    TimingPattern.SHOOT_PURCHASES:               "Shoot Purchases",
+    TimingPattern.SHOOT_RENTALS:                 "Shoot Rentals",
+    TimingPattern.MONTHLY_SHOOT:                 "Monthly (shoot months)",
+    TimingPattern.PRE_SHOOT:                     "Pre-Shoot",
+    TimingPattern.LEGAL:                         "Legal",
+    TimingPattern.PICK_LOCK:                     "Pick Lock",
+    TimingPattern.DELIVERY_COPIES:               "Delivery Copies",
+    TimingPattern.MIX:                           "Mix",
+    TimingPattern.AFTER_DELIVERY:                "After Delivery",
+    TimingPattern.GRAPHICS:                      "Graphics",
+    TimingPattern.INSURANCE:                     "Insurance",
+    TimingPattern.FINANCING:                     "Financing",
+    TimingPattern.MID_EDIT_LUMP:                 "Mid Edit Lump",
 }
 
-# Phase-assignment fallback when code is not in the bible
-_PHASE_FALLBACK: dict[PhaseAssignment, str] = {
-    PhaseAssignment.PREP: "Internals",
-    PhaseAssignment.PRODUCTION: "Shoot Payroll",
-    PhaseAssignment.POST: "Edit",
-    PhaseAssignment.DELIVERY: "After Delivery",
-    PhaseAssignment.FULL_SPAN: "Full Payroll",
-    PhaseAssignment.PREP_AND_PRODUCTION: "Full Payroll",
-    PhaseAssignment.PRODUCTION_AND_POST: "Edit",
+# Reverse map: title string → TimingPattern (used when computing patterns)
+_TITLE_TIMING_PATTERN: dict[str, TimingPattern] = {
+    v: k for k, v in _TIMING_PATTERN_TITLE.items()
 }
 
+# Ordered list: all timing patterns in a logical display order for the Timing sheet
+ALL_TIMING_TITLES: list[str] = list(_TIMING_PATTERN_TITLE.values())
+
+# Descriptions shown in col B of the Timing sheet
 _TIMING_DESCRIPTIONS: dict[str, str] = {
-    "Full Payroll":         "Payroll weeks — start of prep through final delivery",
-    "Full AP":              "AP weeks — start of prep through final delivery",
-    "Internals":            "Monthly mid-month AP weeks — prep through delivery",
-    "Shoot Payroll":        "Payroll weeks during the shoot (starts 1-2 weeks in)",
-    "Shoot Rentals":        "AP weeks during the shoot (starts 1-2 weeks in)",
-    "Shoot Purchases":      "AP weeks during each shoot block",
-    "Per Diem":             "AP weeks during each shoot block (per diems / catering)",
-    "Monthly (shoot months)": "Last AP week of each calendar month during the shoot",
-    "Travel":               "AP weeks ~2 weeks before each shoot block",
-    "Still Photo":          "Payroll weeks ~2 weeks after each shoot block ends",
-    "Pre-Shoot":            "AP week ~2 weeks before Principal Photography starts",
-    "Casting":              "Two payroll weeks: 4 wks and 2 wks before PP start",
-    "Legal":                "4 AP weeks spread evenly from prep start to final delivery",
-    "PP to End":            "Payroll weeks from 2 wks before edit start through final delivery",
-    "Archive Research":     "Payroll weeks from 2 wks before PP start through final delivery",
-    "Narrator":             "Payroll weeks from ~4 wks after edit start through final delivery",
-    "Edit":                 "Payroll weeks from edit start through final delivery",
-    "Edit Internals":       "Monthly mid-month AP weeks during the edit period",
-    "Pick Lock":            "AP weeks ~2-3 wks after each episode picture lock",
-    "Online Editor":        "Payroll weeks around each episode online date",
-    "Delivery copies":      "AP weeks ~2-3 wks before each episode delivery",
-    "Mix":                  "AP weeks ~2-3 wks after each episode mix date",
-    "Composer":             "Payroll weeks: edit midpoint and near final picture lock",
-    "Graphics":             "Bi-weekly AP weeks from edit start through final delivery",
-    "After Delivery":       "AP week ~4 wks after final delivery",
-    "Financing":            "AP week nearest to end of fiscal year (September) per year",
-    "Insurance":            "AP week ~2 wks after prep start",
+    "Full Payroll":                "Payroll weeks — full span (prep through final delivery)",
+    "Prep to First Shoot":         "Payroll weeks from prep start through end of first shoot block",
+    "Prep to Last Shoot":          "Payroll weeks from prep start through end of last shoot block",
+    "Prep to Delivery Payroll":    "Payroll weeks from prep start through final delivery",
+    "Prep to Rough Cut":           "Payroll weeks from prep start through final rough cut",
+    "PP -2 to Delivery Payroll":   "Payroll from 2 weeks before PP start through final delivery",
+    "PP -1 to Delivery Payroll":   "Payroll from 1 week before PP start through final delivery",
+    "PP to End":                   "Payroll weeks from PP start through final delivery",
+    "Shoot Payroll":               "Payroll weeks during each shooting block",
+    "Edit -2 to Picture Lock":     "Payroll from 2 weeks before edit start through final picture lock",
+    "Edit Payroll":                "Payroll weeks from edit start through final picture lock",
+    "Archive Research":            "Payroll weeks over the edit period",
+    "Narrator":                    "Payroll weeks from 3-4 weeks after edit start through final picture lock",
+    "Casting":                     "Two payroll weeks: 4 and 2 weeks before PP start",
+    "Still Photo":                 "Payroll week ~2-3 weeks after each shooting block ends",
+    "Online Editor":               "Payroll weeks ~2-3 weeks after each episode online date",
+    "Composer":                    "Two payroll weeks: midpoint of edit + near final picture lock",
+    "Full AP":                     "AP weeks — full span (prep through final delivery)",
+    "Prep to Delivery AP":         "AP weeks from prep start through final delivery",
+    "Internals":                   "Monthly mid-month AP weeks — prep through delivery",
+    "Edit Internals":              "Monthly mid-month AP weeks during the edit period",
+    "Travel":                      "AP week ~2-3 weeks before each shoot block",
+    "Per Diem":                    "AP weeks during each shoot block (per diems / catering)",
+    "Shoot Purchases":             "AP weeks during each shoot block",
+    "Shoot Rentals":               "AP weeks during each shooting block",
+    "Monthly (shoot months)":      "Last AP week of each calendar month during the shoot",
+    "Pre-Shoot":                   "AP week ~2-3 weeks before Principal Photography starts",
+    "Legal":                       "4 AP weeks spread evenly from prep start to final delivery",
+    "Pick Lock":                   "AP week ~2-3 weeks after each episode picture lock",
+    "Delivery Copies":             "AP week ~2-3 weeks before each episode delivery",
+    "Mix":                         "AP week ~2-3 weeks after each episode mix date",
+    "After Delivery":              "AP week ~4 weeks after final delivery",
+    "Graphics":                    "Bi-weekly AP weeks from edit start through final online",
+    "Insurance":                   "AP week ~2-3 weeks after prep start",
+    "Financing":                   "AP week nearest to fiscal year-end (October) per year",
+    "Mid Edit Lump":               "Single AP lump sum at the midpoint of the edit period",
+}
+
+# Phase-assignment fallback (for codes not in the bible and no override set)
+_PHASE_FALLBACK_PATTERN: dict[PhaseAssignment, TimingPattern] = {
+    PhaseAssignment.PREP:               TimingPattern.INTERNALS,
+    PhaseAssignment.PRODUCTION:         TimingPattern.SHOOT_PAYROLL,
+    PhaseAssignment.POST:               TimingPattern.EDIT_PAYROLL,
+    PhaseAssignment.DELIVERY:           TimingPattern.AFTER_DELIVERY,
+    PhaseAssignment.FULL_SPAN:          TimingPattern.FULL_PAYROLL,
+    PhaseAssignment.PREP_AND_PRODUCTION: TimingPattern.FULL_PAYROLL,
+    PhaseAssignment.PRODUCTION_AND_POST: TimingPattern.EDIT_PAYROLL,
 }
 
 # Fills for the Timing sheet
-_ACTIVE_FILL = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")
+_ACTIVE_FILL   = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")
 _INACTIVE_FILL = PatternFill(start_color="FFFDE7", end_color="FFFDE7", fill_type="solid")
-_HEADER_FILL = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
+_HEADER_FILL   = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
 
 _TIMING_SHEET = "Timing"
 
-# Formula-version Cashflow layout (Pattern column inserted between Budget and weeks):
+# Formula-version Cashflow layout:
 #   A: Code  B: Description  C: Budget (value)  D: Pattern (editable)  E+: weekly formulas
-_PATTERN_COL = FIRST_WEEK_COL           # D (col 4) — editable timing label
-_FML_FIRST_WEEK_COL = FIRST_WEEK_COL + 1  # E (col 5) — first weekly formula column
+_PATTERN_COL        = FIRST_WEEK_COL          # D (col 4)
+_FML_FIRST_WEEK_COL = FIRST_WEEK_COL + 1      # E (col 5)
 
-# Fixed ordering — all 27 patterns always written to the Timing sheet
-ALL_TIMING_TITLES: list[str] = [
-    "Full Payroll",
-    "Full AP",
-    "Internals",
-    "Shoot Payroll",
-    "Shoot Rentals",
-    "Shoot Purchases",
-    "Per Diem",
-    "Monthly (shoot months)",
-    "Travel",
-    "Still Photo",
-    "Pre-Shoot",
-    "Casting",
-    "Legal",
-    "PP to End",
-    "Archive Research",
-    "Narrator",
-    "Edit",
-    "Edit Internals",
-    "Pick Lock",
-    "Online Editor",
-    "Delivery copies",
-    "Mix",
-    "Composer",
-    "Graphics",
-    "After Delivery",
-    "Financing",
-    "Insurance",
-]
+# Timing sheet data rows: 6 through 6+36-1 = 41 (one row per TimingPattern)
+_TIMING_DATA_END = DATA_START_ROW + len(ALL_TIMING_TITLES) - 1
+
 
 # ── Lookup helpers ────────────────────────────────────────────────────────────
 
-def _get_timing_title(code: str, phase: PhaseAssignment) -> str:
-    """Return the timing title for a budget code, falling back to phase."""
-    padded = code.strip().zfill(6)[:4]   # normalise: zero-pad, take first 4 digits
-    return ACCOUNT_TIMING_MAP.get(padded, _PHASE_FALLBACK.get(phase, "Shoot Payroll"))
+def _get_pattern_for_dist(dist: LineItemDistribution) -> tuple[str, TimingPattern]:
+    """Return (timing_title, TimingPattern) for a LineItemDistribution.
+
+    Priority:
+      1. dist.timing_pattern_override  (set by Distribution tab / timing bible)
+      2. DEFAULT_BIBLE entry for the code
+      3. PhaseAssignment fallback
+    """
+    if dist.timing_pattern_override:
+        try:
+            tp = TimingPattern(dist.timing_pattern_override)
+            return _TIMING_PATTERN_TITLE.get(tp, tp.value), tp
+        except ValueError:
+            pass
+
+    entry = DEFAULT_BIBLE.get_entry(dist.budget_code)
+    if entry:
+        title = _TIMING_PATTERN_TITLE.get(entry.timing_pattern, entry.timing_title)
+        return title, entry.timing_pattern
+
+    tp = _PHASE_FALLBACK_PATTERN.get(dist.phase, TimingPattern.FULL_PAYROLL)
+    return _TIMING_PATTERN_TITLE.get(tp, "Full Payroll"), tp
 
 
 # ── Pattern computation ───────────────────────────────────────────────────────
 
-def _nearest_week_idx(
-    weeks,
-    target: date,
-    predicate,
-    window_days: int = 45,
-) -> int | None:
-    best_idx, best_diff = None, float("inf")
-    for i, w in enumerate(weeks):
-        if predicate(w):
-            diff = abs((w.week_commencing - target).days)
-            if diff < best_diff and diff <= window_days:
-                best_diff = diff
-                best_idx = i
-    return best_idx
-
-
 def _compute_timing_patterns(
-    titles: list[str],
+    title_to_tp: dict[str, TimingPattern],
     output: CashflowOutput,
     params: ProductionParameters,
 ) -> dict[str, list[int]]:
-    """Return {title: [0/1, …]} for each title, derived from the schedule."""
-    weeks = output.weeks
-    n = len(weeks)
-    blocks = params.shooting_blocks
-    eps = params.episode_deliveries
-
-    has_payroll = any(w.is_payroll_week is not None for w in weeks)
-
-    def payroll(w) -> bool:
-        return w.is_payroll_week is True if has_payroll else True
-
-    def ap(w) -> bool:
-        return w.is_payroll_week is False if has_payroll else True
-
-    def shoot(w) -> bool:
-        return "SHOOT" in w.phase_label.upper()
-
-    def in_range(w, start: date, end: date) -> bool:
-        return start <= w.week_commencing <= end
-
-    def zeros() -> list[int]:
-        return [0] * n
-
-    def mark_nearest(target: date, pred, window=45) -> list[int]:
-        result = zeros()
-        idx = _nearest_week_idx(weeks, target, pred, window)
-        if idx is not None:
-            result[idx] = 1
-        return result
-
-    def mark_multi(targets: list[date], pred, window=35) -> list[int]:
-        result = zeros()
-        for t in targets:
-            idx = _nearest_week_idx(weeks, t, pred, window)
-            if idx is not None:
-                result[idx] = 1
-        return result
-
+    """Compute 0/1 patterns for each timing title using the authoritative
+    bible_distributor implementation.  Non-zero weeks are marked 1.
+    """
     patterns: dict[str, list[int]] = {}
-
-    for title in titles:
-        if title == "Full Payroll":
-            patterns[title] = [1 if payroll(w) else 0 for w in weeks]
-
-        elif title == "Full AP":
-            patterns[title] = [1 if ap(w) else 0 for w in weeks]
-
-        elif title == "Internals":
-            # Mid-month AP weeks (roughly the week containing the 12th–19th)
-            patterns[title] = [
-                1 if (ap(w) and 8 <= w.week_commencing.day <= 21) else 0
-                for w in weeks
-            ]
-
-        elif title == "Shoot Payroll":
-            patterns[title] = [1 if (payroll(w) and shoot(w)) else 0 for w in weeks]
-
-        elif title == "Shoot Rentals":
-            patterns[title] = [1 if (ap(w) and shoot(w)) else 0 for w in weeks]
-
-        elif title in ("Shoot Purchases", "Per Diem"):
-            patterns[title] = [1 if (ap(w) and shoot(w)) else 0 for w in weeks]
-
-        elif title == "Monthly (shoot months)":
-            # Last AP week of each calendar month during the shoot
-            result = zeros()
-            shoot_months: set[tuple[int, int]] = set()
-            for w in weeks:
-                if shoot(w):
-                    shoot_months.add((w.week_commencing.year, w.week_commencing.month))
-            for i, w in enumerate(weeks):
-                ym = (w.week_commencing.year, w.week_commencing.month)
-                if ym not in shoot_months or not ap(w) or not shoot(w):
-                    continue
-                # Is this the last AP+shoot week of the month?
-                is_last = not any(
-                    ap(weeks[j]) and shoot(weeks[j])
-                    and (weeks[j].week_commencing.year, weeks[j].week_commencing.month) == ym
-                    for j in range(i + 1, n)
-                )
-                if is_last:
-                    result[i] = 1
-            patterns[title] = result
-
-        elif title == "Travel":
-            # AP week ~2 weeks before each shoot block
-            targets = [b.shoot_start - timedelta(weeks=2) for b in blocks]
-            patterns[title] = mark_multi(targets, ap)
-
-        elif title == "Still Photo":
-            # Payroll week ~2 weeks after each shoot block ends
-            targets = [b.shoot_end + timedelta(weeks=2) for b in blocks]
-            patterns[title] = mark_multi(targets, payroll)
-
-        elif title == "Pre-Shoot":
-            # AP week ~2 weeks before PP starts
-            patterns[title] = mark_nearest(params.pp_start - timedelta(weeks=2), ap)
-
-        elif title == "Casting":
-            # Two payroll weeks: 4 weeks and 2 weeks before PP start
-            targets = [
-                params.pp_start - timedelta(weeks=4),
-                params.pp_start - timedelta(weeks=2),
-            ]
-            patterns[title] = mark_multi(targets, payroll)
-
-        elif title == "Legal":
-            # 4 AP weeks evenly spread from prep start to final delivery
-            total = (params.final_delivery_date - params.prep_start).days
-            targets = [
-                params.prep_start + timedelta(days=int(total * (q + 0.5) / 4))
-                for q in range(4)
-            ]
-            patterns[title] = mark_multi(targets, ap, window=60)
-
-        elif title == "PP to End":
-            start = params.edit_start - timedelta(weeks=2)
-            patterns[title] = [
-                1 if (payroll(w) and in_range(w, start, params.final_delivery_date))
-                else 0
-                for w in weeks
-            ]
-
-        elif title == "Archive Research":
-            start = params.pp_start - timedelta(weeks=2)
-            patterns[title] = [
-                1 if (payroll(w) and in_range(w, start, params.final_delivery_date))
-                else 0
-                for w in weeks
-            ]
-
-        elif title == "Narrator":
-            start = params.edit_start + timedelta(weeks=4)
-            patterns[title] = [
-                1 if (payroll(w) and in_range(w, start, params.final_delivery_date))
-                else 0
-                for w in weeks
-            ]
-
-        elif title == "Edit":
-            patterns[title] = [
-                1 if (payroll(w) and in_range(w, params.edit_start, params.final_delivery_date))
-                else 0
-                for w in weeks
-            ]
-
-        elif title == "Edit Internals":
-            patterns[title] = [
-                1 if (
-                    ap(w)
-                    and 8 <= w.week_commencing.day <= 21
-                    and in_range(w, params.edit_start, params.final_delivery_date)
-                )
-                else 0
-                for w in weeks
-            ]
-
-        elif title == "Pick Lock":
-            # AP week ~2-3 weeks after each episode picture lock
-            targets = [
-                e.picture_lock_date + timedelta(weeks=2)
-                for e in eps
-                if e.picture_lock_date
-            ]
-            patterns[title] = mark_multi(targets, ap) if targets else zeros()
-
-        elif title == "Online Editor":
-            # Payroll weeks around each episode online date
-            targets = [e.online_date for e in eps if e.online_date]
-            patterns[title] = mark_multi(targets, payroll) if targets else zeros()
-
-        elif title == "Delivery copies":
-            # AP week ~2 weeks before each episode delivery
-            targets = [
-                e.delivery_date - timedelta(weeks=2)
-                for e in eps
-                if e.delivery_date
-            ]
-            patterns[title] = mark_multi(targets, ap) if targets else zeros()
-
-        elif title == "Mix":
-            # AP week ~2-3 weeks after each episode mix
-            targets = [
-                e.mix_date + timedelta(weeks=2)
-                for e in eps
-                if e.mix_date
-            ]
-            patterns[title] = mark_multi(targets, ap) if targets else zeros()
-
-        elif title == "Composer":
-            # Payroll weeks: edit midpoint and near final picture lock
-            edit_len = (params.final_delivery_date - params.edit_start).days
-            midpoint = params.edit_start + timedelta(days=edit_len // 2)
-            lock = max(
-                (e.picture_lock_date for e in eps if e.picture_lock_date),
-                default=params.final_delivery_date - timedelta(weeks=2),
-            )
-            patterns[title] = mark_multi([midpoint, lock], payroll)
-
-        elif title == "Graphics":
-            # AP weeks every 2 weeks from edit start through final delivery
-            result = zeros()
-            ap_count = 0
-            for i, w in enumerate(weeks):
-                if in_range(w, params.edit_start, params.final_delivery_date) and ap(w):
-                    ap_count += 1
-                    if ap_count % 2 == 0:
-                        result[i] = 1
-            patterns[title] = result
-
-        elif title == "After Delivery":
-            # AP week ~4 weeks after final delivery
-            patterns[title] = mark_nearest(
-                params.final_delivery_date + timedelta(weeks=4), ap, window=60
-            )
-
-        elif title == "Financing":
-            # AP week nearest to end of September for each fiscal year in the schedule
-            years = {w.week_commencing.year for w in weeks}
-            targets = [date(y, 9, 30) for y in years]
-            patterns[title] = mark_multi(targets, ap, window=60)
-
-        elif title == "Insurance":
-            # AP week ~2 weeks after prep start
-            patterns[title] = mark_nearest(
-                params.prep_start + timedelta(weeks=2), ap
-            )
-
-        else:
-            # Unknown title — spread evenly over all non-hiatus payroll weeks
-            patterns[title] = [
-                1 if (payroll(w) and "HIATUS" not in w.phase_label.upper()) else 0
-                for w in weeks
-            ]
-
+    for title, tp in title_to_tp.items():
+        dummy = BibleEntry(
+            account_code="0000",
+            description="",
+            timing_pattern=tp,
+            timing_details="",
+            timing_title=title,
+        )
+        try:
+            weights = distribute_bible_entry(1.0, dummy, output.weeks, params)
+            patterns[title] = [1 if w > 1e-9 else 0 for w in weights]
+        except Exception:
+            patterns[title] = [0] * len(output.weeks)
     return patterns
 
 
@@ -505,6 +223,7 @@ def _write_timing_sheet(
     output: CashflowOutput,
     params: ProductionParameters,
     title_to_row: dict[str, int],
+    title_to_tp: dict[str, TimingPattern],
 ) -> None:
     """Create the 'Timing' sheet with one pattern row per timing category."""
     ws = wb.create_sheet(_TIMING_SHEET, 1)
@@ -514,7 +233,7 @@ def _write_timing_sheet(
     first_col_letter = get_column_letter(FIRST_WEEK_COL)
     last_col_letter = get_column_letter(last_col)
 
-    patterns = _compute_timing_patterns(list(title_to_row.keys()), output, params)
+    patterns = _compute_timing_patterns(title_to_tp, output, params)
 
     # ── Row 1: title ──────────────────────────────────────────────────────────
     ws.cell(row=1, column=1, value="Distribution Timing Patterns").font = TITLE_FONT
@@ -525,7 +244,8 @@ def _write_timing_sheet(
         value=(
             "Edit 0 / 1 values in the week columns to change when a cost is distributed.  "
             "Green = active (1), yellow = inactive (0).  "
-            "Each Cashflow row computes:  Budget × weight ÷ SUM(all weights for that row)."
+            "Pattern names match the Distribution tab — copy any name into col D of Cashflow "
+            "to re-route that line item."
         ),
     ).font = Font(name="Calibri", italic=True, size=9, color="555555")
 
@@ -539,6 +259,8 @@ def _write_timing_sheet(
     for i, week in enumerate(weeks):
         col = FIRST_WEEK_COL + i
         col_letter = get_column_letter(col)
+        # After insert_cols in Cashflow, week i is now at _FML_FIRST_WEEK_COL+i in Cashflow.
+        # _shift_cashflow_col_refs will update these refs from D→E etc.
         cell = ws.cell(row=3, column=col, value=f"=Cashflow!{col_letter}4")
         cell.font = Font(name="Calibri", bold=True, size=8)
         cell.fill = _get_phase_fill(week.phase_label)
@@ -586,23 +308,19 @@ def _write_timing_sheet(
             )
 
     # ── Column widths ─────────────────────────────────────────────────────────
-    ws.column_dimensions["A"].width = 22
-    ws.column_dimensions["B"].width = 48
+    ws.column_dimensions["A"].width = 25
+    ws.column_dimensions["B"].width = 52
     for i in range(num_weeks):
         ws.column_dimensions[get_column_letter(FIRST_WEEK_COL + i)].width = 5
 
     ws.freeze_panes = ws.cell(row=DATA_START_ROW, column=FIRST_WEEK_COL)
 
 
-# Last row of timing data in the Timing sheet (rows 6–32 for 27 patterns)
-_TIMING_DATA_END = DATA_START_ROW + len(ALL_TIMING_TITLES) - 1
-
-
 # ── Cross-sheet column-reference fixer ───────────────────────────────────────
 
 def _shift_cashflow_col_refs(wb, min_col_idx: int) -> None:
-    """After inserting a column at min_col_idx in the Cashflow sheet, update all
-    Cashflow! column references with col_idx >= min_col_idx by +1 in every other sheet.
+    """After inserting a column at min_col_idx in Cashflow, shift all Cashflow!
+    column references with col_idx >= min_col_idx by +1 in every other sheet.
 
     openpyxl adjusts intra-sheet refs on insert_cols but NOT cross-sheet refs.
     """
@@ -618,7 +336,6 @@ def _shift_cashflow_col_refs(wb, min_col_idx: int) -> None:
                 if not isinstance(v, str) or "Cashflow!" not in v:
                     continue
                 formula = v
-                # Process columns in reverse order (high→low) to prevent cascading.
                 for ci in range(max_idx, min_col_idx - 1, -1):
                     old = get_column_letter(ci)
                     new = get_column_letter(ci + 1)
@@ -629,7 +346,7 @@ def _shift_cashflow_col_refs(wb, min_col_idx: int) -> None:
                         lambda m, n=new: m.group(1) + n + m.group(3) + n,
                         formula,
                     )
-                    # Cell reference: Cashflow!D4 / Cashflow!$D4 / Cashflow!$D$4
+                    # Cell ref: Cashflow!D4 / Cashflow!$D4 / Cashflow!$D$4
                     formula = re.sub(
                         r"(?i)(Cashflow!\$?)(" + oe + r")(?=\$?\d)",
                         lambda m, n=new: m.group(1) + n,
@@ -651,63 +368,75 @@ def write_formula_cashflow_excel(
 
     Layout (formula version):
       A: Code  B: Description  C: Budget (plain value)
-      D: Pattern (editable label — drives all weekly formulas via MATCH)
-      E+: weekly formulas  =IFERROR($C{r}*INDEX(Timing…,MATCH($D{r},…))/SUM(OFFSET(…)),0)
+      D: Pattern (editable — matches Distribution tab exactly, drives weekly formulas)
+      E+: =IFERROR($C{r}*INDEX(Timing…,MATCH($D{r},…))/SUM(OFFSET(…)),0)
 
-    Editing the Pattern cell in column D and pressing Enter recalculates the
-    entire row.  Copy-pasting a pattern name from one row to another instantly
-    reweights that line item.
+    Pattern names in col D are the same titles shown in the Distribution tab.
+    Copy-paste any name from Timing!$A to re-route a line item's distribution.
     """
     # ── 1. Standard workbook ──────────────────────────────────────────────────
     standard_buf = write_cashflow_excel(output, params, budget=budget)
     wb = load_workbook(standard_buf)
     ws = wb["Cashflow"]
 
-    # ── 2. Build timing lookup ─────────────────────────────────────────────────
-    dist_by_code: dict[str, PhaseAssignment] = {
-        d.budget_code: d.phase for d in distributions
+    # ── 2. Build per-row timing info from actual distributions ─────────────────
+    dist_by_code: dict[str, LineItemDistribution] = {
+        d.budget_code: d for d in distributions
     }
+
+    # Fixed row mapping: all 36 patterns always present in Timing sheet
     title_to_row: dict[str, int] = {
         title: DATA_START_ROW + i
         for i, title in enumerate(ALL_TIMING_TITLES)
     }
-    row_timing: list[str] = []
+    title_to_tp: dict[str, TimingPattern] = {
+        title: _TITLE_TIMING_PATTERN[title]
+        for title in ALL_TIMING_TITLES
+    }
+
+    row_titles: list[str] = []
     for row_data in output.rows:
-        phase = dist_by_code.get(row_data.code, PhaseAssignment.PRODUCTION)
-        title = _get_timing_title(row_data.code, phase)
+        dist = dist_by_code.get(row_data.code)
+        if dist is None:
+            # Code not in distributions — use phase fallback
+            tp = TimingPattern.FULL_PAYROLL
+            title = _TIMING_PATTERN_TITLE[tp]
+        else:
+            title, tp = _get_pattern_for_dist(dist)
+        # If the title isn't in our fixed list (edge case), add it
         if title not in title_to_row:
             title_to_row[title] = DATA_START_ROW + len(title_to_row)
-        row_timing.append(title)
+            title_to_tp[title] = tp
+        row_titles.append(title)
 
-    # ── 3. Create Timing sheet (uses Timing cols D+ = FIRST_WEEK_COL+) ────────
-    _write_timing_sheet(wb, output, params, title_to_row)
+    # ── 3. Create Timing sheet ────────────────────────────────────────────────
+    _write_timing_sheet(wb, output, params, title_to_row, title_to_tp)
 
     # ── 4. Insert Pattern column at D in Cashflow, shifting weeks to E+ ───────
-    # openpyxl adjusts intra-sheet formula refs automatically on insert_cols.
     ws.insert_cols(_PATTERN_COL)
-    # Fix cross-sheet Cashflow! refs in all other sheets (incl. Timing row 3/4).
+    # Fix cross-sheet Cashflow! refs in all other sheets (incl. Timing row 3/4 headers)
     _shift_cashflow_col_refs(wb, _PATTERN_COL)
 
     num_weeks = len(output.weeks)
-    tds = DATA_START_ROW        # first timing data row (row 6)
-    tde = _TIMING_DATA_END      # last  timing data row (row 32)
+    tds = DATA_START_ROW      # first timing data row
+    tde = _TIMING_DATA_END    # last  timing data row
     t_first_col = get_column_letter(FIRST_WEEK_COL)  # "D" — Timing weeks start at D
 
-    # ── 5. Write Pattern column header (D5) ───────────────────────────────────
+    # ── 5. Pattern column header (D5) ─────────────────────────────────────────
     phdr = ws.cell(row=5, column=_PATTERN_COL, value="Pattern")
     phdr.font = Font(name="Calibri", bold=True, size=9, color="1565C0")
     phdr.alignment = Alignment(horizontal="center", wrap_text=False)
     phdr.border = THIN_BORDER
-    ws.column_dimensions[get_column_letter(_PATTERN_COL)].width = 20
+    ws.column_dimensions[get_column_letter(_PATTERN_COL)].width = 22
 
     # Rename "Total" header → "Budget"
     ws.cell(row=5, column=TOTAL_COL).value = "Budget"
 
     # ── 6. Rewrite data rows ──────────────────────────────────────────────────
-    for row_idx, (row_data, title) in enumerate(zip(output.rows, row_timing)):
+    for row_idx, (row_data, title) in enumerate(zip(output.rows, row_titles)):
         excel_row = DATA_START_ROW + row_idx
 
-        # Col C: budget as plain value (avoids circular ref — weekly cells use $C{r})
+        # Col C: budget as plain value (avoids circular ref — weekly cells ref $C{r})
         total_cell = ws.cell(row=excel_row, column=TOTAL_COL)
         total_cell.value = round(row_data.total, 2)
         total_cell.number_format = CURRENCY_FORMAT
@@ -719,8 +448,8 @@ def write_formula_cashflow_excel(
         pcell.alignment = Alignment(horizontal="center")
         pcell.border = THIN_BORDER
 
-        # Cols E+: formula driven by $D{row} via MATCH into Timing sheet
-        # Timing week columns are D, E, F, … (FIRST_WEEK_COL + offset)
+        # Cols E+: formula reads pattern from $D{row} via MATCH into Timing sheet
+        # Timing week columns are always D, E, F, … (FIRST_WEEK_COL + offset)
         # Cashflow week columns are E, F, G, … (_FML_FIRST_WEEK_COL + offset)
         for col_offset in range(num_weeks):
             t_wcol = get_column_letter(FIRST_WEEK_COL + col_offset)  # Timing col
@@ -740,7 +469,7 @@ def write_formula_cashflow_excel(
             cell.value = formula
             cell.number_format = CURRENCY_FORMAT
 
-    # Freeze panes: columns A-D always visible, rows 1-5 always visible
+    # Freeze: columns A–D always visible, rows 1–5 always visible
     ws.freeze_panes = ws.cell(row=DATA_START_ROW, column=_FML_FIRST_WEEK_COL)
 
     # ── 7. Save ───────────────────────────────────────────────────────────────
