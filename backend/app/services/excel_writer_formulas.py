@@ -132,7 +132,7 @@ _TIMING_DESCRIPTIONS: dict[str, str] = {
     "After Delivery":              "AP week ~4 weeks after final delivery",
     "Graphics":                    "Bi-weekly AP weeks from edit start through final online",
     "Insurance":                   "AP week ~2-3 weeks after prep start",
-    "Financing":                   "AP week nearest to fiscal year-end (October) per year",
+    "Financing":                   "AP week nearest to September 30, pro-rated by total spend in each fiscal year (Nov 1–Oct 31)",
     "Mid Edit Lump":               "Single AP lump sum at the midpoint of the edit period",
 }
 
@@ -195,11 +195,16 @@ def _compute_timing_patterns(
     title_to_tp: dict[str, TimingPattern],
     output: CashflowOutput,
     params: ProductionParameters,
-) -> dict[str, list[int]]:
-    """Compute 0/1 patterns for each timing title using the authoritative
-    bible_distributor implementation.  Non-zero weeks are marked 1.
+) -> dict[str, list[float]]:
+    """Compute patterns for each timing title using the authoritative
+    bible_distributor implementation.
+
+    Most patterns return 0/1 values (inactive/active weeks).
+    FINANCING returns proportional float weights (e.g. 0.65 / 0.35 across two
+    fiscal years), computed from actual spend in output.weekly_totals so that
+    the Timing sheet correctly splits the financing budget by FY spend.
     """
-    patterns: dict[str, list[int]] = {}
+    patterns: dict[str, list[float]] = {}
     for title, tp in title_to_tp.items():
         dummy = BibleEntry(
             account_code="0000",
@@ -209,10 +214,16 @@ def _compute_timing_patterns(
             timing_title=title,
         )
         try:
-            weights = distribute_bible_entry(1.0, dummy, output.weeks, params)
-            patterns[title] = [1 if w > 1e-9 else 0 for w in weights]
+            if tp == TimingPattern.FINANCING:
+                # Use spend-based pro-ration from the Python output
+                ctx = {"weekly_spend": list(output.weekly_totals)}
+                weights = distribute_bible_entry(1.0, dummy, output.weeks, params, context=ctx)
+                patterns[title] = [round(float(w), 4) for w in weights]
+            else:
+                weights = distribute_bible_entry(1.0, dummy, output.weeks, params)
+                patterns[title] = [1.0 if w > 1e-9 else 0.0 for w in weights]
         except Exception:
-            patterns[title] = [0] * len(output.weeks)
+            patterns[title] = [0.0] * len(output.weeks)
     return patterns
 
 
@@ -295,16 +306,19 @@ def _write_timing_sheet(
         desc_cell.font = Font(name="Calibri", size=9, italic=True, color="444444")
         desc_cell.border = THIN_BORDER
 
+        # Detect proportional rows (Financing): any value is not exactly 0 or 1
+        is_proportional = any(0 < v < 0.999 for v in pat)
         for i, val in enumerate(pat):
             col = FIRST_WEEK_COL + i
             cell = ws.cell(row=excel_row, column=col, value=val)
-            cell.number_format = "0"
+            cell.number_format = "0.00" if is_proportional else "0"
             cell.alignment = Alignment(horizontal="center")
             cell.border = THIN_BORDER
-            cell.fill = _ACTIVE_FILL if val else _INACTIVE_FILL
+            is_active = val > 1e-9
+            cell.fill = _ACTIVE_FILL if is_active else _INACTIVE_FILL
             cell.font = Font(
-                name="Calibri", bold=bool(val), size=9,
-                color="1B5E20" if val else "BBBBBB",
+                name="Calibri", bold=is_active, size=9,
+                color="1B5E20" if is_active else "BBBBBB",
             )
 
     # ── Column widths ─────────────────────────────────────────────────────────

@@ -248,29 +248,35 @@ def generate_cashflow(
         # 1. User timing-pattern override takes priority over bible default
         if dist and dist.timing_pattern_override:
             try:
+                tp = TimingPattern(dist.timing_pattern_override)
                 override_entry = BibleEntry(
                     account_code=item.code,
                     description=item.description,
-                    timing_pattern=TimingPattern(dist.timing_pattern_override),
+                    timing_pattern=tp,
                     timing_details='',
                     timing_title='',
                 )
+                # FINANCING pro-rates by spend accumulated so far in the loop
+                ctx = {"weekly_spend": weekly_totals.tolist()} if tp == TimingPattern.FINANCING else None
                 weekly_amounts = distribute_bible_entry(
                     total=item.total,
                     entry=override_entry,
                     weeks=weeks,
                     params=parameters,
+                    context=ctx,
                 )
             except ValueError:
                 weekly_amounts = _allocate_total_with_fallback(item.total, weeks)
 
         # 2. Bible-driven (no override)
         elif bible_entry is not None:
+            ctx = {"weekly_spend": weekly_totals.tolist()} if bible_entry.timing_pattern == TimingPattern.FINANCING else None
             weekly_amounts = distribute_bible_entry(
                 total=item.total,
                 entry=bible_entry,
                 weeks=weeks,
                 params=parameters,
+                context=ctx,
             )
 
         # 3. Phase/curve fallback
