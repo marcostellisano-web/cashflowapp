@@ -15,12 +15,13 @@ Cashflow weekly cells use:
 
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 from io import BytesIO
 
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.utils import get_column_letter
+from openpyxl.utils import column_index_from_string, get_column_letter
 
 from app.models.budget import ParsedBudget
 from app.models.cashflow import CashflowOutput
@@ -191,6 +192,11 @@ _INACTIVE_FILL = PatternFill(start_color="FFFDE7", end_color="FFFDE7", fill_type
 _HEADER_FILL = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
 
 _TIMING_SHEET = "Timing"
+
+# Formula-version Cashflow layout (Pattern column inserted between Budget and weeks):
+#   A: Code  B: Description  C: Budget (value)  D: Pattern (editable)  E+: weekly formulas
+_PATTERN_COL = FIRST_WEEK_COL           # D (col 4) — editable timing label
+_FML_FIRST_WEEK_COL = FIRST_WEEK_COL + 1  # E (col 5) — first weekly formula column
 
 # Fixed ordering — all 27 patterns always written to the Timing sheet
 ALL_TIMING_TITLES: list[str] = [
@@ -588,6 +594,51 @@ def _write_timing_sheet(
     ws.freeze_panes = ws.cell(row=DATA_START_ROW, column=FIRST_WEEK_COL)
 
 
+# Last row of timing data in the Timing sheet (rows 6–32 for 27 patterns)
+_TIMING_DATA_END = DATA_START_ROW + len(ALL_TIMING_TITLES) - 1
+
+
+# ── Cross-sheet column-reference fixer ───────────────────────────────────────
+
+def _shift_cashflow_col_refs(wb, min_col_idx: int) -> None:
+    """After inserting a column at min_col_idx in the Cashflow sheet, update all
+    Cashflow! column references with col_idx >= min_col_idx by +1 in every other sheet.
+
+    openpyxl adjusts intra-sheet refs on insert_cols but NOT cross-sheet refs.
+    """
+    skip = {"Cashflow"}
+    max_idx = wb["Cashflow"].max_column + 10
+
+    for ws in wb.worksheets:
+        if ws.title in skip:
+            continue
+        for row in ws.iter_rows():
+            for cell in row:
+                v = cell.value
+                if not isinstance(v, str) or "Cashflow!" not in v:
+                    continue
+                formula = v
+                # Process columns in reverse order (high→low) to prevent cascading.
+                for ci in range(max_idx, min_col_idx - 1, -1):
+                    old = get_column_letter(ci)
+                    new = get_column_letter(ci + 1)
+                    oe = re.escape(old)
+                    # Whole-column range: Cashflow!D:D / Cashflow!$D:$D
+                    formula = re.sub(
+                        r"(?i)(Cashflow!\$?)(" + oe + r")(:\$?)(" + oe + r")",
+                        lambda m, n=new: m.group(1) + n + m.group(3) + n,
+                        formula,
+                    )
+                    # Cell reference: Cashflow!D4 / Cashflow!$D4 / Cashflow!$D$4
+                    formula = re.sub(
+                        r"(?i)(Cashflow!\$?)(" + oe + r")(?=\$?\d)",
+                        lambda m, n=new: m.group(1) + n,
+                        formula,
+                    )
+                if formula != v:
+                    cell.value = formula
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def write_formula_cashflow_excel(
@@ -598,93 +649,101 @@ def write_formula_cashflow_excel(
 ) -> BytesIO:
     """Generate a formula-driven cashflow workbook with an editable Timing sheet.
 
-    1. Build the standard workbook (all sheets, full styling).
-    2. Insert a 'Timing' sheet (sheet 2) with one editable row per timing
-       category derived from the production bible + schedule.
-    3. Rewrite the Cashflow sheet data rows so every weekly cell is a formula
-       referencing the Timing sheet rather than a hard-coded value.
-    4. Add a 'Pattern' column showing which Timing row each Cashflow line uses.
+    Layout (formula version):
+      A: Code  B: Description  C: Budget (plain value)
+      D: Pattern (editable label — drives all weekly formulas via MATCH)
+      E+: weekly formulas  =IFERROR($C{r}*INDEX(Timing…,MATCH($D{r},…))/SUM(OFFSET(…)),0)
+
+    Editing the Pattern cell in column D and pressing Enter recalculates the
+    entire row.  Copy-pasting a pattern name from one row to another instantly
+    reweights that line item.
     """
     # ── 1. Standard workbook ──────────────────────────────────────────────────
     standard_buf = write_cashflow_excel(output, params, budget=budget)
     wb = load_workbook(standard_buf)
     ws = wb["Cashflow"]
 
-    # ── 2. Build timing title per row ─────────────────────────────────────────
+    # ── 2. Build timing lookup ─────────────────────────────────────────────────
     dist_by_code: dict[str, PhaseAssignment] = {
         d.budget_code: d.phase for d in distributions
     }
-
-    # All 27 patterns are always written to the Timing sheet so the user can
-    # inspect and edit any of them, even if unused by the current budget.
     title_to_row: dict[str, int] = {
         title: DATA_START_ROW + i
         for i, title in enumerate(ALL_TIMING_TITLES)
     }
-
     row_timing: list[str] = []
     for row_data in output.rows:
         phase = dist_by_code.get(row_data.code, PhaseAssignment.PRODUCTION)
         title = _get_timing_title(row_data.code, phase)
-        # Fallback: if somehow title isn't in the fixed list, add it at end
         if title not in title_to_row:
             title_to_row[title] = DATA_START_ROW + len(title_to_row)
         row_timing.append(title)
 
-    # ── 3. Create Timing sheet ────────────────────────────────────────────────
+    # ── 3. Create Timing sheet (uses Timing cols D+ = FIRST_WEEK_COL+) ────────
     _write_timing_sheet(wb, output, params, title_to_row)
 
-    # ── 4. Rewrite Cashflow data rows ─────────────────────────────────────────
-    num_weeks = len(output.weeks)
-    last_week_col = FIRST_WEEK_COL + num_weeks - 1
-    first_col_letter = get_column_letter(FIRST_WEEK_COL)
-    last_week_col_letter = get_column_letter(last_week_col)
+    # ── 4. Insert Pattern column at D in Cashflow, shifting weeks to E+ ───────
+    # openpyxl adjusts intra-sheet formula refs automatically on insert_cols.
+    ws.insert_cols(_PATTERN_COL)
+    # Fix cross-sheet Cashflow! refs in all other sheets (incl. Timing row 3/4).
+    _shift_cashflow_col_refs(wb, _PATTERN_COL)
 
-    # Rename "Total" header → "Budget" (it's now an editable input, not a sum)
+    num_weeks = len(output.weeks)
+    tds = DATA_START_ROW        # first timing data row (row 6)
+    tde = _TIMING_DATA_END      # last  timing data row (row 32)
+    t_first_col = get_column_letter(FIRST_WEEK_COL)  # "D" — Timing weeks start at D
+
+    # ── 5. Write Pattern column header (D5) ───────────────────────────────────
+    phdr = ws.cell(row=5, column=_PATTERN_COL, value="Pattern")
+    phdr.font = Font(name="Calibri", bold=True, size=9, color="1565C0")
+    phdr.alignment = Alignment(horizontal="center", wrap_text=False)
+    phdr.border = THIN_BORDER
+    ws.column_dimensions[get_column_letter(_PATTERN_COL)].width = 20
+
+    # Rename "Total" header → "Budget"
     ws.cell(row=5, column=TOTAL_COL).value = "Budget"
 
-    # "Pattern" column header (after the existing summary-code helper column)
-    pattern_col = FIRST_WEEK_COL + num_weeks + 3
-    pattern_col_letter = get_column_letter(pattern_col)
-    phdr = ws.cell(row=5, column=pattern_col, value="Pattern")
-    phdr.font = Font(name="Calibri", bold=True, size=8, color="1565C0")
-    phdr.alignment = Alignment(horizontal="center")
-    phdr.border = THIN_BORDER
-
+    # ── 6. Rewrite data rows ──────────────────────────────────────────────────
     for row_idx, (row_data, title) in enumerate(zip(output.rows, row_timing)):
         excel_row = DATA_START_ROW + row_idx
-        prow = title_to_row[title]  # row in the Timing sheet
 
-        # Column C: budget total as a plain value (weekly formulas reference $C{row},
-        # so the original SUM formula would create a circular reference).
+        # Col C: budget as plain value (avoids circular ref — weekly cells use $C{r})
         total_cell = ws.cell(row=excel_row, column=TOTAL_COL)
         total_cell.value = round(row_data.total, 2)
         total_cell.number_format = CURRENCY_FORMAT
         total_cell.font = Font(name="Calibri", size=10, bold=True)
 
-        # Weekly cells: reference Timing sheet weight, divide by SUM of weights
-        sum_range = (
-            f"{_TIMING_SHEET}!${first_col_letter}${prow}"
-            f":${last_week_col_letter}${prow}"
-        )
+        # Col D: Pattern name — editable; changing it re-routes all weekly formulas
+        pcell = ws.cell(row=excel_row, column=_PATTERN_COL, value=title)
+        pcell.font = Font(name="Calibri", size=9, italic=True, color="1565C0")
+        pcell.alignment = Alignment(horizontal="center")
+        pcell.border = THIN_BORDER
+
+        # Cols E+: formula driven by $D{row} via MATCH into Timing sheet
+        # Timing week columns are D, E, F, … (FIRST_WEEK_COL + offset)
+        # Cashflow week columns are E, F, G, … (_FML_FIRST_WEEK_COL + offset)
         for col_offset in range(num_weeks):
-            col = FIRST_WEEK_COL + col_offset
-            wcol = get_column_letter(col)
-            weight = f"{_TIMING_SHEET}!{wcol}${prow}"
-            formula = f"=IFERROR($C{excel_row}*{weight}/SUM({sum_range}),0)"
-            cell = ws.cell(row=excel_row, column=col)
+            t_wcol = get_column_letter(FIRST_WEEK_COL + col_offset)  # Timing col
+            cf_col = _FML_FIRST_WEEK_COL + col_offset                 # Cashflow col
+
+            formula = (
+                f"=IFERROR("
+                f"$C{excel_row}"
+                f"*INDEX(Timing!{t_wcol}${tds}:{t_wcol}${tde},"
+                f"MATCH($D{excel_row},Timing!$A${tds}:$A${tde},0))"
+                f"/SUM(OFFSET(Timing!${t_first_col}${tds},"
+                f"MATCH($D{excel_row},Timing!$A${tds}:$A${tde},0)-1,"
+                f"0,1,{num_weeks}))"
+                f",0)"
+            )
+            cell = ws.cell(row=excel_row, column=cf_col)
             cell.value = formula
             cell.number_format = CURRENCY_FORMAT
 
-        # Pattern label column
-        pc = ws.cell(row=excel_row, column=pattern_col, value=title)
-        pc.font = Font(name="Calibri", size=8, color="1565C0", italic=True)
-        pc.alignment = Alignment(horizontal="center")
-        pc.border = THIN_BORDER
+    # Freeze panes: columns A-D always visible, rows 1-5 always visible
+    ws.freeze_panes = ws.cell(row=DATA_START_ROW, column=_FML_FIRST_WEEK_COL)
 
-    ws.column_dimensions[pattern_col_letter].width = 18
-
-    # ── 5. Save ───────────────────────────────────────────────────────────────
+    # ── 7. Save ───────────────────────────────────────────────────────────────
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
