@@ -20,10 +20,15 @@ def distribute_bible_entry(
     entry: BibleEntry,
     weeks: list[WeekColumn],
     params: ProductionParameters,
+    context: dict | None = None,
 ) -> np.ndarray:
     """Distribute a budget line item using its bible timing pattern.
 
     Returns an array of length len(weeks) with weekly dollar amounts summing to `total`.
+
+    context: optional dict of extra data for patterns that need it.
+      - 'weekly_spend': list[float] — cumulative weekly spend from all previously
+        computed rows, used by FINANCING for spend-based fiscal-year pro-ration.
     """
     n = len(weeks)
     if n == 0 or total == 0:
@@ -95,7 +100,8 @@ def distribute_bible_entry(
         case TimingPattern.PREP_TO_DELIVERY_AP:
             return _prep_to_delivery_ap(total, weeks, params)
         case TimingPattern.FINANCING:
-            return _financing(total, weeks, params)
+            weekly_spend = context.get("weekly_spend") if context else None
+            return _financing(total, weeks, params, weekly_spend=weekly_spend)
         case TimingPattern.PREP_TO_FIRST_SHOOT_PAYROLL:
             return _prep_to_first_shoot_payroll(total, weeks, params)
         case TimingPattern.NARRATOR:
@@ -912,13 +918,18 @@ def _prep_to_delivery_ap(total: float, weeks: list[WeekColumn], params: Producti
     return _spread_between_dates(total, weeks, params.prep_start, end_date, want_payroll=False)
 
 
-def _financing(total: float, weeks: list[WeekColumn], params: ProductionParameters) -> np.ndarray:
-    """Paid in the last week of September, pro-rated by spend in each fiscal year.
+def _financing(
+    total: float,
+    weeks: list[WeekColumn],
+    params: ProductionParameters,
+    weekly_spend: list[float] | None = None,
+) -> np.ndarray:
+    """Paid on the AP week nearest September 30, pro-rated by fiscal-year spend.
 
-    Fiscal year runs Nov 1 – Oct 31. Identifies every fiscal year the
-    production overlaps, splits the total proportionally by the number of
-    production weeks in each fiscal year, and places each chunk on the AP
-    week nearest September 30 of that fiscal year.
+    Fiscal year runs Oct 1 – Sep 30.  Identifies every FY the production
+    overlaps, splits the total proportionally by total dollar spend in each FY
+    (using weekly_spend when provided, falling back to week count otherwise),
+    and places each chunk on the AP week nearest September 30 of that FY.
     """
     n = len(weeks)
     if n == 0:
@@ -928,52 +939,54 @@ def _financing(total: float, weeks: list[WeekColumn], params: ProductionParamete
     last_date = weeks[-1].week_commencing
 
     def fy_end_year(d: date) -> int:
-        """Calendar year in which this date's fiscal year ends (Oct 31)."""
-        return d.year if d.month <= 10 else d.year + 1
+        return d.year if d.month < 10 else d.year + 1
 
-    # Every fiscal year touched by the production
     start_fy = fy_end_year(first_date)
     end_fy = fy_end_year(last_date)
 
-    # Oct 31 boundaries are used only for pro-rating week counts.
-    # Payments land on the last weekday of September in the same year.
-    oct_dates: list[date] = []   # fiscal year boundaries (for counting)
-    pay_dates: list[date] = []   # payment target dates (end of September)
+    pay_dates: list[date] = []
     for fy_year in range(start_fy, end_fy + 1):
-        oct31 = date(fy_year, 10, 31)
-        while oct31.weekday() > 4:
-            oct31 -= timedelta(days=1)
-        oct_dates.append(oct31)
-
         sep30 = date(fy_year, 9, 30)
         while sep30.weekday() > 4:
             sep30 -= timedelta(days=1)
         pay_dates.append(sep30)
 
-    if not oct_dates:
+    if not pay_dates:
         all_weeks = _get_all_non_hiatus(weeks)
         ap = _filter_by_week_type(weeks, all_weeks, want_payroll=False)
         return _spread_at_indices(total, [ap[-1]] if ap else [n - 1], n)
 
-    # Count production weeks that fall inside each fiscal year (Nov 1 – Oct 31)
-    all_non_hiatus = _get_all_non_hiatus(weeks)
-    segment_counts: list[int] = []
-    for oct_d in oct_dates:
-        fy_start = date(oct_d.year - 1, 11, 1)
-        fy_end = oct_d + timedelta(days=6)  # include the full week containing Oct 31
-        count = sum(
-            1 for i in all_non_hiatus
-            if fy_start <= weeks[i].week_commencing <= fy_end
-        )
-        segment_counts.append(count)
+    # Pro-rate by spend when available, otherwise fall back to week count
+    if weekly_spend and len(weekly_spend) == n:
+        segment_weights: list[float] = []
+        for pay_d in pay_dates:
+            fy_start = date(pay_d.year - 1, 10, 1)
+            fy_end = date(pay_d.year, 9, 30) + timedelta(days=6)
+            fy_spend = sum(
+                weekly_spend[i]
+                for i, w in enumerate(weeks)
+                if fy_start <= w.week_commencing <= fy_end
+            )
+            segment_weights.append(fy_spend)
+    else:
+        all_non_hiatus = _get_all_non_hiatus(weeks)
+        segment_weights = []
+        for pay_d in pay_dates:
+            fy_start = date(pay_d.year - 1, 10, 1)
+            fy_end = date(pay_d.year, 9, 30) + timedelta(days=6)
+            count = sum(
+                1 for i in all_non_hiatus
+                if fy_start <= weeks[i].week_commencing <= fy_end
+            )
+            segment_weights.append(float(count))
 
-    total_counted = sum(segment_counts) or 1
+    total_weight = sum(segment_weights) or 1.0
 
     result = np.zeros(n)
-    for pay_d, count in zip(pay_dates, segment_counts):
-        if count == 0:
+    for pay_d, weight in zip(pay_dates, segment_weights):
+        if weight == 0:
             continue
-        proportion = count / total_counted
+        proportion = weight / total_weight
         amount = total * proportion
         idx = _week_index_for_date(weeks, pay_d)
         if idx is None:

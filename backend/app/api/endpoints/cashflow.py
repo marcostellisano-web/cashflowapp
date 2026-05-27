@@ -12,6 +12,7 @@ from app.models.distribution import CurveType, LineItemDistribution, PhaseAssign
 from app.services.phase_mapper import get_default_distributions
 from app.services.cashflow_engine import generate_cashflow
 from app.services.excel_writer import write_cashflow_excel
+from app.services.excel_writer_formulas import write_formula_cashflow_excel
 
 router = APIRouter()
 
@@ -35,6 +36,25 @@ async def generate_cashflow_excel(request: GenerateRequest):
     )
     buffer = write_cashflow_excel(output, request.parameters, budget=request.budget)
     filename = f"{request.parameters.title.replace(' ', '_')}_cashflow.xlsx"
+
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/cashflow/generate-formulas")
+async def generate_formula_cashflow_excel(request: GenerateRequest):
+    output = generate_cashflow(
+        budget=request.budget,
+        parameters=request.parameters,
+        distributions=request.distributions,
+    )
+    buffer = write_formula_cashflow_excel(
+        output, request.parameters, request.distributions, budget=request.budget
+    )
+    filename = f"{request.parameters.title.replace(' ', '_')}_cashflow_formulas.xlsx"
 
     return Response(
         content=buffer.getvalue(),
