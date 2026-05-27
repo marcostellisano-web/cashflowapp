@@ -192,6 +192,36 @@ _HEADER_FILL = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="
 
 _TIMING_SHEET = "Timing"
 
+# Fixed ordering — all 27 patterns always written to the Timing sheet
+ALL_TIMING_TITLES: list[str] = [
+    "Full Payroll",
+    "Full AP",
+    "Internals",
+    "Shoot Payroll",
+    "Shoot Rentals",
+    "Shoot Purchases",
+    "Per Diem",
+    "Monthly (shoot months)",
+    "Travel",
+    "Still Photo",
+    "Pre-Shoot",
+    "Casting",
+    "Legal",
+    "PP to End",
+    "Archive Research",
+    "Narrator",
+    "Edit",
+    "Edit Internals",
+    "Pick Lock",
+    "Online Editor",
+    "Delivery copies",
+    "Mix",
+    "Composer",
+    "Graphics",
+    "After Delivery",
+    "Financing",
+    "Insurance",
+]
 
 # ── Lookup helpers ────────────────────────────────────────────────────────────
 
@@ -585,15 +615,21 @@ def write_formula_cashflow_excel(
         d.budget_code: d.phase for d in distributions
     }
 
-    # Preserve insertion order (first-seen ordering for Timing sheet rows)
-    title_to_row: dict[str, int] = {}
+    # All 27 patterns are always written to the Timing sheet so the user can
+    # inspect and edit any of them, even if unused by the current budget.
+    title_to_row: dict[str, int] = {
+        title: DATA_START_ROW + i
+        for i, title in enumerate(ALL_TIMING_TITLES)
+    }
+
     row_timing: list[str] = []
     for row_data in output.rows:
         phase = dist_by_code.get(row_data.code, PhaseAssignment.PRODUCTION)
         title = _get_timing_title(row_data.code, phase)
-        row_timing.append(title)
+        # Fallback: if somehow title isn't in the fixed list, add it at end
         if title not in title_to_row:
             title_to_row[title] = DATA_START_ROW + len(title_to_row)
+        row_timing.append(title)
 
     # ── 3. Create Timing sheet ────────────────────────────────────────────────
     _write_timing_sheet(wb, output, params, title_to_row)
