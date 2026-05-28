@@ -20,6 +20,8 @@ interface TaxCreditOutputProps {
 export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps) {
   const [tab, setTab] = useState<Tab>('project');
   const [title, setTitle] = useState('');
+  const [numEpisodes, setNumEpisodes] = useState('');
+  const [durationMinutes, setDurationMinutes] = useState('');
   const [templates, setTemplates] = useState<string[]>([]);
   const [templateName, setTemplateName] = useState('');
   const [newTemplateName, setNewTemplateName] = useState('');
@@ -68,6 +70,8 @@ export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps
         budget,
         title || 'Untitled',
         overrides.length > 0 ? overrides : undefined,
+        numEpisodes ? parseInt(numEpisodes, 10) : undefined,
+        durationMinutes ? parseInt(durationMinutes, 10) : undefined,
       );
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -120,19 +124,47 @@ export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps
         </div>
       </div>
 
-      {/* Title input */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-2">
-        <h3 className="text-sm font-semibold text-gray-700">Production Title</h3>
-        <p className="text-xs text-gray-400">
-          Used only for the generated file name.
-        </p>
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Enter production title…"
-          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
+      {/* Title + series info */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-gray-700">Production Title</h3>
+          <p className="text-xs text-gray-400">Used only for the generated file name.</p>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Enter production title…"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        <div className="flex gap-4">
+          <div className="flex-1 space-y-2">
+            <label className="block text-sm font-semibold text-gray-700">
+              Number of episodes
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={numEpisodes}
+              onChange={(e) => setNumEpisodes(e.target.value)}
+              placeholder="e.g. 4"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div className="flex-1 space-y-2">
+            <label className="block text-sm font-semibold text-gray-700">
+              Duration in minutes
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(e.target.value)}
+              placeholder="e.g. 60"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-3">
