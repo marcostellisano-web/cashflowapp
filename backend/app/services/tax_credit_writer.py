@@ -3043,10 +3043,11 @@ def _write_fs_sheet(ws, title: str) -> None:
 
     for row in range(BOX_R1, BOX_R2 + 1):
         for col in range(BOX_C1, BOX_C2 + 1):
-            top    = _TS if row in {BOX_R1, R_TOTAL}   else None
-            bottom = _TS if row in {BOX_R2, R_COL_HDR} else None
-            left   = _TS if col == BOX_C1              else None
-            right  = _TS if col == BOX_C2              else None
+            inner  = BOX_C1 < col < BOX_C2   # cols B–E (not the outer A/F edge cols)
+            top    = _TS if (row == BOX_R1) or (row == R_TOTAL   and inner) else None
+            bottom = _TS if (row == BOX_R2) or (row == R_COL_HDR and inner) else None
+            left   = _TS if col == BOX_C1                                   else None
+            right  = _TS if col == BOX_C2                                   else None
             if any((top, bottom, left, right)):
                 ws.row_dimensions[row].height = ROW_H
                 ws.cell(row=row, column=col).border = Border(
