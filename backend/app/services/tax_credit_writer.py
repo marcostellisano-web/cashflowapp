@@ -2857,6 +2857,7 @@ def _write_fs_sheet(ws, title: str) -> None:
     ws.column_dimensions["C"].width = 14
     ws.column_dimensions["D"].width = 15
     ws.column_dimensions["E"].width = 8
+    ws.column_dimensions["F"].width = 3
 
     # ── Calibri fonts ──────────────────────────────────────────────────────────
     _CAL_NORMAL = Font(name="Calibri", size=10)
@@ -3032,17 +3033,20 @@ def _write_fs_sheet(ws, title: str) -> None:
     _cell(R_TOTAL, 4, "='Breakdown'!C6", font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_TOTAL, 5, 1.0,               font=_CAL_BOLD, align=_RIGHT, fmt=FMT_PCT)
 
-    # ── Borders: outer box (B4:E25), metadata separator after row 8,
-    #            Total separator above row 25 ──────────────────────────────────
-    BOX_R1, BOX_R2 = 4, 25
-    BOX_C1, BOX_C2 = 2, 5
+    # ── Row 26: blank bottom padding (inside box) ─────────────────────────────
+    ws.row_dimensions[26].height = ROW_H
+
+    # ── Borders: outer box (A4:F26), separator above TV LICENSES (row 10),
+    #            Total separator above row 25 ─────────────────────────────────
+    BOX_R1, BOX_R2 = 4, 26
+    BOX_C1, BOX_C2 = 1, 6
 
     for row in range(BOX_R1, BOX_R2 + 1):
         for col in range(BOX_C1, BOX_C2 + 1):
-            top    = _TS if row in {BOX_R1, R_TOTAL} else None
-            bottom = _TS if row in {BOX_R2, R_DUR}   else None
-            left   = _TS if col == BOX_C1            else None
-            right  = _TS if col == BOX_C2            else None
+            top    = _TS if row in {BOX_R1, R_TOTAL}   else None
+            bottom = _TS if row in {BOX_R2, R_COL_HDR} else None
+            left   = _TS if col == BOX_C1              else None
+            right  = _TS if col == BOX_C2              else None
             if any((top, bottom, left, right)):
                 ws.row_dimensions[row].height = ROW_H
                 ws.cell(row=row, column=col).border = Border(
