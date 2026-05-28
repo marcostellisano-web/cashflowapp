@@ -2894,7 +2894,7 @@ def _write_fs_sheet(ws, title: str) -> None:
     c.alignment = _CENTER
 
     # ── Row 3: spacer ─────────────────────────────────────────────────────────
-    ws.row_dimensions[3].height = 8
+    ws.row_dimensions[3].height = ROW_H
 
     # ── Row 4: blank padding (top of box) ─────────────────────────────────────
     ws.row_dimensions[4].height = ROW_H
@@ -2922,7 +2922,7 @@ def _write_fs_sheet(ws, title: str) -> None:
 
     _cell(R_DUR, 2, "Duration in minutes",        font=_CAL_BOLD)
     _cell(R_DUR, 3)
-    _cell(R_DUR, 4, None, font=_CAL_BOLD, align=_RIGHT, fill=_INPUT_FILL)
+    _cell(R_DUR, 4, None, font=_CAL_BOLD, align=_RIGHT)
     _cell(R_DUR, 5)
 
     # ── Row 9: blank ──────────────────────────────────────────────────────────
@@ -2944,8 +2944,8 @@ def _write_fs_sheet(ws, title: str) -> None:
 
     # ── Rows 12-13: Broadcaster placeholders (user input) ─────────────────────
     R_BC1 = 12
-    _cell(R_BC1, 2, "Broadcaster 1", fill=_INPUT_FILL)
-    _cell(R_BC1, 3, None, align=_RIGHT, fmt=FMT_NUM, fill=_INPUT_FILL)
+    _cell(R_BC1, 2, "Broadcaster 1")
+    _cell(R_BC1, 3, None, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_BC1, 4,
           f"=IF(ISNUMBER(C{R_BC1}),C{R_BC1}*'Breakdown'!$C$2,0)",
           align=_RIGHT, fmt=FMT_NUM)
@@ -2954,8 +2954,8 @@ def _write_fs_sheet(ws, title: str) -> None:
           align=_RIGHT, fmt=FMT_PCT)
 
     R_BC2 = 13
-    _cell(R_BC2, 2, "Broadcaster 2", fill=_INPUT_FILL)
-    _cell(R_BC2, 3, None, align=_RIGHT, fmt=FMT_NUM, fill=_INPUT_FILL)
+    _cell(R_BC2, 2, "Broadcaster 2")
+    _cell(R_BC2, 3, None, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_BC2, 4,
           f"=IF(ISNUMBER(C{R_BC2}),C{R_BC2}*'Breakdown'!$C$2,0)",
           align=_RIGHT, fmt=FMT_NUM)
@@ -3032,9 +3032,9 @@ def _write_fs_sheet(ws, title: str) -> None:
     _cell(R_TOTAL, 4, "='Breakdown'!C6", font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_TOTAL, 5, 1.0,               font=_CAL_BOLD, align=_RIGHT, fmt=FMT_PCT)
 
-    # ── Borders: outer box (B5:E25), metadata separator after row 8,
+    # ── Borders: outer box (B4:E25), metadata separator after row 8,
     #            Total separator above row 25 ──────────────────────────────────
-    BOX_R1, BOX_R2 = 5, 25
+    BOX_R1, BOX_R2 = 4, 25
     BOX_C1, BOX_C2 = 2, 5
 
     for row in range(BOX_R1, BOX_R2 + 1):
