@@ -3059,6 +3059,170 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
                 )
 
 
+def _write_sales_sheet(ws) -> None:
+    """Sales sheet – Presales, Sales Projections, and Participation sections."""
+    ws.title = "Sales"
+
+    _CAL_NORMAL = Font(name="Calibri", size=10)
+    _CAL_BOLD   = Font(name="Calibri", bold=True, size=10)
+    _CAL_ITALIC = Font(name="Calibri", italic=True, size=9)
+    _CAL_SMALL  = Font(name="Calibri", size=9)
+
+    ROW_H   = 16
+    FMT_NUM = _ACCOUNTING_FORMAT
+    FMT_PCT = '0.00%'
+
+    _YELLOW_FILL  = PatternFill(start_color="FFFF99", end_color="FFFF99", fill_type="solid")
+    _CYAN_FILL    = PatternFill(start_color="CCFFFF", end_color="CCFFFF", fill_type="solid")
+    _GRAY_FILL    = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+    _LT_GREEN_FILL = PatternFill(start_color="D9EAD3", end_color="D9EAD3", fill_type="solid")
+
+    # Column widths
+    ws.column_dimensions["A"].width = 18   # Broadcaster label
+    ws.column_dimensions["B"].width = 24   # Name
+    ws.column_dimensions["C"].width = 12   # Currency
+    ws.column_dimensions["D"].width = 16   # License fee local
+    ws.column_dimensions["E"].width = 16   # License Fee CAD
+    ws.column_dimensions["F"].width = 16   # Per Ep Local
+    ws.column_dimensions["G"].width = 2    # spacer
+    ws.column_dimensions["H"].width = 22   # FX label
+    ws.column_dimensions["I"].width = 12   # FX value
+
+    def _cell(row, col, value=None, font=None, align=None, fmt=None, fill=None, border=None):
+        ws.row_dimensions[row].height = ROW_H
+        c = ws.cell(row=row, column=col, value=value)
+        c.font      = font   or _CAL_NORMAL
+        c.alignment = align  or _LEFT
+        if fill   is not None: c.fill          = fill
+        if fmt    is not None: c.number_format = fmt
+        if border is not None: c.border        = border
+        return c
+
+    # ── FX Table (cols H–I, rows 1–6) ─────────────────────────────────────────
+    _cell(1, 8, "FX Table (from fixed data tab)", font=_CAL_BOLD)
+    for r, (ccy, rate) in enumerate(
+        [("CAD", 1.00), ("USD", 1.35), ("GBP", 1.80), ("EUR", 1.60)], start=2
+    ):
+        _cell(r, 8, ccy,  font=_CAL_BOLD)
+        c = _cell(r, 9, rate, font=_CAL_NORMAL, align=_RIGHT, fmt="0.00")
+        c.fill = _GRAY_FILL
+
+    # ── PRESALES section header ────────────────────────────────────────────────
+    R_PRESALES = 1
+    ws.merge_cells(f"A{R_PRESALES}:F{R_PRESALES}")
+    c = ws.cell(row=R_PRESALES, column=1, value="Presales")
+    c.font  = Font(name="Calibri", bold=True, size=11, color="000000")
+    c.fill  = PatternFill(start_color="A8FFC1", end_color="A8FFC1", fill_type="solid")
+    c.alignment = _LEFT
+    ws.row_dimensions[R_PRESALES].height = ROW_H
+
+    # ── Column headers row ────────────────────────────────────────────────────
+    R_HDR = 3
+    for col, label in [
+        (2, "Name"), (3, "Currency"), (4, "License fee local"),
+        (5, "License Fee CAD"), (6, "Per Ep Local"),
+    ]:
+        c = _cell(R_HDR, col, label, font=_CAL_BOLD, align=_CENTER)
+        c.border = _BOTTOM_BORDER
+
+    # ── Broadcaster rows (3 rows, yellow input cells) ─────────────────────────
+    BC_ROWS = [4, 5, 6]
+    for i, row in enumerate(BC_ROWS, start=1):
+        _cell(row, 1, f"Broadcaster {i}", font=_CAL_BOLD)
+        # Name (yellow – user input)
+        _cell(row, 2, None, fill=_YELLOW_FILL)
+        # Currency (yellow – user input)
+        _cell(row, 3, None, fill=_YELLOW_FILL)
+        # License fee local (yellow – user input)
+        _cell(row, 4, None, fill=_YELLOW_FILL, fmt=FMT_NUM)
+        # License Fee CAD – formula: local * FX rate matched from FX table
+        # FX table: H2:H5 = CAD/USD/GBP/EUR, I2:I5 = rates
+        cad_formula = (
+            f"=IFERROR(D{row}*INDEX($I$2:$I$5,MATCH(C{row},$H$2:$H$5,0)),\"-\")"
+        )
+        _cell(row, 5, cad_formula, fmt=FMT_NUM)
+        # Per Ep Local (yellow – user input)
+        _cell(row, 6, None, fill=_YELLOW_FILL, fmt=FMT_NUM)
+
+    # ── Total License Fee CAD ─────────────────────────────────────────────────
+    R_TOTAL = 8
+    ws.row_dimensions[R_TOTAL].height = ROW_H
+    c = _cell(R_TOTAL, 5, f"=SUM(E{BC_ROWS[0]}:E{BC_ROWS[-1]})", fmt=FMT_NUM, font=_CAL_BOLD)
+    c.border = Border(top=_THIN)
+
+    # ── SALES PROJECTIONS section ─────────────────────────────────────────────
+    R_SP = 10
+    ws.merge_cells(f"A{R_SP}:F{R_SP}")
+    c = ws.cell(row=R_SP, column=1, value="Sales Projections")
+    c.font  = Font(name="Calibri", bold=True, size=11, color="000000")
+    c.fill  = PatternFill(start_color="A8FFC1", end_color="A8FFC1", fill_type="solid")
+    c.alignment = _LEFT
+    ws.row_dimensions[R_SP].height = ROW_H
+
+    R_SFC = 12
+    _cell(R_SFC, 1, "Sales forecast by team (taken from sales projection tab)", font=_CAL_NORMAL)
+    _cell(R_SFC, 4, None, fill=_YELLOW_FILL, fmt=FMT_NUM)
+
+    R_SFPH = 13
+    _cell(R_SFPH, 1, "Sales forecast per hour", font=_CAL_NORMAL)
+    _cell(R_SFPH, 4, None, fill=_YELLOW_FILL, fmt=FMT_NUM)
+
+    # ── PARTICIPATION section ─────────────────────────────────────────────────
+    R_PART = 16
+    ws.merge_cells(f"A{R_PART}:F{R_PART}")
+    c = ws.cell(row=R_PART, column=1, value="Participation")
+    c.font  = Font(name="Calibri", bold=True, size=11, color="000000")
+    c.fill  = PatternFill(start_color="A8FFC1", end_color="A8FFC1", fill_type="solid")
+    c.alignment = _LEFT
+    ws.row_dimensions[R_PART].height = ROW_H
+
+    # Commission / expense / back-end rates
+    R_CR  = 18
+    R_DER = 19
+    R_BER = 20
+
+    _cell(R_CR,  1, "Commission rate for CR",    font=_CAL_NORMAL)
+    c = _cell(R_CR,  3, 0.25, fill=_YELLOW_FILL, fmt=FMT_PCT)
+    _cell(R_CR,  5, "Default: 25%", font=_CAL_SMALL)
+
+    _cell(R_DER, 1, "Distribution expense rate", font=_CAL_NORMAL)
+    c = _cell(R_DER, 3, 0.05, fill=_YELLOW_FILL, fmt=FMT_PCT)
+    _cell(R_DER, 5, "Default: 5%", font=_CAL_SMALL)
+
+    _cell(R_BER, 1, "Back-end rate *",            font=_CAL_NORMAL)
+    _cell(R_BER, 3, "=SUM(C23:C29)", fill=_YELLOW_FILL, fmt=FMT_PCT)
+
+    # Participation table header
+    R_PHDR = 22
+    _cell(R_PHDR, 2, "Name", font=_CAL_BOLD, align=_CENTER)
+    c = _cell(R_PHDR, 3, "Rate", font=_CAL_BOLD, align=_CENTER)
+
+    PART_ROWS = [
+        (23, "Broadcaster 1"),
+        (24, "Broadcaster 2"),
+        (25, "Broadcaster 3"),
+        (26, "Broadcaster 4"),
+        (27, "Host"),
+        (28, "Other"),
+        (29, None),
+    ]
+    for row, label in PART_ROWS:
+        if label:
+            _cell(row, 1, label, font=_CAL_NORMAL)
+        _cell(row, 2, None, fill=_YELLOW_FILL)
+        _cell(row, 3, 0.00, fill=_YELLOW_FILL, fmt=FMT_PCT)
+
+    # Footnote
+    R_NOTE = 31
+    ws.merge_cells(f"A{R_NOTE}:F{R_NOTE}")
+    c = ws.cell(row=R_NOTE, column=1,
+                value="* rate at which partners participate in profit on title, assumed as being "
+                      "applied against international sales, less advance, less commish and dist expenses.")
+    c.font      = Font(name="Calibri", italic=True, size=9)
+    c.alignment = _LEFT
+    ws.row_dimensions[R_NOTE].height = 30
+
+
 def write_tax_credit_excel(
     budget: ParsedBudget,
     title: str,
@@ -3108,6 +3272,9 @@ def write_tax_credit_excel(
 
     ws_fs = wb.create_sheet("FS")
     _write_fs_sheet(ws_fs, title, num_episodes=num_episodes, duration_minutes=duration_minutes)
+
+    ws_sales = wb.create_sheet("Sales")
+    _write_sales_sheet(ws_sales)
 
     buffer = BytesIO()
     wb.save(buffer)
