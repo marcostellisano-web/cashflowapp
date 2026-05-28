@@ -2847,6 +2847,209 @@ def _write_breakdown_sheet(ws, title: str) -> None:
     ws.freeze_panes = "B2"
 
 
+def _write_fs_sheet(ws, title: str) -> None:
+    """Financing Summary (FS) sheet – Calibri font, linked to Breakdown and Ontario-OFTTC tabs."""
+    ws.title = "FS"
+
+    # ── Column widths ──────────────────────────────────────────────────────────
+    ws.column_dimensions["A"].width = 3
+    ws.column_dimensions["B"].width = 32
+    ws.column_dimensions["C"].width = 14
+    ws.column_dimensions["D"].width = 15
+    ws.column_dimensions["E"].width = 8
+
+    # ── Calibri fonts ──────────────────────────────────────────────────────────
+    _CAL_NORMAL = Font(name="Calibri", size=10)
+    _CAL_BOLD   = Font(name="Calibri", bold=True, size=10)
+    _CAL_ITALIC = Font(name="Calibri", italic=True, size=10)
+    _CAL_TITLE  = Font(name="Calibri", bold=True, size=14)
+
+    ROW_H   = 16
+    FMT_NUM = _ACCOUNTING_FORMAT   # zeros show as " - "
+    FMT_PCT = '0.0%'
+    _TS     = Side(style="thin")
+
+    def _cell(row, col, value=None, font=None, align=None, fmt=None, fill=None):
+        ws.row_dimensions[row].height = ROW_H
+        c = ws.cell(row=row, column=col, value=value)
+        c.font      = font  or _CAL_NORMAL
+        c.alignment = align or _LEFT
+        c.border    = _NO_BORDER
+        if fill is not None: c.fill          = fill
+        if fmt  is not None: c.number_format = fmt
+        return c
+
+    # ── Row 1: Title (from Breakdown B1) ──────────────────────────────────────
+    ws.row_dimensions[1].height = 26
+    ws.merge_cells("B1:E1")
+    c = ws.cell(row=1, column=2, value="='Breakdown'!B1")
+    c.font      = _CAL_TITLE
+    c.alignment = _CENTER
+
+    # ── Row 2: Series format – blank, user fills in (e.g. "4X60") ─────────────
+    ws.row_dimensions[2].height = 16
+    ws.merge_cells("B2:E2")
+    c = ws.cell(row=2, column=2)
+    c.font      = _CAL_NORMAL
+    c.alignment = _CENTER
+
+    # ── Row 3: spacer ─────────────────────────────────────────────────────────
+    ws.row_dimensions[3].height = 8
+
+    # ── Row 4: blank padding (top of box) ─────────────────────────────────────
+    ws.row_dimensions[4].height = ROW_H
+
+    # ── Rows 5-8: summary metadata block ──────────────────────────────────────
+    R_TOT_B  = 5
+    R_PER_EP = 6
+    R_N_EPS  = 7
+    R_DUR    = 8   # thin bottom separator goes below this row
+
+    _cell(R_TOT_B, 2, "Total budget",            font=_CAL_BOLD)
+    _cell(R_TOT_B, 3)
+    _cell(R_TOT_B, 4, "='Breakdown'!C6",          font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_TOT_B, 5)
+
+    _cell(R_PER_EP, 2, "Total budget per episode", font=_CAL_BOLD)
+    _cell(R_PER_EP, 3)
+    _cell(R_PER_EP, 4, "='Breakdown'!C7",          font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_PER_EP, 5)
+
+    _cell(R_N_EPS, 2, "Number of episodes",       font=_CAL_BOLD)
+    _cell(R_N_EPS, 3)
+    _cell(R_N_EPS, 4, "='Breakdown'!C2",           font=_CAL_BOLD, align=_RIGHT)
+    _cell(R_N_EPS, 5)
+
+    _cell(R_DUR, 2, "Duration in minutes",        font=_CAL_BOLD)
+    _cell(R_DUR, 3)
+    _cell(R_DUR, 4, None, font=_CAL_BOLD, align=_RIGHT, fill=_INPUT_FILL)
+    _cell(R_DUR, 5)
+
+    # ── Row 9: blank ──────────────────────────────────────────────────────────
+    ws.row_dimensions[9].height = ROW_H
+
+    # ── Row 10: column headers ─────────────────────────────────────────────────
+    R_COL_HDR = 10
+    _cell(R_COL_HDR, 2)
+    _cell(R_COL_HDR, 3, "Per eps", align=_RIGHT)
+    _cell(R_COL_HDR, 4, "Total",   align=_RIGHT)
+    _cell(R_COL_HDR, 5, "%",       align=_RIGHT)
+
+    # ── Row 11: TV LICENSES header ─────────────────────────────────────────────
+    R_TV_LIC = 11
+    _cell(R_TV_LIC, 2, "TV LICENSES", font=_CAL_BOLD)
+    _cell(R_TV_LIC, 3)
+    _cell(R_TV_LIC, 4)
+    _cell(R_TV_LIC, 5)
+
+    # ── Rows 12-13: Broadcaster placeholders (user input) ─────────────────────
+    R_BC1 = 12
+    _cell(R_BC1, 2, "Broadcaster 1", fill=_INPUT_FILL)
+    _cell(R_BC1, 3, None, align=_RIGHT, fmt=FMT_NUM, fill=_INPUT_FILL)
+    _cell(R_BC1, 4,
+          f"=IF(ISNUMBER(C{R_BC1}),C{R_BC1}*'Breakdown'!$C$2,0)",
+          align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC1, 5,
+          f"=IFERROR(D{R_BC1}/'Breakdown'!$C$6,0)",
+          align=_RIGHT, fmt=FMT_PCT)
+
+    R_BC2 = 13
+    _cell(R_BC2, 2, "Broadcaster 2", fill=_INPUT_FILL)
+    _cell(R_BC2, 3, None, align=_RIGHT, fmt=FMT_NUM, fill=_INPUT_FILL)
+    _cell(R_BC2, 4,
+          f"=IF(ISNUMBER(C{R_BC2}),C{R_BC2}*'Breakdown'!$C$2,0)",
+          align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC2, 5,
+          f"=IFERROR(D{R_BC2}/'Breakdown'!$C$6,0)",
+          align=_RIGHT, fmt=FMT_PCT)
+
+    # ── Row 14: spare placeholder row (shows " - " via accounting format) ─────
+    R_SPARE = 14
+    _cell(R_SPARE, 2)
+    _cell(R_SPARE, 3, 0, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_SPARE, 4, 0, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_SPARE, 5, 0, align=_RIGHT, fmt=FMT_PCT)
+
+    # ── Rows 15-16: blank ─────────────────────────────────────────────────────
+    ws.row_dimensions[15].height = ROW_H
+    ws.row_dimensions[16].height = ROW_H
+
+    # ── Row 17: Ontario Production Tax Credit (OFTTC tab C29 = TOTAL OFTTC) ───
+    R_ONT = 17
+    _cell(R_ONT, 2, "Ontario Production Tax Credit")
+    _cell(R_ONT, 3,
+          "=IFERROR('Ontario - OFTTC'!$C$29/'Breakdown'!$C$2,0)",
+          align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_ONT, 4, "='Ontario - OFTTC'!$C$29", align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_ONT, 5,
+          f"=IFERROR(D{R_ONT}/'Breakdown'!$C$6,0)", align=_RIGHT, fmt=FMT_PCT)
+
+    # ── Row 18: Federal Production Tax Credit (OFTTC tab C53 = federal only) ──
+    R_FED = 18
+    _cell(R_FED, 2, "Federal Production Tax Credit")
+    _cell(R_FED, 3,
+          "=IFERROR('Ontario - OFTTC'!$C$53/'Breakdown'!$C$2,0)",
+          align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_FED, 4, "='Ontario - OFTTC'!$C$53", align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_FED, 5,
+          f"=IFERROR(D{R_FED}/'Breakdown'!$C$6,0)", align=_RIGHT, fmt=FMT_PCT)
+
+    # ── Rows 19-20: blank ─────────────────────────────────────────────────────
+    ws.row_dimensions[19].height = ROW_H
+    ws.row_dimensions[20].height = ROW_H
+
+    # ── Row 21: DISTRIBUTION GUARANTEE = budget − licenses − tax credits ──────
+    R_DIST = 21
+    dist_d = (
+        f"='Breakdown'!$C$6"
+        f"-IFERROR(D{R_BC1},0)-IFERROR(D{R_BC2},0)"
+        f"-IFERROR(D{R_ONT},0)-IFERROR(D{R_FED},0)"
+    )
+    _cell(R_DIST, 2, "DISTRIBUTION GUARANTEE", font=_CAL_BOLD)
+    _cell(R_DIST, 3,
+          f"=IFERROR(D{R_DIST}/'Breakdown'!$C$2,0)",
+          font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_DIST, 4, dist_d, font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_DIST, 5,
+          f"=IFERROR(D{R_DIST}/'Breakdown'!$C$6,0)",
+          font=_CAL_BOLD, align=_RIGHT, fmt=FMT_PCT)
+
+    # ── Row 22: Cineflix Rights (sub-label, italic) ───────────────────────────
+    R_CINEF = 22
+    _cell(R_CINEF, 2, "Cineflix Rights", font=_CAL_ITALIC)
+    _cell(R_CINEF, 3)
+    _cell(R_CINEF, 4)
+    _cell(R_CINEF, 5)
+
+    # ── Rows 23-24: blank ─────────────────────────────────────────────────────
+    ws.row_dimensions[23].height = ROW_H
+    ws.row_dimensions[24].height = ROW_H
+
+    # ── Row 25: Total ──────────────────────────────────────────────────────────
+    R_TOTAL = 25
+    _cell(R_TOTAL, 2, "Total",           font=_CAL_BOLD)
+    _cell(R_TOTAL, 3, "='Breakdown'!C7", font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_TOTAL, 4, "='Breakdown'!C6", font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_TOTAL, 5, 1.0,               font=_CAL_BOLD, align=_RIGHT, fmt=FMT_PCT)
+
+    # ── Borders: outer box (B5:E25), metadata separator after row 8,
+    #            Total separator above row 25 ──────────────────────────────────
+    BOX_R1, BOX_R2 = 5, 25
+    BOX_C1, BOX_C2 = 2, 5
+
+    for row in range(BOX_R1, BOX_R2 + 1):
+        for col in range(BOX_C1, BOX_C2 + 1):
+            top    = _TS if row in {BOX_R1, R_TOTAL} else None
+            bottom = _TS if row in {BOX_R2, R_DUR}   else None
+            left   = _TS if col == BOX_C1            else None
+            right  = _TS if col == BOX_C2            else None
+            if any((top, bottom, left, right)):
+                ws.row_dimensions[row].height = ROW_H
+                ws.cell(row=row, column=col).border = Border(
+                    top=top, bottom=bottom, left=left, right=right
+                )
+
+
 def write_tax_credit_excel(
     budget: ParsedBudget,
     title: str,
@@ -2891,6 +3094,9 @@ def write_tax_credit_excel(
 
     ws_breakdown = wb.create_sheet("Breakdown")
     _write_breakdown_sheet(ws_breakdown, title)
+
+    ws_fs = wb.create_sheet("FS")
+    _write_fs_sheet(ws_fs, title)
 
     buffer = BytesIO()
     wb.save(buffer)
