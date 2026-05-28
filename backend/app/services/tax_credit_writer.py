@@ -3111,10 +3111,8 @@ def _write_sales_sheet(ws) -> None:
     R_PRESALES = 1
     ws.merge_cells(f"A{R_PRESALES}:F{R_PRESALES}")
     c = ws.cell(row=R_PRESALES, column=1, value="Presales")
-    c.font  = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
-    c.fill  = _LT_GREEN_FILL
-    c.font  = Font(name="Calibri", bold=True, size=11)
-    c.fill  = PatternFill(start_color="6AA84F", end_color="6AA84F", fill_type="solid")
+    c.font  = Font(name="Calibri", bold=True, size=11, color="000000")
+    c.fill  = PatternFill(start_color="A8FFC1", end_color="A8FFC1", fill_type="solid")
     c.alignment = _LEFT
     ws.row_dimensions[R_PRESALES].height = ROW_H
 
@@ -3156,8 +3154,8 @@ def _write_sales_sheet(ws) -> None:
     R_SP = 10
     ws.merge_cells(f"A{R_SP}:F{R_SP}")
     c = ws.cell(row=R_SP, column=1, value="Sales Projections")
-    c.font  = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
-    c.fill  = PatternFill(start_color="6AA84F", end_color="6AA84F", fill_type="solid")
+    c.font  = Font(name="Calibri", bold=True, size=11, color="000000")
+    c.fill  = PatternFill(start_color="A8FFC1", end_color="A8FFC1", fill_type="solid")
     c.alignment = _LEFT
     ws.row_dimensions[R_SP].height = ROW_H
 
@@ -3173,8 +3171,8 @@ def _write_sales_sheet(ws) -> None:
     R_PART = 16
     ws.merge_cells(f"A{R_PART}:F{R_PART}")
     c = ws.cell(row=R_PART, column=1, value="Participation")
-    c.font  = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
-    c.fill  = PatternFill(start_color="6AA84F", end_color="6AA84F", fill_type="solid")
+    c.font  = Font(name="Calibri", bold=True, size=11, color="000000")
+    c.fill  = PatternFill(start_color="A8FFC1", end_color="A8FFC1", fill_type="solid")
     c.alignment = _LEFT
     ws.row_dimensions[R_PART].height = ROW_H
 
@@ -3192,7 +3190,7 @@ def _write_sales_sheet(ws) -> None:
     _cell(R_DER, 5, "Default: 5%", font=_CAL_SMALL)
 
     _cell(R_BER, 1, "Back-end rate *",            font=_CAL_NORMAL)
-    _cell(R_BER, 3, 0.00, fill=_YELLOW_FILL, fmt=FMT_PCT)
+    _cell(R_BER, 3, "=SUM(C23:C29)", fill=_YELLOW_FILL, fmt=FMT_PCT)
 
     # Participation table header
     R_PHDR = 22
