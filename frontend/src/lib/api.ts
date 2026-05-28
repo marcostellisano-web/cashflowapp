@@ -190,11 +190,19 @@ export async function generateTaxCreditExcel(
   budget: ParsedBudget,
   title: string,
   overrides?: BreakoutOverride[],
+  numEpisodes?: number,
+  durationMinutes?: number,
 ): Promise<Blob> {
   const res = await fetch(`${BASE}/tax-credit/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ budget, title, overrides: overrides ?? null }),
+    body: JSON.stringify({
+      budget,
+      title,
+      overrides: overrides ?? null,
+      num_episodes: numEpisodes ?? null,
+      duration_minutes: durationMinutes ?? null,
+    }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));

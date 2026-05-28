@@ -2618,7 +2618,7 @@ def write_bible_excel(entries: list[dict]) -> BytesIO:
     return buffer
 
 
-def _write_breakdown_sheet(ws, title: str) -> None:
+def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> None:
     """Breakdown overview sheet – clean summary linked to Breakout Budget and Topsheet."""
     ws.title = "Breakdown"
 
@@ -2718,7 +2718,9 @@ def _write_breakdown_sheet(ws, title: str) -> None:
     _c(R_HDR, 2, title, font=_BOLD, fill=_SECTION_HEADER_FILL)
 
     # ── Rows 2–4: metadata (italic – user links these cells) ─────────────────
-    _label(R_EPS, "Episodes",      italic=True)
+    _label(R_EPS, "Episodes", italic=True)
+    if num_episodes is not None:
+        _c(R_EPS, 3, num_episodes, font=_ITALIC, align=_RIGHT)
     _label(R_VER, "Budget Version", italic=True)
     _label(R_FX,  "FX",            italic=True)
     _divider(R_FX)
@@ -2847,7 +2849,7 @@ def _write_breakdown_sheet(ws, title: str) -> None:
     ws.freeze_panes = "B2"
 
 
-def _write_fs_sheet(ws, title: str) -> None:
+def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_minutes: int | None = None) -> None:
     """Financing Summary (FS) sheet – Calibri font, linked to Breakdown and Ontario-OFTTC tabs."""
     ws.title = "FS"
 
@@ -2887,10 +2889,12 @@ def _write_fs_sheet(ws, title: str) -> None:
     c.font      = _CAL_TITLE
     c.alignment = _CENTER
 
-    # ── Row 2: Series format – blank, user fills in (e.g. "4X60") ─────────────
+    # ── Row 2: Series format (e.g. "4X60") – auto-filled if both values provided
     ws.row_dimensions[2].height = 16
     ws.merge_cells("B2:E2")
-    c = ws.cell(row=2, column=2)
+    subtitle = (f"{num_episodes}X{duration_minutes}"
+                if num_episodes is not None and duration_minutes is not None else None)
+    c = ws.cell(row=2, column=2, value=subtitle)
     c.font      = _CAL_NORMAL
     c.alignment = _CENTER
 
@@ -2923,7 +2927,7 @@ def _write_fs_sheet(ws, title: str) -> None:
 
     _cell(R_DUR, 2, "Duration in minutes",        font=_CAL_BOLD)
     _cell(R_DUR, 3)
-    _cell(R_DUR, 4, None, font=_CAL_BOLD, align=_RIGHT)
+    _cell(R_DUR, 4, duration_minutes, font=_CAL_BOLD, align=_RIGHT)
     _cell(R_DUR, 5)
 
     # ── Row 9: blank ──────────────────────────────────────────────────────────
@@ -3060,6 +3064,8 @@ def write_tax_credit_excel(
     title: str,
     overrides: dict | None = None,
     global_bible: dict | None = None,
+    num_episodes: int | None = None,
+    duration_minutes: int | None = None,
 ) -> BytesIO:
     """Build a tax credit filing workbook and return as BytesIO.
 
@@ -3098,10 +3104,10 @@ def write_tax_credit_excel(
     _write_ofttc_sheet(ws_ofttc, title)
 
     ws_breakdown = wb.create_sheet("Breakdown")
-    _write_breakdown_sheet(ws_breakdown, title)
+    _write_breakdown_sheet(ws_breakdown, title, num_episodes=num_episodes)
 
     ws_fs = wb.create_sheet("FS")
-    _write_fs_sheet(ws_fs, title)
+    _write_fs_sheet(ws_fs, title, num_episodes=num_episodes, duration_minutes=duration_minutes)
 
     buffer = BytesIO()
     wb.save(buffer)

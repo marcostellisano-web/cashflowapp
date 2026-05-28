@@ -62,6 +62,8 @@ class TaxCreditRequest(BaseModel):
     budget: ParsedBudget
     title: str = "Untitled"
     overrides: list[BreakoutOverride] | None = None
+    num_episodes: int | None = None
+    duration_minutes: int | None = None
 
 
 class BiblePresetSchema(BaseModel):
@@ -884,6 +886,8 @@ async def generate_tax_credit_excel(
         request.title,
         overrides_map,
         global_bible or None,
+        num_episodes=request.num_episodes,
+        duration_minutes=request.duration_minutes,
     )
     filename = f"{request.title.replace(' ', '_')}_tax_credit_budget.xlsx"
 
