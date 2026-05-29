@@ -3135,7 +3135,7 @@ def _write_sales_sheet(ws) -> None:
         # License Fee CAD – formula: local * FX rate matched from FX table
         # FX table: H2:H5 = CAD/USD/GBP/EUR, I2:I5 = rates
         cad_formula = (
-            f"=IFERROR(D{row}*INDEX($I$2:$I$5,MATCH(C{row},$H$2:$H$5,0)),\"-\")"
+            f"=IFERROR(D{row}*INDEX($I$2:$I$5,MATCH(C{row},$H$2:$H$5,0)),0)"
         )
         _cell(row, 5, cad_formula, fmt=FMT_NUM)
         # Per Ep Local – license fee local divided by episode count from Breakdown tab
