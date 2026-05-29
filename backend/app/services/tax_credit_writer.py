@@ -3141,8 +3141,8 @@ def _write_sales_sheet(ws) -> None:
             f"=IFERROR(D{row}*INDEX($I$2:$I$5,MATCH(C{row},$H$2:$H$5,0)),\"-\")"
         )
         _cell(row, 5, cad_formula, fmt=FMT_NUM)
-        # Per Ep Local (yellow – user input)
-        _cell(row, 6, None, fill=_YELLOW_FILL, fmt=FMT_NUM)
+        # Per Ep Local – license fee local divided by episode count from Breakdown tab
+        _cell(row, 6, f"=IFERROR(D{row}/Breakdown!$C$2,\"\")", fmt=FMT_NUM)
 
     # ── Total License Fee CAD ─────────────────────────────────────────────────
     R_TOTAL = 8
