@@ -2947,33 +2947,25 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     _cell(R_TV_LIC, 4)
     _cell(R_TV_LIC, 5)
 
-    # ── Rows 12-13: Broadcaster placeholders (user input) ─────────────────────
+    # ── Rows 12-14: Broadcasters – names and totals pulled from Sales tab ────────
+    # If no broadcaster name is entered in Sales, all cells on that row show blank.
     R_BC1 = 12
-    _cell(R_BC1, 2, "Broadcaster 1")
-    _cell(R_BC1, 3, None, align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC1, 4,
-          f"=IF(ISNUMBER(C{R_BC1}),C{R_BC1}*'Breakdown'!$C$2,0)",
-          align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC1, 5,
-          f"=IFERROR(D{R_BC1}/'Breakdown'!$C$6,0)",
-          align=_RIGHT, fmt=FMT_PCT)
+    _cell(R_BC1, 2, '=IF(Sales!B4="","",Sales!B4)')
+    _cell(R_BC1, 4, f'=IF(Sales!B4="","",IFERROR(Sales!E4,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC1, 3, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$2,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC1, 5, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$6,0))', align=_RIGHT, fmt=FMT_PCT)
 
     R_BC2 = 13
-    _cell(R_BC2, 2, "Broadcaster 2")
-    _cell(R_BC2, 3, None, align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC2, 4,
-          f"=IF(ISNUMBER(C{R_BC2}),C{R_BC2}*'Breakdown'!$C$2,0)",
-          align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC2, 5,
-          f"=IFERROR(D{R_BC2}/'Breakdown'!$C$6,0)",
-          align=_RIGHT, fmt=FMT_PCT)
+    _cell(R_BC2, 2, '=IF(Sales!B5="","",Sales!B5)')
+    _cell(R_BC2, 4, f'=IF(Sales!B5="","",IFERROR(Sales!E5,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC2, 3, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$2,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC2, 5, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$6,0))', align=_RIGHT, fmt=FMT_PCT)
 
-    # ── Row 14: spare placeholder row (shows " - " via accounting format) ─────
-    R_SPARE = 14
-    _cell(R_SPARE, 2)
-    _cell(R_SPARE, 3, 0, align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_SPARE, 4, 0, align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_SPARE, 5, 0, align=_RIGHT, fmt=FMT_PCT)
+    R_BC3 = 14
+    _cell(R_BC3, 2, '=IF(Sales!B6="","",Sales!B6)')
+    _cell(R_BC3, 4, f'=IF(Sales!B6="","",IFERROR(Sales!E6,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC3, 3, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$2,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC3, 5, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$6,0))', align=_RIGHT, fmt=FMT_PCT)
 
     # ── Rows 15-16: blank ─────────────────────────────────────────────────────
     ws.row_dimensions[15].height = ROW_H
@@ -3007,7 +2999,9 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     R_DIST = 21
     dist_d = (
         f"='Breakdown'!$C$6"
-        f"-IFERROR(D{R_BC1},0)-IFERROR(D{R_BC2},0)"
+        f"-IF(ISNUMBER(D{R_BC1}),D{R_BC1},0)"
+        f"-IF(ISNUMBER(D{R_BC2}),D{R_BC2},0)"
+        f"-IF(ISNUMBER(D{R_BC3}),D{R_BC3},0)"
         f"-IFERROR(D{R_ONT},0)-IFERROR(D{R_FED},0)"
     )
     _cell(R_DIST, 2, "DISTRIBUTION GUARANTEE", font=_CAL_BOLD)
@@ -3138,11 +3132,11 @@ def _write_sales_sheet(ws) -> None:
         # License Fee CAD – formula: local * FX rate matched from FX table
         # FX table: H2:H5 = CAD/USD/GBP/EUR, I2:I5 = rates
         cad_formula = (
-            f"=IFERROR(D{row}*INDEX($I$2:$I$5,MATCH(C{row},$H$2:$H$5,0)),\"-\")"
+            f"=IFERROR(D{row}*INDEX($I$2:$I$5,MATCH(C{row},$H$2:$H$5,0)),0)"
         )
         _cell(row, 5, cad_formula, fmt=FMT_NUM)
-        # Per Ep Local (yellow – user input)
-        _cell(row, 6, None, fill=_YELLOW_FILL, fmt=FMT_NUM)
+        # Per Ep Local – license fee local divided by episode count from Breakdown tab
+        _cell(row, 6, f"=IFERROR(D{row}/Breakdown!$C$2,\"\")", fmt=FMT_NUM)
 
     # ── Total License Fee CAD ─────────────────────────────────────────────────
     R_TOTAL = 8
