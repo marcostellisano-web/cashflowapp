@@ -2932,7 +2932,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
 
     _cell(R_TOT_B, 2, "Total budget",            font=_CAL_BOLD)
     _cell(R_TOT_B, 3)
-    _cell(R_TOT_B, 4, "='Breakdown'!C8",          font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_TOT_B, 4, "='Breakdown'!C7",          font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_TOT_B, 5)
 
     _cell(R_PER_EP, 2, "Total budget per episode", font=_CAL_BOLD)
@@ -2972,20 +2972,20 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     R_BC1 = 12
     _cell(R_BC1, 2, '=IF(Sales!B4="","",Sales!B4)')
     _cell(R_BC1, 4, f'=IF(Sales!B4="","",IFERROR(Sales!E4,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC1, 3, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$2,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC1, 5, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$6,0))', align=_RIGHT, fmt=FMT_PCT)
+    _cell(R_BC1, 3, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$3,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC1, 5, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$7,0))', align=_RIGHT, fmt=FMT_PCT)
 
     R_BC2 = 13
     _cell(R_BC2, 2, '=IF(Sales!B5="","",Sales!B5)')
     _cell(R_BC2, 4, f'=IF(Sales!B5="","",IFERROR(Sales!E5,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC2, 3, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$2,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC2, 5, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$6,0))', align=_RIGHT, fmt=FMT_PCT)
+    _cell(R_BC2, 3, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$3,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC2, 5, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$7,0))', align=_RIGHT, fmt=FMT_PCT)
 
     R_BC3 = 14
     _cell(R_BC3, 2, '=IF(Sales!B6="","",Sales!B6)')
     _cell(R_BC3, 4, f'=IF(Sales!B6="","",IFERROR(Sales!E6,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC3, 3, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$2,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC3, 5, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$6,0))', align=_RIGHT, fmt=FMT_PCT)
+    _cell(R_BC3, 3, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$3,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC3, 5, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$7,0))', align=_RIGHT, fmt=FMT_PCT)
 
     # ── Rows 15-16: blank ─────────────────────────────────────────────────────
     ws.row_dimensions[15].height = ROW_H
