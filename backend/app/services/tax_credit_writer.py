@@ -2705,9 +2705,11 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     R_FINANC   = 25
     R_LEGAL    = 26
     R_INSUR    = 27
-    # 28: blank
-    R_ONT_CR   = 29
-    R_CAVCO    = 30
+    # 28: Promotion
+    R_PROMO    = 28
+    # 29: blank
+    R_ONT_CR   = 30
+    R_CAVCO    = 31
 
     _GREEN_FILL = PatternFill(start_color="C0FFCC", end_color="C0FFCC", fill_type="solid")
     _BLUE_FILL  = PatternFill(start_color="A9F8FF", end_color="A9F8FF", fill_type="solid")
@@ -2835,8 +2837,8 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     # ── Row 24: blank ────────────────────────────────────────────────────────
     _blank(24)
 
-    # ── Rows 25–27: OPCS – blue fill ─────────────────────────────────────────
-    for r in (R_FINANC, R_LEGAL, R_INSUR):
+    # ── Rows 25–28: OPCS + Promotion – blue fill ─────────────────────────────
+    for r in (R_FINANC, R_LEGAL, R_INSUR, R_PROMO):
         for col in range(2, 5):
             ws.cell(row=r, column=col).fill = _BLUE_FILL
 
@@ -2848,12 +2850,19 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
 
     _label(R_INSUR, "Insurance")
     _amount(R_INSUR, _sumif_acct("7101"), pct_formula=f"=C{R_INSUR}/C{R_TOTAL}")
-    _divider(R_INSUR)
 
-    # ── Row 28: blank ────────────────────────────────────────────────────────
-    _blank(28)
+    _label(R_PROMO, "Promotion")
+    _amount(R_PROMO,
+        "=SUMIF('Breakout Budget'!$A:$A,\"7040*\",'Breakout Budget'!$Q:$Q)",
+        pct_formula=f"=(300*C{R_EPS})+500",
+        pct_fmt=FMT_CAD,
+    )
+    _divider(R_PROMO)
 
-    # ── Row 29: Ontario Creates ───────────────────────────────────────────────
+    # ── Row 29: blank ────────────────────────────────────────────────────────
+    _blank(29)
+
+    # ── Row 30: Ontario Creates ───────────────────────────────────────────────
     _label(R_ONT_CR, "Ontario Creates")
     _amount(R_ONT_CR,
         "=SUMIF('Breakout Budget'!$C:$C,\"*OMDC*\",'Breakout Budget'!$Q:$Q)"
@@ -2862,7 +2871,7 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
         pct_fmt=FMT_CAD,
     )
 
-    # ── Row 30: CAVCO ─────────────────────────────────────────────────────────
+    # ── Row 31: CAVCO ─────────────────────────────────────────────────────────
     _label(R_CAVCO, "CAVCO")
     _amount(R_CAVCO,
         _sumif_desc("CAVCO"),
@@ -2870,8 +2879,8 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
         pct_fmt=FMT_CAD,
     )
 
-    # ── Row 31: SODEC ─────────────────────────────────────────────────────────
-    R_SODEC = 31
+    # ── Row 32: SODEC ─────────────────────────────────────────────────────────
+    R_SODEC = 32
     _label(R_SODEC, "SODEC")
     _amount(R_SODEC,
         _sumif_desc("Sodec"),
