@@ -2869,6 +2869,7 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     R_SODEC = 31
     _label(R_SODEC, "SODEC")
     _amount(R_SODEC,
+        None,
         pct_formula=f"=MIN(25000,(C{R_TOTAL}/1000)*4)",
         pct_fmt=FMT_CAD,
     )
