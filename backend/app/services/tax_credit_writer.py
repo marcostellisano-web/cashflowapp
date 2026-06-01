@@ -3354,19 +3354,19 @@ def _write_sodec_sheet(ws) -> None:
     R_QC_TC_NEG = 26
     _row(R_QC_TC_NEG, "QC Tax Credit", f"=-B{R_TOTAL_QC}")
 
-    # Row 27: 50% Meals & Perdiems — 50% of Breakout Budget AI2
+    # Row 27: 50% Meals & Perdiems — negative 50% of Breakout Budget AI2
     R_MEALS = 27
-    _row(R_MEALS, "50% Meals & Perdiems", "='Breakout Budget'!$AI$2*0.5")
+    _row(R_MEALS, "50% Meals & Perdiems", "=-'Breakout Budget'!$AI$2*0.5")
 
     # Row 28: aide gouv
     R_AIDE = 28
     _row(R_AIDE, "aide gouv.", None)
 
-    # Row 29: Net Production cost = prod + QC TC - meals - aide
+    # Row 29: Net Production cost — B26 and B27 are already negative so add them
     R_NET_PROD = 29
     _row(R_NET_PROD, "Net Production cost",
          f"=B{R_PROD_FED}+B{R_QC_TC_NEG}"
-         f"-IFERROR(B{R_MEALS},0)-IFERROR(B{R_AIDE},0)")
+         f"+IFERROR(B{R_MEALS},0)-IFERROR(B{R_AIDE},0)")
 
     # Row 30: (A) Eligible production cost = net * 60%
     R_ELIG_A_FED = 30
@@ -3413,6 +3413,21 @@ def _write_sodec_sheet(ws) -> None:
     _row(R_TOTAL_TC, "TOTAL TAX CREDIT",
          f"=B{R_TOTAL_QC}+B{R_FED_TC}", bold=True, total=True,
          fmt='#,##0 "$"')
+    # Match the double border on the label cell too
+    ws.cell(row=R_TOTAL_TC, column=1).border = Border(top=_THIN, bottom=_THIN)
+
+    # ── Outer box: A4:B42 ────────────────────────────────────────────────────
+    R_BOX_TOP = 4
+    R_BOX_BOT = R_TOTAL_TC  # 42
+    for r in range(R_BOX_TOP, R_BOX_BOT + 1):
+        for col in (1, 2):
+            c = ws.cell(row=r, column=col)
+            existing = c.border
+            top    = _THIN if r == R_BOX_TOP else existing.top
+            bottom = _THIN if r == R_BOX_BOT else existing.bottom
+            left   = _THIN if col == 1 else existing.left
+            right  = _THIN if col == 2 else existing.right
+            c.border = Border(top=top, bottom=bottom, left=left, right=right)
 
     # Blank row 43
     ws.row_dimensions[43].height = ROW_H
