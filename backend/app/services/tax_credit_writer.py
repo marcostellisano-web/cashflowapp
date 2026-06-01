@@ -2775,7 +2775,8 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     _amount(R_CAD_SP,
         "=IFERROR("
         "INDEX('Breakout Budget'!2:2,MATCH(\"CAD Grand Total\",'Breakout Budget'!1:1,0)),"
-        "INDEX('Breakout Budget'!2:2,MATCH(\"CA Grand Total\",'Breakout Budget'!1:1,0)))"
+        "INDEX('Breakout Budget'!2:2,MATCH(\"CA Grand Total\",'Breakout Budget'!1:1,0)))",
+        pct_formula=f"=IFERROR(C{R_CAD_SP}/C{R_TOTAL},0)",
     )
 
     # ── Row 15: USD Spend ────────────────────────────────────────────────────
@@ -2783,7 +2784,8 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     _amount(R_USD_SP,
         "=IFERROR("
         "INDEX('Breakout Budget'!2:2,MATCH(\"USD Grand Total\",'Breakout Budget'!1:1,0)),"
-        "INDEX('Breakout Budget'!2:2,MATCH(\"US Grand Total\",'Breakout Budget'!1:1,0)))"
+        "INDEX('Breakout Budget'!2:2,MATCH(\"US Grand Total\",'Breakout Budget'!1:1,0)))",
+        pct_formula=f"=IFERROR(C{R_USD_SP}/C{R_TOTAL},0)",
     )
     _divider(R_USD_SP)
 
