@@ -3272,7 +3272,7 @@ def _write_sodec_sheet(ws) -> None:
 
     # ── Rows 1-2: Title ───────────────────────────────────────────────────────
     ws.row_dimensions[1].height = 22
-    _cell(1, 1, "SODEC", font=_CAL_TITLE)
+    _cell(1, 1, "='Breakdown'!B1", font=_CAL_TITLE)
     _cell(2, 1, "TAX CREDITS CALCULATION", font=_CAL_SUBTITLE)
 
     # ── Row 4: Quebec Provincial header ──────────────────────────────────────
@@ -3295,9 +3295,9 @@ def _write_sodec_sheet(ws) -> None:
     R_CAP_A = 9
     _row(R_CAP_A, "(A) Eligible cap", f"=B{R_ELIG_PROD}*0.65")
 
-    # Row 11: Total labour including deferred amounts (user input)
+    # Row 11: Total labour including deferred amounts — Provincial Labour from Breakout Budget AC2
     R_LABOUR = 11
-    _row(R_LABOUR, "Total labour including deferred amounts", None, yellow=True)
+    _row(R_LABOUR, "Total labour including deferred amounts", "='Breakout Budget'!$AC$2")
 
     # Row 12: Government assistance (second instance – user input)
     R_GOVTB = 12
@@ -3372,9 +3372,9 @@ def _write_sodec_sheet(ws) -> None:
     R_ELIG_A_FED = 30
     _row(R_ELIG_A_FED, "(A) Eligible production cost", f"=B{R_NET_PROD}*0.6")
 
-    # Row 32: Labour expenditure (user input)
+    # Row 32: Labour expenditure — Federal Labour from Breakout Budget V2
     R_LAB_FED = 32
-    _row(R_LAB_FED, "Labour expenditure", None, yellow=True)
+    _row(R_LAB_FED, "Labour expenditure", "='Breakout Budget'!$V$2")
 
     # Row 33: Deferrals (user input)
     R_DEFER_FED = 33
