@@ -2854,7 +2854,8 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     # ── Row 29: Ontario Creates ───────────────────────────────────────────────
     _label(R_ONT_CR, "Ontario Creates")
     _amount(R_ONT_CR,
-        _sumif_desc("OMDC"),
+        "=SUMIF('Breakout Budget'!$C:$C,\"*OMDC*\",'Breakout Budget'!$Q:$Q)"
+        "+SUMIF('Breakout Budget'!$C:$C,\"*Ontario Creates*\",'Breakout Budget'!$Q:$Q)",
         pct_formula=f"=MIN(5000,0.0006*C{R_TOTAL})",
         pct_fmt=FMT_CAD,
     )
@@ -2871,7 +2872,7 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     R_SODEC = 31
     _label(R_SODEC, "SODEC")
     _amount(R_SODEC,
-        None,
+        _sumif_desc("Sodec"),
         pct_formula=f"=MIN(25000,(C{R_TOTAL}/1000)*4)",
         pct_fmt=FMT_CAD,
     )
