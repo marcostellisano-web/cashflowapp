@@ -2857,14 +2857,23 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
         pct_fmt=FMT_CAD,
     )
 
-    # ── Row 29: CAVCO ─────────────────────────────────────────────────────────
+    # ── Row 30: CAVCO ─────────────────────────────────────────────────────────
     _label(R_CAVCO, "CAVCO")
     _amount(R_CAVCO,
         _sumif_desc("CAVCO"),
         pct_formula=f"=0.003*C{R_BC}",
         pct_fmt=FMT_CAD,
     )
-    _divider(R_CAVCO)
+
+    # ── Row 31: SODEC ─────────────────────────────────────────────────────────
+    R_SODEC = 31
+    _label(R_SODEC, "SODEC")
+    _amount(R_SODEC,
+        None,
+        pct_formula=f"=MIN(25000,(C{R_TOTAL}/1000)*4)",
+        pct_fmt=FMT_CAD,
+    )
+    _divider(R_SODEC)
 
     ws.freeze_panes = "B3"
 
