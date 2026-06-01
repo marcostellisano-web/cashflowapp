@@ -3518,9 +3518,11 @@ def write_tax_credit_excel(
 
     ws_fs = wb.create_sheet("FS")
     _write_fs_sheet(ws_fs, title, num_episodes=num_episodes, duration_minutes=duration_minutes)
+    ws_fs.sheet_properties.tabColor = "A8FFC1"
 
     ws_sales = wb.create_sheet("Sales")
     _write_sales_sheet(ws_sales)
+    ws_sales.sheet_properties.tabColor = "A8FFC1"
 
     buffer = BytesIO()
     wb.save(buffer)
