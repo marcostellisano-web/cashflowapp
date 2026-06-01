@@ -3282,9 +3282,9 @@ def _write_sodec_sheet(ws) -> None:
     R_PROD = 6
     _row(R_PROD, "Production costs", "='Breakdown'!$C$6")
 
-    # Row 7: Government assistance (user input)
+    # Row 7: Government assistance
     R_GOVTA = 7
-    _row(R_GOVTA, "Government assistance", None, yellow=True)
+    _row(R_GOVTA, "Government assistance", None)
 
     # Row 8: Eligible production costs = prod - govt assistance
     R_ELIG_PROD = 8
@@ -3295,17 +3295,17 @@ def _write_sodec_sheet(ws) -> None:
     R_CAP_A = 9
     _row(R_CAP_A, "(A) Eligible cap", f"=B{R_ELIG_PROD}*0.65")
 
-    # Row 11: Total labour including deferred amounts — Provincial Labour from Breakout Budget AC2
+    # Row 11: Total labour — Provincial Labour from Breakout Budget AC2
     R_LABOUR = 11
     _row(R_LABOUR, "Total labour including deferred amounts", "='Breakout Budget'!$AC$2")
 
-    # Row 12: Government assistance (second instance – user input)
+    # Row 12: Government assistance (second instance)
     R_GOVTB = 12
-    _row(R_GOVTB, "Government assistance", None, yellow=True)
+    _row(R_GOVTB, "Government assistance", None)
 
-    # Row 13: Deferred amounts (user input)
+    # Row 13: Deferred amounts
     R_DEFER = 13
-    _row(R_DEFER, "Deferred amounts", None, yellow=True)
+    _row(R_DEFER, "Deferred amounts", None)
 
     # Row 14: (B) Eligible labour = labour - govt assistance - deferred
     R_ELIG_LAB = 14
@@ -3325,13 +3325,13 @@ def _write_sodec_sheet(ws) -> None:
     _cell(17, 1, "Animation and special effects bonus", font=_CAL_BOLD)
     ws.row_dimensions[17].height = ROW_H
 
-    # Row 18: Animation and special effects labour (user input)
+    # Row 18: Animation and special effects labour
     R_ANIM_LAB = 18
-    _row(R_ANIM_LAB, "Animation and special effects labour", None, yellow=True)
+    _row(R_ANIM_LAB, "Animation and special effects labour", None)
 
-    # Row 19: Bonus (user input)
+    # Row 19: Bonus
     R_BONUS = 19
-    _row(R_BONUS, "Bonus", None, yellow=True)
+    _row(R_BONUS, "Bonus", None)
 
     # Row 20: Total Quebec tax credit = TC + Bonus
     R_TOTAL_QC = 20
@@ -3354,13 +3354,13 @@ def _write_sodec_sheet(ws) -> None:
     R_QC_TC_NEG = 26
     _row(R_QC_TC_NEG, "QC Tax Credit", f"=-B{R_TOTAL_QC}")
 
-    # Row 27: 50% Meals & Perdiem (user input, negative)
+    # Row 27: 50% Meals & Perdiems — 50% of Breakout Budget AI2
     R_MEALS = 27
-    _row(R_MEALS, "50% Meals & Perdiems", None, yellow=True)
+    _row(R_MEALS, "50% Meals & Perdiems", "='Breakout Budget'!$AI$2*0.5")
 
-    # Row 28: aide gouv (user input)
+    # Row 28: aide gouv
     R_AIDE = 28
-    _row(R_AIDE, "aide gouv.", None, yellow=True)
+    _row(R_AIDE, "aide gouv.", None)
 
     # Row 29: Net Production cost = prod + QC TC - meals - aide
     R_NET_PROD = 29
@@ -3376,18 +3376,18 @@ def _write_sodec_sheet(ws) -> None:
     R_LAB_FED = 32
     _row(R_LAB_FED, "Labour expenditure", "='Breakout Budget'!$V$2")
 
-    # Row 33: Deferrals (user input)
+    # Row 33: Deferrals
     R_DEFER_FED = 33
-    _row(R_DEFER_FED, "Deferrals", None, yellow=True)
+    _row(R_DEFER_FED, "Deferrals", None)
 
     # Row 34: Sub-total = labour - deferrals
     R_SUB = 34
     _row(R_SUB, "Sub-total",
          f"=B{R_LAB_FED}-IFERROR(B{R_DEFER_FED},0)")
 
-    # Row 35: Percentage of ownership (user input, default 100%)
+    # Row 35: Percentage of ownership (default 100%)
     R_OWN = 35
-    _row(R_OWN, "Percentage of ownership", 1.0, yellow=True, pct=True)
+    _row(R_OWN, "Percentage of ownership", 1.0, pct=True)
 
     # Row 36: (B) Net labour expenditure = sub-total * ownership %
     R_ELIG_B_FED = 36
