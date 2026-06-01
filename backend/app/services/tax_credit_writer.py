@@ -3504,13 +3504,13 @@ def write_tax_credit_excel(
     _write_breakdown_sheet(ws_breakdown, title, num_episodes=num_episodes)
     ws_breakdown.sheet_properties.tabColor = "B4FFF8"
 
-    ws_opstc = wb.create_sheet("Ontario - OPSTC")
-    _write_opstc_sheet(ws_opstc, title)
-    ws_opstc.sheet_properties.tabColor = "FFFEC8"
-
     ws_ofttc = wb.create_sheet("Ontario - OFTTC")
     _write_ofttc_sheet(ws_ofttc, title)
     ws_ofttc.sheet_properties.tabColor = "FFFEC8"
+
+    ws_opstc = wb.create_sheet("Ontario - OPSTC")
+    _write_opstc_sheet(ws_opstc, title)
+    ws_opstc.sheet_properties.tabColor = "FFFEC8"
 
     ws_sodec = wb.create_sheet("Sodec")
     _write_sodec_sheet(ws_sodec)
@@ -3518,9 +3518,11 @@ def write_tax_credit_excel(
 
     ws_fs = wb.create_sheet("FS")
     _write_fs_sheet(ws_fs, title, num_episodes=num_episodes, duration_minutes=duration_minutes)
+    ws_fs.sheet_properties.tabColor = "A8FFC1"
 
     ws_sales = wb.create_sheet("Sales")
     _write_sales_sheet(ws_sales)
+    ws_sales.sheet_properties.tabColor = "A8FFC1"
 
     buffer = BytesIO()
     wb.save(buffer)
