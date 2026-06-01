@@ -3217,6 +3217,215 @@ def _write_sales_sheet(ws) -> None:
     ws.row_dimensions[R_NOTE].height = 30
 
 
+def _write_sodec_sheet(ws) -> None:
+    """SODEC – Quebec Provincial + QC Producer Federal Tax Credit calculation sheet."""
+    ws.title = "Sodec"
+
+    _CAL_NORMAL  = Font(name="Calibri", size=10)
+    _CAL_BOLD    = Font(name="Calibri", bold=True, size=10)
+    _CAL_TITLE   = Font(name="Calibri", bold=True, size=13)
+    _CAL_SUBTITLE = Font(name="Calibri", size=10)
+
+    ROW_H    = 16
+    FMT_NUM  = _ACCOUNTING_FORMAT
+    FMT_PCT  = '0.00%'
+    FMT_PCT1 = '0.0%'
+
+    _YELLOW_FILL  = PatternFill(start_color="FFFF99", end_color="FFFF99", fill_type="solid")
+    _BLACK_HDR    = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
+    _BOLD_WHITE   = Font(name="Calibri", bold=True, size=10, color="FFFFFF")
+    _TOTAL_FILL   = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+
+    ws.column_dimensions["A"].width = 42
+    ws.column_dimensions["B"].width = 16
+
+    def _cell(row, col, value=None, font=None, align=None, fmt=None, fill=None, border=None):
+        ws.row_dimensions[row].height = ROW_H
+        c = ws.cell(row=row, column=col, value=value)
+        c.font      = font  or _CAL_NORMAL
+        c.alignment = align or _LEFT
+        c.border    = _NO_BORDER
+        if fill   is not None: c.fill          = fill
+        if fmt    is not None: c.number_format = fmt
+        if border is not None: c.border        = border
+        return c
+
+    def _hdr(row, label):
+        """Black section header spanning both columns."""
+        ws.merge_cells(f"A{row}:B{row}")
+        c = ws.cell(row=row, column=1, value=label)
+        c.font      = _BOLD_WHITE
+        c.fill      = _BLACK_HDR
+        c.alignment = _LEFT
+        ws.row_dimensions[row].height = ROW_H
+
+    def _row(row, label, value=None, bold=False, yellow=False, fmt=FMT_NUM,
+             pct=False, total=False):
+        font = _CAL_BOLD if (bold or total) else _CAL_NORMAL
+        fill = _YELLOW_FILL if yellow else (_TOTAL_FILL if total else None)
+        _cell(row, 1, label, font=font, fill=fill)
+        c = _cell(row, 2, value, font=font, align=_RIGHT,
+                  fmt=(FMT_PCT if pct else fmt), fill=fill)
+        if total:
+            c.border = Border(top=_THIN, bottom=_THIN)
+        return c
+
+    # ── Rows 1-2: Title ───────────────────────────────────────────────────────
+    ws.row_dimensions[1].height = 22
+    _cell(1, 1, "SODEC", font=_CAL_TITLE)
+    _cell(2, 1, "TAX CREDITS CALCULATION", font=_CAL_SUBTITLE)
+
+    # ── Row 4: Quebec Provincial header ──────────────────────────────────────
+    _hdr(4, "QUEBEC PROVINCIAL TAX CREDIT")
+
+    # Row 6: Production costs — linked to Breakdown total budget
+    R_PROD = 6
+    _row(R_PROD, "Production costs", "='Breakdown'!$C$6")
+
+    # Row 7: Government assistance (user input)
+    R_GOVTA = 7
+    _row(R_GOVTA, "Government assistance", None, yellow=True)
+
+    # Row 8: Eligible production costs = prod - govt assistance
+    R_ELIG_PROD = 8
+    _row(R_ELIG_PROD, "Eligible production costs",
+         f"=B{R_PROD}-IFERROR(B{R_GOVTA},0)")
+
+    # Row 9: (A) Eligible cap = 65% of eligible production costs
+    R_CAP_A = 9
+    _row(R_CAP_A, "(A) Eligible cap", f"=B{R_ELIG_PROD}*0.65")
+
+    # Row 11: Total labour including deferred amounts (user input)
+    R_LABOUR = 11
+    _row(R_LABOUR, "Total labour including deferred amounts", None, yellow=True)
+
+    # Row 12: Government assistance (second instance – user input)
+    R_GOVTB = 12
+    _row(R_GOVTB, "Government assistance", None, yellow=True)
+
+    # Row 13: Deferred amounts (user input)
+    R_DEFER = 13
+    _row(R_DEFER, "Deferred amounts", None, yellow=True)
+
+    # Row 14: (B) Eligible labour = labour - govt assistance - deferred
+    R_ELIG_LAB = 14
+    _row(R_ELIG_LAB, "(B) Eligible labour",
+         f"=B{R_LABOUR}-IFERROR(B{R_GOVTB},0)-IFERROR(B{R_DEFER},0)")
+
+    # Row 15: Amount eligible for the tax credit = MIN(A cap, B labour)
+    R_AMOUNT_ELIG = 15
+    _row(R_AMOUNT_ELIG, "Amount eligible for the tax credit",
+         f"=MIN(B{R_CAP_A},B{R_ELIG_LAB})")
+
+    # Row 16: Total tax credit = eligible * 32%
+    R_QC_TC = 16
+    _row(R_QC_TC, "Total tax credit", f"=B{R_AMOUNT_ELIG}*0.32")
+
+    # Row 17: Animation and special effects bonus (sub-label, bold)
+    _cell(17, 1, "Animation and special effects bonus", font=_CAL_BOLD)
+    ws.row_dimensions[17].height = ROW_H
+
+    # Row 18: Animation and special effects labour (user input)
+    R_ANIM_LAB = 18
+    _row(R_ANIM_LAB, "Animation and special effects labour", None, yellow=True)
+
+    # Row 19: Bonus (user input)
+    R_BONUS = 19
+    _row(R_BONUS, "Bonus", None, yellow=True)
+
+    # Row 20: Total Quebec tax credit = TC + Bonus
+    R_TOTAL_QC = 20
+    _row(R_TOTAL_QC, "Total Quebec tax credit",
+         f"=B{R_QC_TC}+IFERROR(B{R_BONUS},0)", bold=True)
+
+    # Row 21: Percentage of budget = Total QC TC / Production costs
+    R_PCT_QC = 21
+    _row(R_PCT_QC, "Percentage of budget",
+         f"=IFERROR(B{R_TOTAL_QC}/B{R_PROD},0)", pct=True)
+
+    # ── Row 23: Federal header ────────────────────────────────────────────────
+    _hdr(23, "QC PRODUCER- FEDERAL TAX CREDIT")
+
+    # Row 25: Total Production cost (same reference)
+    R_PROD_FED = 25
+    _row(R_PROD_FED, "Total Production cost", f"=B{R_PROD}")
+
+    # Row 26: QC Tax Credit (negative of Total Quebec TC)
+    R_QC_TC_NEG = 26
+    _row(R_QC_TC_NEG, "QC Tax Credit", f"=-B{R_TOTAL_QC}")
+
+    # Row 27: 50% Meals & Perdiem (user input, negative)
+    R_MEALS = 27
+    _row(R_MEALS, "50% Meals & Perdiems", None, yellow=True)
+
+    # Row 28: aide gouv (user input)
+    R_AIDE = 28
+    _row(R_AIDE, "aide gouv.", None, yellow=True)
+
+    # Row 29: Net Production cost = prod + QC TC - meals - aide
+    R_NET_PROD = 29
+    _row(R_NET_PROD, "Net Production cost",
+         f"=B{R_PROD_FED}+B{R_QC_TC_NEG}"
+         f"-IFERROR(B{R_MEALS},0)-IFERROR(B{R_AIDE},0)")
+
+    # Row 30: (A) Eligible production cost = net * 60%
+    R_ELIG_A_FED = 30
+    _row(R_ELIG_A_FED, "(A) Eligible production cost", f"=B{R_NET_PROD}*0.6")
+
+    # Row 32: Labour expenditure (user input)
+    R_LAB_FED = 32
+    _row(R_LAB_FED, "Labour expenditure", None, yellow=True)
+
+    # Row 33: Deferrals (user input)
+    R_DEFER_FED = 33
+    _row(R_DEFER_FED, "Deferrals", None, yellow=True)
+
+    # Row 34: Sub-total = labour - deferrals
+    R_SUB = 34
+    _row(R_SUB, "Sub-total",
+         f"=B{R_LAB_FED}-IFERROR(B{R_DEFER_FED},0)")
+
+    # Row 35: Percentage of ownership (user input, default 100%)
+    R_OWN = 35
+    _row(R_OWN, "Percentage of ownership", 1.0, yellow=True, pct=True)
+
+    # Row 36: (B) Net labour expenditure = sub-total * ownership %
+    R_ELIG_B_FED = 36
+    _row(R_ELIG_B_FED, "(B) Net labour expenditure",
+         f"=B{R_SUB}*B{R_OWN}")
+
+    # Row 38: Eligible cost for Fed. Tax Credit = MIN(A, B)
+    R_ELIG_FED = 38
+    _row(R_ELIG_FED, "Eligible cost for Fed. Tax Credit",
+         f"=MIN(B{R_ELIG_A_FED},B{R_ELIG_B_FED})")
+
+    # Row 40: Total Federal Tax Credit = eligible * 25%
+    R_FED_TC = 40
+    _row(R_FED_TC, "Total Federal Tax Credit", f"=B{R_ELIG_FED}*0.25", bold=True)
+
+    # Row 41: Percentage of budget = Fed TC / Production cost
+    R_PCT_FED = 41
+    _row(R_PCT_FED, "Percentage of budget",
+         f"=IFERROR(B{R_FED_TC}/B{R_PROD},0)", pct=True)
+
+    # Row 42: TOTAL TAX CREDIT = Quebec + Federal
+    R_TOTAL_TC = 42
+    _row(R_TOTAL_TC, "TOTAL TAX CREDIT",
+         f"=B{R_TOTAL_QC}+B{R_FED_TC}", bold=True, total=True,
+         fmt='#,##0 "$"')
+
+    # Blank row 43
+    ws.row_dimensions[43].height = ROW_H
+
+    # Row 44: Total Production Cost (label row)
+    _row(44, "Total Production Cost", f"=B{R_PROD}")
+
+    # Row 45: Percentage of Total Tax Credits
+    _row(45, "Percentage of Total Tax Credits",
+         f"=IFERROR(B{R_TOTAL_TC}/B{R_PROD},0)", bold=True, pct=True,
+         fmt=FMT_PCT1)
+
+
 def write_tax_credit_excel(
     budget: ParsedBudget,
     title: str,
@@ -3269,6 +3478,9 @@ def write_tax_credit_excel(
 
     ws_sales = wb.create_sheet("Sales")
     _write_sales_sheet(ws_sales)
+
+    ws_sodec = wb.create_sheet("Sodec")
+    _write_sodec_sheet(ws_sodec)
 
     buffer = BytesIO()
     wb.save(buffer)
