@@ -2678,44 +2678,52 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
             f"'Breakout Budget'!$Q:$Q)"
         )
 
-    # ── Row constants ─────────────────────────────────────────────────────────
-    R_HDR      = 1
-    R_EPS      = 2
-    R_VER      = 3
-    R_FX       = 4
-    # 5: blank
-    R_TOTAL    = 6
-    R_PER_EP   = 7
-    # 8: blank
-    R_NON_PROV = 9
-    R_FOR_SP   = 10
-    R_BC       = 11
-    # 12: blank
-    R_CAD_SP   = 13
-    R_USD_SP   = 14
-    # 15: blank
-    R_INT      = 16
-    R_TC_EST   = 17
-    # 18: blank
-    R_EP_FEE   = 19
-    R_PR_FEE   = 20
-    R_OVERHEAD = 21
-    R_PROD_FEE = 22
-    # 23: blank
-    R_FINANC   = 24
-    R_LEGAL    = 25
-    R_INSUR    = 26
-    # 27: blank
-    R_ONT_CR   = 28
-    R_CAVCO    = 29
+    # ── Row constants (row 1 = blank breathing-room row) ─────────────────────
+    R_HDR      = 2
+    R_EPS      = 3
+    R_VER      = 4
+    R_FX       = 5
+    # 6: blank
+    R_TOTAL    = 7
+    R_PER_EP   = 8
+    # 9: blank
+    R_NON_PROV = 10
+    R_FOR_SP   = 11
+    R_BC       = 12
+    # 13: blank
+    R_CAD_SP   = 14
+    R_USD_SP   = 15
+    # 16: blank
+    R_INT      = 17
+    R_TC_EST   = 18
+    # 19: blank
+    R_EP_FEE   = 20
+    R_PR_FEE   = 21
+    R_OVERHEAD = 22
+    R_PROD_FEE = 23
+    # 24: blank
+    R_FINANC   = 25
+    R_LEGAL    = 26
+    R_INSUR    = 27
+    # 28: blank
+    R_ONT_CR   = 29
+    R_CAVCO    = 30
 
-    # ── Row 1: header – A1 blank, title in B1, grey fill across A–D ──────────
+    _GREEN_FILL = PatternFill(start_color="C0FFCC", end_color="C0FFCC", fill_type="solid")
+    _BLUE_FILL  = PatternFill(start_color="A9F8FF", end_color="A9F8FF", fill_type="solid")
+    _BOLD_ITALIC = Font(bold=True, italic=True, size=10)
+
+    # ── Row 1: blank breathing-room row ──────────────────────────────────────
+    _blank(1)
+
+    # ── Row 2 (R_HDR): header – A2 no fill, B2:D2 black fill + white bold ────
     ws.row_dimensions[R_HDR].height = 20
-    for col in range(1, 5):
+    _c(R_HDR, 1)   # col A: no fill
+    for col in range(2, 5):
         c = ws.cell(row=R_HDR, column=col)
-        c.fill   = _SECTION_HEADER_FILL
+        c.fill   = _BLACK_FILL
         c.border = _NO_BORDER
-    _c(R_HDR, 2, title, font=_BOLD, fill=_SECTION_HEADER_FILL)
+    _c(R_HDR, 2, title, font=_WHITE_BOLD, fill=_BLACK_FILL)
 
     # ── Rows 2–4: metadata (italic – user links these cells) ─────────────────
     _label(R_EPS, "Episodes", italic=True)
@@ -2725,10 +2733,10 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     _label(R_FX,  "FX",            italic=True)
     _divider(R_FX)
 
-    # ── Row 5: blank ──────────────────────────────────────────────────────────
-    _blank(5)
+    # ── Row 6: blank ──────────────────────────────────────────────────────────
+    _blank(6)
 
-    # ── Row 6: Total Budget (bold) ────────────────────────────────────────────
+    # ── Row 7: Total Budget (bold) ────────────────────────────────────────────
     _label(R_TOTAL, "Total Budget", bold=True)
     _amount(R_TOTAL, "='Breakout Budget'!Q2", bold=True)
 
@@ -2737,10 +2745,10 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     _amount(R_PER_EP, f"=C{R_TOTAL}/C{R_EPS}")
     _divider(R_PER_EP)
 
-    # ── Row 8: blank ──────────────────────────────────────────────────────────
-    _blank(8)
+    # ── Row 9: blank ──────────────────────────────────────────────────────────
+    _blank(9)
 
-    # ── Row 9: Non-Provincial Spend ───────────────────────────────────────────
+    # ── Row 10: Non-Provincial Spend ─────────────────────────────────────────
     _label(R_NON_PROV, "Non-Provincial Spend")
     _amount(R_NON_PROV, "='Breakout Budget'!Z2",
             pct_formula=f"=C{R_NON_PROV}/C{R_TOTAL}")
@@ -2759,10 +2767,10 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     )
     _divider(R_BC)
 
-    # ── Row 12: blank ─────────────────────────────────────────────────────────
-    _blank(12)
+    # ── Row 13: blank ────────────────────────────────────────────────────────
+    _blank(13)
 
-    # ── Row 13: CAD Spend ─────────────────────────────────────────────────────
+    # ── Row 14: CAD Spend ────────────────────────────────────────────────────
     _label(R_CAD_SP, "CAD Spend")
     _amount(R_CAD_SP,
         "=INDEX('Breakout Budget'!2:2,"
@@ -2777,25 +2785,33 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     )
     _divider(R_USD_SP)
 
-    # ── Row 15: blank ─────────────────────────────────────────────────────────
-    _blank(15)
+    # ── Row 16: blank ────────────────────────────────────────────────────────
+    _blank(16)
 
-    # ── Row 16: Internals (bold) ──────────────────────────────────────────────
+    # ── Row 17: Internals – bold+italic, green fill ───────────────────────────
+    for col in range(2, 5):
+        ws.cell(row=R_INT, column=col).fill = _GREEN_FILL
     _label(R_INT, "Internals", bold=True)
+    ws.cell(row=R_INT, column=2).font = _BOLD_ITALIC
     _amount(R_INT,
         "='Breakout Budget'!AH2",
         pct_formula=f"=C{R_INT}/C{R_TOTAL}",
         bold=True,
     )
+    for col in (3, 4):
+        ws.cell(row=R_INT, column=col).font = _BOLD_ITALIC
 
-    # ── Row 17: Tax Credit Est. (italic – user links) ─────────────────────────
+    # ── Row 18: Tax Credit Est. – bold+italic, green fill ────────────────────
+    for col in range(2, 5):
+        ws.cell(row=R_TC_EST, column=col).fill = _GREEN_FILL
     _label(R_TC_EST, "Tax Credit Est.", italic=True)
+    ws.cell(row=R_TC_EST, column=2).font = _BOLD_ITALIC
     _divider(R_TC_EST)
 
-    # ── Row 18: blank ─────────────────────────────────────────────────────────
-    _blank(18)
+    # ── Row 19: blank ────────────────────────────────────────────────────────
+    _blank(19)
 
-    # ── Rows 19–22: Fees ──────────────────────────────────────────────────────
+    # ── Rows 20–23: Fees ─────────────────────────────────────────────────────
     _label(R_EP_FEE, "EP Fee")
     _amount(R_EP_FEE, _sumif_acct("0401"), pct_formula=f"=C{R_EP_FEE}/C{R_BC}")
 
@@ -2812,10 +2828,14 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     )
     _divider(R_PROD_FEE)
 
-    # ── Row 23: blank ─────────────────────────────────────────────────────────
-    _blank(23)
+    # ── Row 24: blank ────────────────────────────────────────────────────────
+    _blank(24)
 
-    # ── Rows 24–26: OPCS ──────────────────────────────────────────────────────
+    # ── Rows 25–27: OPCS – blue fill ─────────────────────────────────────────
+    for r in (R_FINANC, R_LEGAL, R_INSUR):
+        for col in range(2, 5):
+            ws.cell(row=r, column=col).fill = _BLUE_FILL
+
     _label(R_FINANC, "Interim Financing")
     _amount(R_FINANC, _sumif_acct("7220"), pct_formula=f"=C{R_FINANC}/C{R_TOTAL}")
 
@@ -2826,10 +2846,10 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     _amount(R_INSUR, _sumif_acct("7101"), pct_formula=f"=C{R_INSUR}/C{R_TOTAL}")
     _divider(R_INSUR)
 
-    # ── Row 27: blank ─────────────────────────────────────────────────────────
-    _blank(27)
+    # ── Row 28: blank ────────────────────────────────────────────────────────
+    _blank(28)
 
-    # ── Row 28: Ontario Creates ───────────────────────────────────────────────
+    # ── Row 29: Ontario Creates ───────────────────────────────────────────────
     _label(R_ONT_CR, "Ontario Creates")
     _amount(R_ONT_CR,
         _sumif_desc("OMDC"),
@@ -2846,7 +2866,7 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     )
     _divider(R_CAVCO)
 
-    ws.freeze_panes = "B2"
+    ws.freeze_panes = "B3"
 
 
 def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_minutes: int | None = None) -> None:
@@ -2885,7 +2905,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     # ── Row 1: Title (from Breakdown B1) ──────────────────────────────────────
     ws.row_dimensions[1].height = 26
     ws.merge_cells("B1:E1")
-    c = ws.cell(row=1, column=2, value="='Breakdown'!B1")
+    c = ws.cell(row=1, column=2, value="='Breakdown'!B2")
     c.font      = _CAL_TITLE
     c.alignment = _CENTER
 
@@ -2912,17 +2932,17 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
 
     _cell(R_TOT_B, 2, "Total budget",            font=_CAL_BOLD)
     _cell(R_TOT_B, 3)
-    _cell(R_TOT_B, 4, "='Breakdown'!C6",          font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_TOT_B, 4, "='Breakdown'!C7",          font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_TOT_B, 5)
 
     _cell(R_PER_EP, 2, "Total budget per episode", font=_CAL_BOLD)
     _cell(R_PER_EP, 3)
-    _cell(R_PER_EP, 4, "='Breakdown'!C7",          font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_PER_EP, 4, "='Breakdown'!C8",          font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_PER_EP, 5)
 
     _cell(R_N_EPS, 2, "Number of episodes",       font=_CAL_BOLD)
     _cell(R_N_EPS, 3)
-    _cell(R_N_EPS, 4, "='Breakdown'!C2",           font=_CAL_BOLD, align=_RIGHT)
+    _cell(R_N_EPS, 4, "='Breakdown'!C3",           font=_CAL_BOLD, align=_RIGHT)
     _cell(R_N_EPS, 5)
 
     _cell(R_DUR, 2, "Duration in minutes",        font=_CAL_BOLD)
@@ -2952,20 +2972,20 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     R_BC1 = 12
     _cell(R_BC1, 2, '=IF(Sales!B4="","",Sales!B4)')
     _cell(R_BC1, 4, f'=IF(Sales!B4="","",IFERROR(Sales!E4,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC1, 3, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$2,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC1, 5, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$6,0))', align=_RIGHT, fmt=FMT_PCT)
+    _cell(R_BC1, 3, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$3,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC1, 5, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$7,0))', align=_RIGHT, fmt=FMT_PCT)
 
     R_BC2 = 13
     _cell(R_BC2, 2, '=IF(Sales!B5="","",Sales!B5)')
     _cell(R_BC2, 4, f'=IF(Sales!B5="","",IFERROR(Sales!E5,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC2, 3, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$2,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC2, 5, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$6,0))', align=_RIGHT, fmt=FMT_PCT)
+    _cell(R_BC2, 3, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$3,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC2, 5, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$7,0))', align=_RIGHT, fmt=FMT_PCT)
 
     R_BC3 = 14
     _cell(R_BC3, 2, '=IF(Sales!B6="","",Sales!B6)')
     _cell(R_BC3, 4, f'=IF(Sales!B6="","",IFERROR(Sales!E6,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC3, 3, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$2,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC3, 5, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$6,0))', align=_RIGHT, fmt=FMT_PCT)
+    _cell(R_BC3, 3, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$3,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC3, 5, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$7,0))', align=_RIGHT, fmt=FMT_PCT)
 
     # ── Rows 15-16: blank ─────────────────────────────────────────────────────
     ws.row_dimensions[15].height = ROW_H
@@ -2975,21 +2995,21 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     R_ONT = 17
     _cell(R_ONT, 2, "Ontario Production Tax Credit")
     _cell(R_ONT, 3,
-          "=IFERROR('Ontario - OFTTC'!$C$29/'Breakdown'!$C$2,0)",
+          "=IFERROR('Ontario - OFTTC'!$C$29/'Breakdown'!$C$3,0)",
           align=_RIGHT, fmt=FMT_NUM)
     _cell(R_ONT, 4, "='Ontario - OFTTC'!$C$29", align=_RIGHT, fmt=FMT_NUM)
     _cell(R_ONT, 5,
-          f"=IFERROR(D{R_ONT}/'Breakdown'!$C$6,0)", align=_RIGHT, fmt=FMT_PCT)
+          f"=IFERROR(D{R_ONT}/'Breakdown'!$C$7,0)", align=_RIGHT, fmt=FMT_PCT)
 
     # ── Row 18: Federal Production Tax Credit (OFTTC tab C53 = federal only) ──
     R_FED = 18
     _cell(R_FED, 2, "Federal Production Tax Credit")
     _cell(R_FED, 3,
-          "=IFERROR('Ontario - OFTTC'!$C$53/'Breakdown'!$C$2,0)",
+          "=IFERROR('Ontario - OFTTC'!$C$53/'Breakdown'!$C$3,0)",
           align=_RIGHT, fmt=FMT_NUM)
     _cell(R_FED, 4, "='Ontario - OFTTC'!$C$53", align=_RIGHT, fmt=FMT_NUM)
     _cell(R_FED, 5,
-          f"=IFERROR(D{R_FED}/'Breakdown'!$C$6,0)", align=_RIGHT, fmt=FMT_PCT)
+          f"=IFERROR(D{R_FED}/'Breakdown'!$C$7,0)", align=_RIGHT, fmt=FMT_PCT)
 
     # ── Rows 19-20: blank ─────────────────────────────────────────────────────
     ws.row_dimensions[19].height = ROW_H
@@ -2998,7 +3018,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     # ── Row 21: DISTRIBUTION GUARANTEE = budget − licenses − tax credits ──────
     R_DIST = 21
     dist_d = (
-        f"='Breakdown'!$C$6"
+        f"='Breakdown'!$C$7"
         f"-IF(ISNUMBER(D{R_BC1}),D{R_BC1},0)"
         f"-IF(ISNUMBER(D{R_BC2}),D{R_BC2},0)"
         f"-IF(ISNUMBER(D{R_BC3}),D{R_BC3},0)"
@@ -3006,11 +3026,11 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     )
     _cell(R_DIST, 2, "DISTRIBUTION GUARANTEE", font=_CAL_BOLD)
     _cell(R_DIST, 3,
-          f"=IFERROR(D{R_DIST}/'Breakdown'!$C$2,0)",
+          f"=IFERROR(D{R_DIST}/'Breakdown'!$C$3,0)",
           font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_DIST, 4, dist_d, font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_DIST, 5,
-          f"=IFERROR(D{R_DIST}/'Breakdown'!$C$6,0)",
+          f"=IFERROR(D{R_DIST}/'Breakdown'!$C$7,0)",
           font=_CAL_BOLD, align=_RIGHT, fmt=FMT_PCT)
 
     # ── Row 22: Cineflix Rights (sub-label, italic) ───────────────────────────
@@ -3027,8 +3047,8 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     # ── Row 25: Total ──────────────────────────────────────────────────────────
     R_TOTAL = 25
     _cell(R_TOTAL, 2, "Total",           font=_CAL_BOLD)
-    _cell(R_TOTAL, 3, "='Breakdown'!C7", font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_TOTAL, 4, "='Breakdown'!C6", font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_TOTAL, 3, "='Breakdown'!C8", font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_TOTAL, 4, "='Breakdown'!C8", font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_TOTAL, 5, 1.0,               font=_CAL_BOLD, align=_RIGHT, fmt=FMT_PCT)
 
     # ── Row 26: blank bottom padding (inside box) ─────────────────────────────
@@ -3136,7 +3156,7 @@ def _write_sales_sheet(ws) -> None:
         )
         _cell(row, 5, cad_formula, fmt=FMT_NUM)
         # Per Ep Local – license fee local divided by episode count from Breakdown tab
-        _cell(row, 6, f"=IFERROR(D{row}/Breakdown!$C$2,\"\")", fmt=FMT_NUM)
+        _cell(row, 6, f"=IFERROR(D{row}/Breakdown!$C$3,\"\")", fmt=FMT_NUM)
 
     # ── Total License Fee CAD ─────────────────────────────────────────────────
     R_TOTAL = 8
@@ -3272,7 +3292,7 @@ def _write_sodec_sheet(ws) -> None:
 
     # ── Rows 1-2: Title ───────────────────────────────────────────────────────
     ws.row_dimensions[1].height = 22
-    _cell(1, 1, "='Breakdown'!B1", font=_CAL_TITLE)
+    _cell(1, 1, "='Breakdown'!B2", font=_CAL_TITLE)
     _cell(2, 1, "TAX CREDITS CALCULATION", font=_CAL_SUBTITLE)
 
     # ── Row 4: Quebec Provincial header ──────────────────────────────────────
@@ -3280,7 +3300,7 @@ def _write_sodec_sheet(ws) -> None:
 
     # Row 6: Production costs — linked to Breakdown total budget
     R_PROD = 6
-    _row(R_PROD, "Production costs", "='Breakdown'!$C$6")
+    _row(R_PROD, "Production costs", "='Breakdown'!$C$7")
 
     # Row 7: Government assistance
     R_GOVTA = 7
