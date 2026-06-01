@@ -3478,6 +3478,11 @@ def write_tax_credit_excel(
 
     ws_breakout = wb.create_sheet("Breakout Budget")
     _write_breakout_budget(ws_breakout, budget, overrides or {}, effective_bible)
+    ws_breakout.sheet_properties.tabColor = "B4FFF8"
+
+    ws_breakdown = wb.create_sheet("Breakdown")
+    _write_breakdown_sheet(ws_breakdown, title, num_episodes=num_episodes)
+    ws_breakdown.sheet_properties.tabColor = "B4FFF8"
 
     ws_opstc = wb.create_sheet("Ontario - OPSTC")
     _write_opstc_sheet(ws_opstc, title)
@@ -3490,9 +3495,6 @@ def write_tax_credit_excel(
     ws_sodec = wb.create_sheet("Sodec")
     _write_sodec_sheet(ws_sodec)
     ws_sodec.sheet_properties.tabColor = "FFFEC8"
-
-    ws_breakdown = wb.create_sheet("Breakdown")
-    _write_breakdown_sheet(ws_breakdown, title, num_episodes=num_episodes)
 
     ws_fs = wb.create_sheet("FS")
     _write_fs_sheet(ws_fs, title, num_episodes=num_episodes, duration_minutes=duration_minutes)
