@@ -2892,6 +2892,555 @@ def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> N
     ws.freeze_panes = "B3"
 
 
+# ---------------------------------------------------------------------------
+# Form 6 sheet
+# ---------------------------------------------------------------------------
+
+def _write_form6_sheet(ws) -> None:
+    """CAVCO Form 6 (7540-CH-040-0102): Breakdown of Costs – Production.
+
+    Row positions are fixed to match the formula references the user provided;
+    do not renumber them.
+    """
+    ws.title = "Form6"
+
+    ws.column_dimensions["A"].width = 7
+    ws.column_dimensions["B"].width = 42
+    ws.column_dimensions["C"].width = 14
+    ws.column_dimensions["D"].width = 14
+    ws.column_dimensions["E"].width = 14
+    ws.column_dimensions["F"].width = 14
+    ws.column_dimensions["G"].width = 14
+    ws.column_dimensions["H"].width = 14
+    ws.column_dimensions["I"].width = 14
+
+    ROW_H = 15
+    FMT   = CURRENCY_FORMAT
+
+    _DARK_FILL   = PatternFill(start_color="595959", end_color="595959", fill_type="solid")
+    _ITALIC_SM   = Font(italic=True, size=9)
+    _WHITE_BOLD  = Font(bold=True, color="FFFFFF", size=10)
+    BB = "'Breakout Budget'"
+
+    # ── Cell helper ──────────────────────────────────────────────────────────
+    def _c(row, col, value=None, font=None, fill=None, align=None, fmt=None):
+        ws.row_dimensions[row].height = ROW_H
+        c = ws.cell(row=row, column=col, value=value)
+        c.font      = font  or _NORMAL
+        c.border    = _NO_BORDER
+        c.alignment = align or _LEFT
+        if fill is not None: c.fill          = fill
+        if fmt  is not None: c.number_format = fmt
+        return c
+
+    def _fill_row(row, fill, h=ROW_H):
+        ws.row_dimensions[row].height = h
+        for col in range(1, 10):
+            ws.cell(row=row, column=col).fill = fill
+
+    def _blank(row, h=ROW_H):
+        ws.row_dimensions[row].height = h
+
+    # ── Section header (dark or light grey) ──────────────────────────────────
+    def _shdr(row, label, acct=None, dark=False, h=16):
+        fill = _DARK_FILL if dark else _SECTION_HEADER_FILL
+        font = _WHITE_BOLD if dark else _BOLD
+        _fill_row(row, fill, h=h)
+        if acct is not None:
+            _c(row, 1, acct, font=font, fill=fill, align=_CENTER)
+        _c(row, 2, label, font=font, fill=fill)
+
+    # ── Column header block (2 rows) ─────────────────────────────────────────
+    def _col_hdrs(row):
+        _fill_row(row, _SECTION_HEADER_FILL)
+        for col, lbl, al in [
+            (1, "Account",                 _CENTER),
+            (2, "Category",                _LEFT),
+            (3, "Personnel Key Creative",  _CENTER),
+            (4, "Services Canadian",       _CENTER),
+            (5, "Services Non-Canadian",   _CENTER),
+            (6, "Labs Canadian",           _CENTER),
+            (7, "Labs Non-Canadian",       _CENTER),
+            (8, "Other",                   _CENTER),
+            (9, "Total",                   _CENTER),
+        ]:
+            cell = ws.cell(row=row, column=col, value=lbl)
+            cell.font      = _BOLD
+            cell.fill      = _SECTION_HEADER_FILL
+            cell.border    = _NO_BORDER
+            cell.alignment = Alignment(horizontal=al.horizontal,
+                                       vertical="center", wrap_text=False)
+
+    # ── Data row ─────────────────────────────────────────────────────────────
+    def _row(row, acct, label,
+             c=None, d=None, e=None, f=None, g=None, h=None, i=None,
+             bold=False):
+        font = _BOLD if bold else _NORMAL
+        ws.row_dimensions[row].height = ROW_H
+        if acct is not None:
+            a_val = int(acct) if str(acct).lstrip("-").isdigit() else acct
+            _c(row, 1, a_val, font=font, align=_CENTER)
+        if label is not None:
+            _c(row, 2, label, font=font)
+        for col_i, val in zip([3, 4, 5, 6, 7, 8, 9], [c, d, e, f, g, h, i]):
+            if val is not None:
+                cell = ws.cell(row=row, column=col_i, value=val)
+                cell.font = font; cell.alignment = _RIGHT
+                cell.number_format = FMT; cell.border = _NO_BORDER
+
+    # ── Sub-total row ─────────────────────────────────────────────────────────
+    def _sub(row, label, c, d, e, f, g, h, i):
+        _fill_row(row, _SECTION_HEADER_FILL, h=16)
+        _c(row, 2, label, font=_BOLD, fill=_SECTION_HEADER_FILL)
+        for col_i, val in zip([3, 4, 5, 6, 7, 8, 9], [c, d, e, f, g, h, i]):
+            cell = ws.cell(row=row, column=col_i, value=val)
+            cell.font = _BOLD; cell.fill = _SECTION_HEADER_FILL
+            cell.alignment = _RIGHT; cell.number_format = FMT
+            cell.border = _NO_BORDER
+
+    # ── Formula shortcuts ────────────────────────────────────────────────────
+    def si_text(row_ref, src_col):
+        return (f"=SUMIF({BB}!$A:$A,TEXT($A{row_ref},\"00\")&\"??\","
+                f"{BB}!${src_col}:${src_col})")
+
+    def si_exact(code, src_col):
+        return f"=SUMIF({BB}!$A:$A,\"{code}\",{BB}!${src_col}:${src_col})"
+
+    def sr(r):  # SUM row C:H
+        return f"=SUM(C{r}:H{r})"
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Rows 1-13: form title + ATL column headers
+    # ══════════════════════════════════════════════════════════════════════════
+    ws.row_dimensions[1].height = 18
+    _c(1, 2, "Breakdown of Costs - Production", font=_TITLE_FONT)
+    _c(1, 9, "Canadian Audio-Visual Certification Office",
+       font=_ITALIC_SM, align=_RIGHT)
+
+    ws.row_dimensions[2].height = 13
+    _c(2, 2, "(Not required for treaty co-productions)", font=_ITALIC_SM)
+
+    for r in range(3, 7):
+        _blank(r)
+
+    _col_hdrs(7)  # header row
+
+    for r in range(8, 14):
+        _blank(r, h=5)
+
+    _shdr(13, "ABOVE THE LINE", dark=True)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Row 14 – Account 1  STORY RIGHTS / ACQUISITIONS
+    # ══════════════════════════════════════════════════════════════════════════
+    _row(14, 1, "STORY RIGHTS / ACQUISITIONS",
+         d=si_text(14, "T"), e=si_text(14, "S"), i=sr(14))
+
+    _blank(15)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Rows 16-19 – Account 2  SCENARIO
+    # ══════════════════════════════════════════════════════════════════════════
+    _shdr(16, "SCENARIO", acct=2)
+    _row(17, 2, "  a)   Remuneration",    c=si_exact("0201", "Q"), i=sr(17))
+    _row(18, 2, "  b)   Travel and living expenses",                i=sr(18))
+    _row(19, 2, "  c)   Other costs",
+         d=si_text(19, "T"), e=si_text(19, "S"), i=sr(19))
+
+    _blank(20)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Row 21 – Account 3  DEVELOPMENT COSTS
+    # ══════════════════════════════════════════════════════════════════════════
+    _row(21, 3, "DEVELOPMENT COSTS",
+         d=si_text(21, "T"), e=si_text(21, "S"), i=sr(21))
+
+    _blank(22)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Rows 23-42 – Account 4  PRODUCER
+    # ══════════════════════════════════════════════════════════════════════════
+    _shdr(23, "PRODUCER", acct=4)
+
+    _shdr(24, "4.1  CANADIAN PRODUCER")
+    _row(25, None, "  a)   Remuneration",          c=si_exact("0405", "Q"), i=sr(25))
+    _row(26, None, "  b)   Travel and living expenses",                      i=sr(26))
+
+    _shdr(27, "4.2  CANADIAN CO-PRODUCER")
+    _row(28, None, "  a)   Remuneration",           i=sr(28))
+    _row(29, None, "  b)   Travel and living expenses",                      i=sr(29))
+
+    _shdr(30, "4.3  LINE PRODUCER")
+    _row(31, None, "  a)   Remuneration",
+         d=si_exact("0407", "Q"), i=sr(31))
+    _row(32, None, "  b)   Travel and living expenses",                      i=sr(32))
+
+    _shdr(33, "4.4  EXECUTIVE PRODUCER")
+    _row(34, None, "  a)   Remuneration",
+         d=si_exact("0401", "T"), e=si_exact("0401", "S"), i=sr(34))
+    _row(35, None, "  b)   Travel and living expenses",
+         d=(f"=SUMIF({BB}!$A:$A,\"0460\",{BB}!$T:$T)"
+            f"+SUMIF({BB}!$A:$A,\"0465\",{BB}!$T:$T)"),
+         e=(f"=SUMIF({BB}!$A:$A,\"0460\",{BB}!$S:$S)"
+            f"+SUMIF({BB}!$A:$A,\"0465\",{BB}!$S:$S)"),
+         i=sr(35))
+
+    _shdr(36, "4.5  ASSOCIATE PRODUCER")
+    _row(37, None, "  a)   Remuneration",
+         d=si_exact("0415", "T"), e=si_exact("0415", "S"), i=sr(37))
+    _row(38, None, "  b)   Travel and living expenses",                      i=sr(38))
+
+    _shdr(39, "4.6  OTHER PERSONNEL RELATED TO PRODUCTION")
+    _row(40, None, "  a)   Remuneration",
+         d=si_exact("0408", "T"), e=si_exact("0408", "S"), i=sr(40))
+    _row(41, None, "  b)   Travel and living expenses",                      i=sr(41))
+
+    _row(42, "4.7", "OTHER COSTS", i=sr(42))
+
+    _blank(43)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Rows 44-47 – Account 5  DIRECTOR
+    # ══════════════════════════════════════════════════════════════════════════
+    _shdr(44, "DIRECTOR", acct=5)
+    _row(45, None, "  a)   Remuneration",   c=si_exact("0501", "Q"), i=sr(45))
+    _row(46, None, "  b)   Travel and living expenses",
+         c=(f"=SUMIF({BB}!$A:$A,\"0560\",{BB}!$Q:$Q)"
+            f"+SUMIF({BB}!$A:$A,\"0565\",{BB}!$Q:$Q)"),
+         i=sr(46))
+    _row(47, None, "  c)   Other costs",    i=sr(47))
+
+    _blank(48)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Rows 49-52 – Account 6  STARS
+    # ══════════════════════════════════════════════════════════════════════════
+    _shdr(49, "STARS", acct=6)
+    _row(50, None, "  a)   Remuneration",   c=si_exact("0601", "Q"), i=sr(50))
+    _row(51, None, "  b)   Travel and living expenses",
+         c=(f"=SUMIF({BB}!$A:$A,\"0660\",{BB}!$Q:$Q)"
+            f"+SUMIF({BB}!$A:$A,\"0665\",{BB}!$Q:$Q)"),
+         i=sr(51))
+    _row(52, None, "  c)   Other costs",    i=sr(52))
+
+    _blank(53)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Row 54 – SUB-TOTAL  (ATL)
+    # ══════════════════════════════════════════════════════════════════════════
+    _sub(54, "SUB-TOTAL",
+         "=SUM(C14:C52)", "=SUM(D14:D52)", "=SUM(E14:E52)",
+         "=SUM(F14:F52)", "=SUM(G14:G52)", "=SUM(H14:H52)", "=SUM(I14:I52)")
+
+    ws.row_dimensions[55].height = 13
+    _c(55, 2, "NOTE :    Type all answers.  Round off to the nearest dollar.",
+       font=_ITALIC_SM)
+    _c(55, 9, "7540-CH-040-0102 (E)", font=_ITALIC_SM, align=_RIGHT)
+
+    _blank(56)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Rows 57-62 – PRODUCTION section header block
+    # ══════════════════════════════════════════════════════════════════════════
+    _col_hdrs(57)
+    for r in range(58, 63):
+        _blank(r, h=5)
+    _shdr(62, "PRODUCTION", dark=True)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Rows 63-104 – PRODUCTION data rows
+    # Standard pattern: d=T:T TEXT, e=S:S TEXT, i=SUM
+    # Special rows handled separately below.
+    # ══════════════════════════════════════════════════════════════════════════
+    _std_prod = [
+        (63, 10, "CAST"),
+        (64, 11, "EXTRAS"),
+        (65, 12, "PRODUCTION STAFF"),
+        # 66 special (has C)
+        (67, 14, "CONSTRUCTION LABOUR"),
+        (68, 15, "SET DRESSING LABOUR"),
+        (69, 16, "PROPERTY LABOUR"),
+        (70, 17, "SPECIAL EFFECTS LABOUR"),
+        (71, 18, "WRANGLING LABOUR"),
+        (72, 19, "WARDROBE LABOUR"),
+        (73, 20, "MAKEUP/HAIR LABOUR"),
+        (74, 21, "VIDEO TECHNICAL CREW"),
+        # 75 special (has C, modified D)
+        (76, 23, "ELECTRICAL LABOUR"),
+        (77, 24, "GRIP LABOUR"),
+        (78, 25, "PRODUCTION SOUND LABOUR"),
+        (79, 26, "HEALTH & SAFETY LABOUR"),
+        (80, 27, "FRINGE BENEFITS"),
+        (81, 28, "PRODUCTION OFFICE EXPENSES"),
+        (82, 29, "STUDIO/BACKLOT EXPENSES"),
+        (83, 30, "LOCATION OFFICE EXPENSES"),
+        (84, 31, "SITE EXPENSES"),
+        (85, 32, "UNIT EXPENSES"),
+        # 86 special (has C exact)
+        (87, 34, "TRANSPORTATION"),
+        (88, 35, "CONSTRUCTION MATERIALS"),
+        (89, 36, "ART SUPPLIES"),
+        (90, 37, "SET DRESSING"),
+        (91, 38, "PROPS"),
+        (92, 39, "SPECIAL EFFECTS"),
+        (93, 40, "HEALTH AND SAFETY PREVENTION"),
+        (94, 41, "WARDROBE SUPPLIES"),
+        (95, 42, "MAKEUP/HAIR SUPPLIES"),
+        (96, 43, "VIDEO STUDIO FACILITIES"),
+        (97, 44, "VIDEO REMOTE TECHNICAL FACILITIES"),
+        (98, 45, "CAMERA EQUIPMENT"),
+        (99, 46, "ELECTRICAL EQUIPMENT"),
+        (100, 47, "GRIP EQUIPMENT"),
+        (101, 48, "SOUND EQUIPMENT"),
+        (102, 49, "SECOND UNIT"),
+        (103, 50, "VIDEOTAPE STOCK"),
+        (104, 51, "PRODUCTION LABORATORY"),
+    ]
+    for r, acct, lbl in _std_prod:
+        _row(r, acct, lbl, d=si_text(r, "T"), e=si_text(r, "S"), i=sr(r))
+
+    # Row 66 – DESIGN LABOUR (has col C)
+    _row(66, 13, "DESIGN LABOUR",
+         c=si_exact("1301", "Q"),
+         d=si_text(66, "T"), e=si_text(66, "S"), i=sr(66))
+
+    # Row 75 – CAMERA LABOUR (col C exact; col D = TEXT total minus col C and row 86 C)
+    _row(75, 22, "CAMERA LABOUR",
+         c=si_exact("2201", "Q"),
+         d=(f"=SUMIF({BB}!$A:$A,TEXT($A75,\"00\")&\"??\"," \
+            f"{BB}!$T:$T)-C75-C86"),
+         e=si_text(75, "S"),
+         i=sr(75))
+
+    # Row 86 – TRAVEL AND LIVING EXPENSES (col C = two exact codes)
+    _row(86, 33, "TRAVEL AND LIVING EXPENSES",
+         c=(f"=SUMIF({BB}!$A:$A,\"2263\",{BB}!$Q:$Q)"
+            f"+SUMIF({BB}!$A:$A,\"2266\",{BB}!$Q:$Q)"),
+         d=si_text(86, "T"), e=si_text(86, "S"), i=sr(86))
+
+    _blank(105)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Row 106 – SUB-TOTAL  PRODUCTION
+    # ══════════════════════════════════════════════════════════════════════════
+    _sub(106, "SUB-TOTAL  -  PRODUCTION",
+         "=SUM(C63:C104)", "=SUM(D63:D104)", "=SUM(E63:E104)",
+         "=SUM(F63:F104)", "=SUM(G63:G104)", "=SUM(H63:H104)", "=SUM(I63:I104)")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Rows 107-113 – POST-PRODUCTION section header block
+    # ══════════════════════════════════════════════════════════════════════════
+    _col_hdrs(107)
+    for r in range(108, 113):
+        _blank(r, h=5)
+    _shdr(112, "POST-PRODUCTION", dark=True)
+    _shdr(113, "60  EDITORIAL LABOUR")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Rows 114-134 – POST-PRODUCTION data rows
+    # ══════════════════════════════════════════════════════════════════════════
+
+    # 60a  Remuneration – C=exact 6010 Q:Q; F=TEXT(60)?? T:T minus C; G=S:S
+    _row(114, 60, "  a)   Remuneration",
+         c=si_exact("6010", "Q"),
+         f=(f"=SUMIF({BB}!$A:$A,TEXT($A114,\"00\")&\"??\"," \
+            f"{BB}!$T:$T)-C114"),
+         g=si_text(114, "S"),
+         i=sr(114))
+    _row(115, 60, "  b)   Travel and living expenses", i=sr(115))
+    _row(116, 60, "  c)   Other costs",                i=sr(116))
+
+    # 61  EDITORIAL EQUIPMENT – F and G use TEXT
+    _row(117, 61, "EDITORIAL EQUIPMENT",
+         f=si_text(117, "T"), g=si_text(117, "S"), i=sr(117))
+
+    # 62  VIDEO POST-PRODUCTION (PICTURE)
+    _shdr(118, "62  VIDEO POST-PRODUCTION (PICTURE)")
+    _row(119, 62, "  a)   Remuneration",
+         f=si_text(119, "T"), g=si_text(119, "S"), i=sr(119))
+    _row(120, 62, "  b)   Travel and living expenses", i=sr(120))
+    _row(121, 62, "  c)   Other costs",                i=sr(121))
+
+    # 63-65 direct rows
+    _row(122, 63, "VIDEO POST-PRODUCTION (SOUND)",
+         f=si_text(122, "T"), g=si_text(122, "S"), i=sr(122))
+    _row(123, 64, "POST-PRODUCTION LABORATORY",
+         f=si_text(123, "T"), g=si_text(123, "S"), i=sr(123))
+    _row(124, 65, "FILM POST-PRODUCTION SOUND",
+         f=si_text(124, "T"), g=si_text(124, "S"), i=sr(124))
+
+    # 66  MUSIC
+    _shdr(125, "66  MUSIC")
+    # 66a  Remuneration – C=exact 6610 Q:Q; F=TEXT(66)?? T:T minus C126 and D128; G=S:S
+    _row(126, 66, "  a)   Remuneration",
+         c=si_exact("6610", "Q"),
+         f=(f"=SUMIF({BB}!$A:$A,TEXT($A126,\"00\")&\"??\"," \
+            f"{BB}!$T:$T)-C126-D128"),
+         g=si_text(126, "S"),
+         i=sr(126))
+    _row(127, 66, "  b)   Travel and living expenses", i=sr(127))
+    _row(128, 66, "  c)   Music rights",
+         d=si_exact("6670", "T"), e=si_exact("6670", "S"), i=sr(128))
+    _row(129, 66, "  d)   Other costs",                i=sr(129))
+
+    # 67  TITLES/OPTICALS/STOCK FOOTAGE
+    _shdr(130, "67  TITLES/OPTICALS/STOCK FOOTAGE")
+    # 67a  Titles/Opticals – F=TEXT(67)?? T:T minus H132; G=S:S minus H132
+    _row(131, 67, "  a)   Titles/Opticals",
+         f=(f"=SUMIF({BB}!$A:$A,TEXT($A131,\"00\")&\"??\"," \
+            f"{BB}!$Q:$Q)-H132"),
+         g=(f"=SUMIF({BB}!$A:$A,TEXT($A131,\"00\")&\"??\"," \
+            f"{BB}!$S:$S)-H132"),
+         i=sr(131))
+    # 67b  Stock footage – H col only (exact 6730 Q:Q)
+    _row(132, None, "  b)   Stock footage",
+         h=si_exact("6730", "Q"), i=sr(132))
+
+    _row(133, 68, "VERSIONING",
+         f=si_text(133, "T"), g=si_text(133, "S"), i=sr(133))
+    _row(134, 69, "AMORTIZATION (SERIES)",            i=sr(134))
+
+    _blank(135)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Row 136 – SUB-TOTAL  POST-PRODUCTION
+    # ══════════════════════════════════════════════════════════════════════════
+    _sub(136, "SUB-TOTAL  -  POST-PRODUCTION",
+         "=SUM(C113:C134)", "=SUM(D113:D134)", "=SUM(E113:E134)",
+         "=SUM(F113:F134)", "=SUM(G113:G134)", "=SUM(H113:H134)", "=SUM(I113:I134)")
+
+    _blank(137)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Row 138 – OTHERS section header
+    # ══════════════════════════════════════════════════════════════════════════
+    _shdr(138, "OTHERS", dark=True)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Rows 139-149 – OTHERS data rows
+    # ══════════════════════════════════════════════════════════════════════════
+
+    # 70  UNIT PUBLICITY
+    _row(139, 70, "UNIT PUBLICITY",
+         d=si_text(139, "T"), e=si_text(139, "S"), i=sr(139))
+
+    # 71  GENERAL EXPENSES
+    _shdr(140, "71  GENERAL EXPENSES")
+    _row(141, None, "  a)   Insurance",     h=si_exact("7101", "Q"), i=sr(141))
+    _row(142, None, "  b)   Legal fees",    h=si_exact("7110", "Q"), i=sr(142))
+    _row(143, None, "  c)   Audited costs", h=si_exact("7125", "Q"), i=sr(143))
+    _row(144, 71,   "  d)   Other costs",
+         h=(f"=SUMIF({BB}!$A:$A,TEXT($A144,\"00\")&\"??\"," \
+            f"{BB}!$Q:$Q)-SUM(H141:H143)"),
+         i=sr(144))
+
+    # 72  INDIRECT COSTS
+    _shdr(145, "72  INDIRECT COSTS")
+    _row(146, None, "  a)   Corporate overhead",  h=si_exact("7201", "Q"), i=sr(146))
+    _row(147, None, "  b)   Interim financing",   h=si_exact("7220", "Q"), i=sr(147))
+    _row(148, 72,   "  c)   Other costs",
+         h=(f"=SUMIF({BB}!$A:$A,TEXT($A148,\"00\")&\"??\"," \
+            f"{BB}!$Q:$Q)-SUM(H146:H147)"),
+         i=sr(148))
+
+    # 81  COMPLETION GUARANTEE
+    _row(149, 81, "COMPLETION GUARANTEE", i=sr(149))
+
+    _blank(150)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Row 151 – SUB-TOTAL  OTHERS
+    # ══════════════════════════════════════════════════════════════════════════
+    _sub(151, "SUB-TOTAL  -  OTHERS",
+         "=SUM(C139:C149)", "=SUM(D139:D149)", "=SUM(E139:E149)",
+         "=SUM(F139:F149)", "=SUM(G139:G149)", "=SUM(H139:H149)", "=SUM(I139:I149)")
+
+    _blank(152)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Row 153 – TOTAL
+    # ══════════════════════════════════════════════════════════════════════════
+    _sub(153, "TOTAL",
+         "=SUM(C54+C106+C136+C151)",
+         "=SUM(D54+D106+D136+D151)",
+         "=SUM(E54+E106+E136+E151)",
+         "=SUM(G54+F106+F136+F151)",   # reproduced exactly as provided
+         "=SUM(G54+G106+G136+G151)",
+         "=SUM(H54+H106+H136+H151)",
+         "=SUM(I54+I106+I136+I151)")
+
+    # Row 154 – aggregate Services / Labs totals (used by % row)
+    ws.row_dimensions[154].height = ROW_H
+    for col_i, val in [
+        (4, "=SUM(D153:E153)"),
+        (6, "=SUM(F153:G153)"),
+    ]:
+        cell = ws.cell(row=154, column=col_i, value=val)
+        cell.font = _NORMAL; cell.alignment = _RIGHT
+        cell.number_format = FMT; cell.border = _NO_BORDER
+
+    _blank(155)
+
+    # Row 156 – CANADIAN / NON-CANADIAN COSTS
+    ws.row_dimensions[156].height = ROW_H
+    _c(156, 2, "CANADIAN / NON-CANADIAN COSTS", font=_BOLD)
+    for col_i, val in [
+        (4, "=SUM(D153*1/D154)"),
+        (5, "=SUM(E153*1/D154)"),
+        (6, "=SUM(F153*1/F154)"),
+        (7, "=SUM(G153*1/F154)"),
+    ]:
+        cell = ws.cell(row=156, column=col_i, value=val)
+        cell.font = _NORMAL; cell.alignment = _RIGHT
+        cell.number_format = "0.00%"; cell.border = _NO_BORDER
+
+    # Row 157 – aggregate % totals
+    ws.row_dimensions[157].height = ROW_H
+    for col_i, val in [
+        (4, "=SUM(D156:E156)"),
+        (6, "=SUM(F156:G156)"),
+    ]:
+        cell = ws.cell(row=157, column=col_i, value=val)
+        cell.font = _NORMAL; cell.alignment = _RIGHT
+        cell.number_format = "0.00%"; cell.border = _NO_BORDER
+
+    # Row 158 – Note
+    _c(158, 2, "Note:  All items in italic are video budget accounts.",
+       font=_ITALIC_SM)
+
+    # ── Uniform row height ────────────────────────────────────────────────────
+    for r in range(1, 159):
+        ws.row_dimensions[r].height = ROW_H
+
+    # ── Thin borders on all form body cells (col headers through last row) ────
+    for r in range(7, 159):
+        for col in range(1, 10):
+            ws.cell(row=r, column=col).border = _THIN_BORDER
+
+    # ── Grey fill on non-applicable columns (Labs/Other for ATL & Production,
+    #    Services for Post editorial section) ─────────────────────────────────
+    _GREY = _SECTION_HEADER_FILL   # D9D9D9
+    for r in range(14, 55):        # ATL data rows: Labs Canadian/Non-Can + Other
+        for col in (6, 7, 8):
+            ws.cell(row=r, column=col).fill = _GREY
+    for r in range(63, 106):       # Production rows: Labs Canadian/Non-Can + Other
+        for col in (6, 7, 8):
+            ws.cell(row=r, column=col).fill = _GREY
+    for r in range(114, 128):      # Post editorial rows: Services Canadian/Non-Can
+        for col in (4, 5):
+            ws.cell(row=r, column=col).fill = _GREY
+    for r in range(131, 136):      # Titles/Opticals rows: Personnel + Services cols
+        for col in (3, 4, 5):
+            ws.cell(row=r, column=col).fill = _GREY
+    for col in (6, 7):             # Titles row 132 Stock footage: Labs cols
+        ws.cell(132, column=col).fill = _GREY
+    for r in range(141, 149):      # Others General/Indirect rows: Personnel + Services + Labs
+        for col in (3, 4, 5, 6, 7):
+            ws.cell(row=r, column=col).fill = _GREY
+
+    ws.freeze_panes = "C14"
+
+
 def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_minutes: int | None = None) -> None:
     """Financing Summary (FS) sheet – Calibri font, linked to Breakdown and Ontario-OFTTC tabs."""
     ws.title = "FS"
@@ -3526,6 +4075,10 @@ def write_tax_credit_excel(
     ws_breakdown = wb.create_sheet("Breakdown")
     _write_breakdown_sheet(ws_breakdown, title, num_episodes=num_episodes)
     ws_breakdown.sheet_properties.tabColor = "B4FFF8"
+
+    ws_form6 = wb.create_sheet("Form6")
+    _write_form6_sheet(ws_form6)
+    ws_form6.sheet_properties.tabColor = "FFD4D2"
 
     ws_ofttc = wb.create_sheet("Ontario - OFTTC")
     _write_ofttc_sheet(ws_ofttc, title)
