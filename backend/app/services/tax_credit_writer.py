@@ -3289,7 +3289,7 @@ def _write_form6_sheet(ws) -> None:
     # 67a  Titles/Opticals – F=TEXT(67)?? T:T minus H132; G=S:S minus H132
     _row(131, 67, "  a)   Titles/Opticals",
          f=(f"=SUMIF({BB}!$A:$A,TEXT($A131,\"00\")&\"??\"," \
-            f"{BB}!$T:$T)-H132"),
+            f"{BB}!$Q:$Q)-H132"),
          g=(f"=SUMIF({BB}!$A:$A,TEXT($A131,\"00\")&\"??\"," \
             f"{BB}!$S:$S)-H132"),
          i=sr(131))
