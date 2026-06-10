@@ -2952,25 +2952,24 @@ def _write_form6_sheet(ws) -> None:
 
     # ── Column header block (2 rows) ─────────────────────────────────────────
     def _col_hdrs(row):
-        _fill_row(row, _SECTION_HEADER_FILL, h=16)
+        _fill_row(row, _SECTION_HEADER_FILL)
         for col, lbl, al in [
-            (1, "Account",                   _CENTER),
-            (2, "Category",                  _LEFT),
-            (3, "Personnel\nKey Creative",   _CENTER),
-            (4, "Services\nCanadian",        _CENTER),
-            (5, "Services\nNon-Canadian",    _CENTER),
-            (6, "Labs\nCanadian",            _CENTER),
-            (7, "Labs\nNon-Canadian",        _CENTER),
-            (8, "Other",                     _CENTER),
-            (9, "Total",                     _CENTER),
+            (1, "Account",                 _CENTER),
+            (2, "Category",                _LEFT),
+            (3, "Personnel Key Creative",  _CENTER),
+            (4, "Services Canadian",       _CENTER),
+            (5, "Services Non-Canadian",   _CENTER),
+            (6, "Labs Canadian",           _CENTER),
+            (7, "Labs Non-Canadian",       _CENTER),
+            (8, "Other",                   _CENTER),
+            (9, "Total",                   _CENTER),
         ]:
             cell = ws.cell(row=row, column=col, value=lbl)
             cell.font      = _BOLD
             cell.fill      = _SECTION_HEADER_FILL
             cell.border    = _NO_BORDER
             cell.alignment = Alignment(horizontal=al.horizontal,
-                                       vertical="center", wrap_text=True)
-        ws.row_dimensions[row].height = 28
+                                       vertical="center", wrap_text=False)
 
     # ── Data row ─────────────────────────────────────────────────────────────
     def _row(row, acct, label,
@@ -3406,9 +3405,17 @@ def _write_form6_sheet(ws) -> None:
         cell.number_format = "0.00%"; cell.border = _NO_BORDER
 
     # Row 158 – Note
-    ws.row_dimensions[158].height = 13
     _c(158, 2, "Note:  All items in italic are video budget accounts.",
        font=_ITALIC_SM)
+
+    # ── Uniform row height ────────────────────────────────────────────────────
+    for r in range(1, 159):
+        ws.row_dimensions[r].height = ROW_H
+
+    # ── Thin borders on all form body cells (col headers through last row) ────
+    for r in range(7, 159):
+        for col in range(1, 10):
+            ws.cell(row=r, column=col).border = _THIN_BORDER
 
     ws.freeze_panes = "C14"
 
@@ -4050,7 +4057,7 @@ def write_tax_credit_excel(
 
     ws_form6 = wb.create_sheet("Form6")
     _write_form6_sheet(ws_form6)
-    ws_form6.sheet_properties.tabColor = "FFFEC8"
+    ws_form6.sheet_properties.tabColor = "FFD4D2"
 
     ws_ofttc = wb.create_sheet("Ontario - OFTTC")
     _write_ofttc_sheet(ws_ofttc, title)
