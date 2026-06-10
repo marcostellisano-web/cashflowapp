@@ -3429,6 +3429,14 @@ def _write_form6_sheet(ws) -> None:
     for r in range(114, 128):      # Post editorial rows: Services Canadian/Non-Can
         for col in (4, 5):
             ws.cell(row=r, column=col).fill = _GREY
+    for r in range(131, 136):      # Titles/Opticals rows: Personnel + Services cols
+        for col in (3, 4, 5):
+            ws.cell(row=r, column=col).fill = _GREY
+    for col in (6, 7):             # Titles row 132 Stock footage: Labs cols
+        ws.cell(132, column=col).fill = _GREY
+    for r in range(141, 149):      # Others General/Indirect rows: Personnel + Services + Labs
+        for col in (3, 4, 5, 6, 7):
+            ws.cell(row=r, column=col).fill = _GREY
 
     ws.freeze_panes = "C14"
 
