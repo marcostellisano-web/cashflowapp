@@ -3417,6 +3417,19 @@ def _write_form6_sheet(ws) -> None:
         for col in range(1, 10):
             ws.cell(row=r, column=col).border = _THIN_BORDER
 
+    # ── Grey fill on non-applicable columns (Labs/Other for ATL & Production,
+    #    Services for Post editorial section) ─────────────────────────────────
+    _GREY = _SECTION_HEADER_FILL   # D9D9D9
+    for r in range(14, 55):        # ATL data rows: Labs Canadian/Non-Can + Other
+        for col in (6, 7, 8):
+            ws.cell(row=r, column=col).fill = _GREY
+    for r in range(63, 106):       # Production rows: Labs Canadian/Non-Can + Other
+        for col in (6, 7, 8):
+            ws.cell(row=r, column=col).fill = _GREY
+    for r in range(114, 128):      # Post editorial rows: Services Canadian/Non-Can
+        for col in (4, 5):
+            ws.cell(row=r, column=col).fill = _GREY
+
     ws.freeze_panes = "C14"
 
 
