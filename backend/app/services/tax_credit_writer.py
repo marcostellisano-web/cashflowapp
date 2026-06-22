@@ -4229,12 +4229,12 @@ def _write_cto_sheet(ws) -> None:
     _num(21, 3, "=Breakdown!C3")
 
     # Row 22: Contribution per hour
-    _label(22, "Contribution per hour")
+    _label(22, "Contribution per hour", bold=True)
     for col, formula in [
         (3, "=C19/$C$21"), (4, "=D19/$C$21"), (5, "=E19/$C$21"),
         (6, "=F19/$C$21"), (7, "=G19/$C$21"),
     ]:
-        _num(22, col, formula)
+        _num(22, col, formula, bold=True)
 
     # Row 23: Contribution as % of revenues
     for col, formula in [
@@ -4331,15 +4331,43 @@ def _write_cto_sheet(ws) -> None:
     _num(50, 2, "=B47/B37", bold=True, pct=True)
 
     # ── Post-data styling ─────────────────────────────────────────────────────
+    def _border_top_range(row, col_start, col_end):
+        for c in range(col_start, col_end + 1):
+            cell = ws.cell(row=row, column=c)
+            existing = cell.border
+            cell.border = Border(
+                top=_THIN, left=existing.left,
+                right=existing.right, bottom=existing.bottom,
+            )
+
+    def _border_top_bottom_range(row, col_start, col_end):
+        for c in range(col_start, col_end + 1):
+            cell = ws.cell(row=row, column=c)
+            existing = cell.border
+            cell.border = Border(
+                top=_THIN, bottom=_THIN,
+                left=existing.left, right=existing.right,
+            )
+
     # A1:H1 – light grey title row
     _fill_range(1, 1, 1, 8, _TITLE_FILL)
     # Row 6 bottom border: A6:H6 and J6:M6
     _border_bottom_range(6, 1, 8)
     _border_bottom_range(6, 10, 13)
+    # A12:H12 – bottom border
+    _border_bottom_range(12, 1, 8)
+    # A19:H19 – top and bottom border
+    _border_top_bottom_range(19, 1, 8)
     # A19:C19 – green (Contribution to Overheads)
     _fill_range(19, 19, 1, 3, _GREEN_FILL)
+    # A22:H22 – top border
+    _border_top_range(22, 1, 8)
     # A22:C22 – green (Contribution per hour)
     _fill_range(22, 22, 1, 3, _GREEN_FILL)
+    # A23:H23 – bottom border
+    _border_bottom_range(23, 1, 8)
+    # A25:C25 – green (Internal Rate of Return)
+    _fill_range(25, 25, 1, 3, _GREEN_FILL)
     # A35:C50 – teal (Production P&L section)
     _fill_range(35, 50, 1, 3, _TEAL_FILL)
 
