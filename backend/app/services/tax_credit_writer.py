@@ -4173,14 +4173,12 @@ def _write_cto_sheet(ws) -> None:
 
     # ── Rows 15–17: Distribution section ─────────────────────────────────────
     _label(15, "Distribution Fee")
-    _cell(15, 2, "='[Monsters - Budget Workbook - V14 - 4x60 - 111125.xlsx]Sales Info'!D18",
-          align=_RIGHT, fmt=FMT_NUM)
+    _cell(15, 2, "=Sales!C18", align=_RIGHT, fmt=FMT_NUM)
     _num(15, 5, "=-F15")
     _num(15, 6, "=B15*C6")
 
     _label(16, "Distribution Expenses")
-    _cell(16, 2, "='[Monsters - Budget Workbook - V14 - 4x60 - 111125.xlsx]Sales Info'!D19",
-          align=_RIGHT, fmt=FMT_NUM)
+    _cell(16, 2, "=Sales!C19", align=_RIGHT, fmt=FMT_NUM)
     _num(16, 3, "=B$16*C6")
     _num(16, 5, "=-C16")
     _num(16, 7, "=SUM(D16:F16)")
@@ -4188,8 +4186,7 @@ def _write_cto_sheet(ws) -> None:
     _num(16, 12, "=SUM(J16:K16)")
 
     _label(17, "Residual & Back End Estimate")
-    _cell(17, 2, "='[Monsters - Budget Workbook - V14 - 4x60 - 111125.xlsx]Sales Info'!D20",
-          align=_RIGHT, fmt=FMT_NUM)
+    _cell(17, 2, "=Sales!C20", align=_RIGHT, fmt=FMT_NUM)
     _num(17, 3, 0)
     _num(17, 5, "=-C17")
     _num(17, 7, "=SUM(D17:F17)")
