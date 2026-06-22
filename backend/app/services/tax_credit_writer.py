@@ -4050,6 +4050,9 @@ def _write_cto_sheet(ws) -> None:
     _GRAY_FILL   = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
     _YELLOW_FILL = PatternFill(start_color="FFFF99", end_color="FFFF99", fill_type="solid")
     _HDR_FILL    = PatternFill(start_color="BDD7EE", end_color="BDD7EE", fill_type="solid")
+    _TITLE_FILL  = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+    _GREEN_FILL  = PatternFill(start_color="A8FFC1", end_color="A8FFC1", fill_type="solid")
+    _TEAL_FILL   = PatternFill(start_color="C1FFFD", end_color="C1FFFD", fill_type="solid")
 
     # Column widths
     ws.column_dimensions["A"].width = 36
@@ -4091,6 +4094,20 @@ def _write_cto_sheet(ws) -> None:
 
     def _blank(row):
         ws.row_dimensions[row].height = ROW_H
+
+    def _fill_range(row_start, row_end, col_start, col_end, fill):
+        for r in range(row_start, row_end + 1):
+            for c in range(col_start, col_end + 1):
+                ws.cell(row=r, column=c).fill = fill
+
+    def _border_bottom_range(row, col_start, col_end):
+        for c in range(col_start, col_end + 1):
+            cell = ws.cell(row=row, column=c)
+            existing = cell.border
+            cell.border = Border(
+                top=existing.top, left=existing.left, right=existing.right,
+                bottom=_THIN,
+            )
 
     # ── Row 1: Title ──────────────────────────────────────────────────────────
     c = ws.cell(row=1, column=1, value="Contribution To Overhead")
@@ -4312,6 +4329,19 @@ def _write_cto_sheet(ws) -> None:
 
     _label(50, "Adjusted gross margin", bold=True)
     _num(50, 2, "=B47/B37", bold=True, pct=True)
+
+    # ── Post-data styling ─────────────────────────────────────────────────────
+    # A1:H1 – light grey title row
+    _fill_range(1, 1, 1, 8, _TITLE_FILL)
+    # Row 6 bottom border: A6:H6 and J6:M6
+    _border_bottom_range(6, 1, 8)
+    _border_bottom_range(6, 10, 13)
+    # A19:C19 – green (Contribution to Overheads)
+    _fill_range(19, 19, 1, 3, _GREEN_FILL)
+    # A22:C22 – green (Contribution per hour)
+    _fill_range(22, 22, 1, 3, _GREEN_FILL)
+    # A35:C50 – teal (Production P&L section)
+    _fill_range(35, 50, 1, 3, _TEAL_FILL)
 
 
 def write_tax_credit_excel(
