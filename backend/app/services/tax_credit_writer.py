@@ -4093,7 +4093,6 @@ def _write_cto_sheet(ws) -> None:
         ws.row_dimensions[row].height = ROW_H
 
     # ── Row 1: Title ──────────────────────────────────────────────────────────
-    ws.merge_cells("A1:M1")
     c = ws.cell(row=1, column=1, value="Contribution To Overhead")
     c.font      = _CAL_TITLE
     c.alignment = _LEFT
@@ -4173,12 +4172,12 @@ def _write_cto_sheet(ws) -> None:
 
     # ── Rows 15–17: Distribution section ─────────────────────────────────────
     _label(15, "Distribution Fee")
-    _cell(15, 2, "=Sales!C18", align=_RIGHT, fmt=FMT_NUM)
+    _cell(15, 2, "=Sales!C18", align=_RIGHT, fmt=FMT_PCT)
     _num(15, 5, "=-F15")
     _num(15, 6, "=B15*C6")
 
     _label(16, "Distribution Expenses")
-    _cell(16, 2, "=Sales!C19", align=_RIGHT, fmt=FMT_NUM)
+    _cell(16, 2, "=Sales!C19", align=_RIGHT, fmt=FMT_PCT)
     _num(16, 3, "=B$16*C6")
     _num(16, 5, "=-C16")
     _num(16, 7, "=SUM(D16:F16)")
@@ -4186,7 +4185,7 @@ def _write_cto_sheet(ws) -> None:
     _num(16, 12, "=SUM(J16:K16)")
 
     _label(17, "Residual & Back End Estimate")
-    _cell(17, 2, "=Sales!C20", align=_RIGHT, fmt=FMT_NUM)
+    _cell(17, 2, "=Sales!C20", align=_RIGHT, fmt=FMT_PCT)
     _num(17, 3, 0)
     _num(17, 5, "=-C17")
     _num(17, 7, "=SUM(D17:F17)")
@@ -4261,7 +4260,7 @@ def _write_cto_sheet(ws) -> None:
     _blank(34)
 
     # ── Rows 35–50: Production P&L section ───────────────────────────────────
-    ws.merge_cells("A35:D35")
+    ws.merge_cells("A35:C35")
     c = ws.cell(row=35, column=1, value="Production P&L")
     c.font      = _CAL_BOLD
     c.alignment = _LEFT
@@ -4270,49 +4269,49 @@ def _write_cto_sheet(ws) -> None:
     _label(36, "Revenues", bold=True)
 
     _label(37, "Presales")
-    _num(37, 3, "=C5")
-    _num(37, 4, "=C37/C42")
+    _num(37, 2, "=C5")
+    _num(37, 3, "=B37/B42")
 
     _label(38, "Distribution Advance")
-    _num(38, 4, "=C38/C42")
+    _num(38, 3, "=B38/B42")
 
     _label(39, "Total Revenues", bold=True)
-    _num(39, 3, "=SUM(C37:C38)", bold=True)
-    _num(39, 4, "=D37+D38", bold=True)
+    _num(39, 2, "=SUM(B37:B38)", bold=True)
+    _num(39, 3, "=C37+C38", bold=True)
 
     _blank(40)
 
     _label(41, "Cost of sales", bold=True)
 
     _label(42, "Production cost")
-    _num(42, 3, "=C9")
-    _num(42, 4, 1)
+    _num(42, 2, "=C9")
+    _num(42, 3, 1)
 
     _label(43, "tax credits")
-    _num(43, 3, "=C10")
-    _num(43, 4, "=-C43/C42")
+    _num(43, 2, "=C10")
+    _num(43, 3, "=-B43/B42")
 
     _label(44, "internal production fees")
-    _num(44, 3, "=C12")
-    _num(44, 4, "=-C44/C42")
+    _num(44, 2, "=C12")
+    _num(44, 3, "=-B44/B42")
 
     _label(45, "Total costs", bold=True)
-    _num(45, 3, "=SUM(C42:C44)", bold=True)
-    _num(45, 4, "=D42-D43-D44", bold=True)
+    _num(45, 2, "=SUM(B42:B44)", bold=True)
+    _num(45, 3, "=C42-C43-C44", bold=True)
 
     _blank(46)
 
     _label(47, "Gross Margin", bold=True)
+    _num(47, 2, "=B39-B45", bold=True)
     _num(47, 3, "=C39-C45", bold=True)
-    _num(47, 4, "=D39-D45", bold=True)
 
+    _num(48, 2, "=B47/B39", pct=True)
     _num(48, 3, "=C47/C39", pct=True)
-    _num(48, 4, "=D47/D39", pct=True)
 
     _blank(49)
 
     _label(50, "Adjusted gross margin", bold=True)
-    _num(50, 3, "=C47/C37", bold=True, pct=True)
+    _num(50, 2, "=B47/B37", bold=True, pct=True)
 
 
 def write_tax_credit_excel(
