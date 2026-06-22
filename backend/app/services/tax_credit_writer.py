@@ -4033,6 +4033,291 @@ def _write_sodec_sheet(ws) -> None:
          fmt=FMT_PCT1)
 
 
+def _write_cto_sheet(ws) -> None:
+    """Contribution To Overhead (CTO) analysis sheet."""
+    ws.title = "CTO"
+
+    _CAL_NORMAL = Font(name="Calibri", size=10)
+    _CAL_BOLD   = Font(name="Calibri", bold=True, size=10)
+    _CAL_TITLE  = Font(name="Calibri", bold=True, size=12)
+    _CAL_SMALL  = Font(name="Calibri", size=9)
+
+    ROW_H    = 16
+    FMT_NUM  = _ACCOUNTING_FORMAT
+    FMT_PCT  = '0.00%'
+    FMT_PCT1 = '0.0%'
+
+    _GRAY_FILL   = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+    _YELLOW_FILL = PatternFill(start_color="FFFF99", end_color="FFFF99", fill_type="solid")
+    _HDR_FILL    = PatternFill(start_color="BDD7EE", end_color="BDD7EE", fill_type="solid")
+
+    # Column widths
+    ws.column_dimensions["A"].width = 36
+    ws.column_dimensions["B"].width = 18
+    ws.column_dimensions["C"].width = 16
+    ws.column_dimensions["D"].width = 16
+    ws.column_dimensions["E"].width = 16
+    ws.column_dimensions["F"].width = 16
+    ws.column_dimensions["G"].width = 16
+    ws.column_dimensions["H"].width = 22
+    ws.column_dimensions["I"].width = 4
+    ws.column_dimensions["J"].width = 18
+    ws.column_dimensions["K"].width = 20
+    ws.column_dimensions["L"].width = 16
+    ws.column_dimensions["M"].width = 22
+
+    def _cell(row, col, value=None, font=None, align=None, fmt=None,
+              fill=None, border=None):
+        ws.row_dimensions[row].height = ROW_H
+        c = ws.cell(row=row, column=col, value=value)
+        c.font      = font   or _CAL_NORMAL
+        c.alignment = align  or _LEFT
+        c.border    = _NO_BORDER
+        if fill   is not None: c.fill          = fill
+        if fmt    is not None: c.number_format = fmt
+        if border is not None: c.border        = border
+        return c
+
+    def _label(row, text, bold=False, indent=False):
+        font = _CAL_BOLD if bold else _CAL_NORMAL
+        col  = 1
+        c = _cell(row, col, text, font=font)
+        return c
+
+    def _num(row, col, value, bold=False, pct=False):
+        font = _CAL_BOLD if bold else _CAL_NORMAL
+        fmt  = FMT_PCT if pct else FMT_NUM
+        return _cell(row, col, value, font=font, align=_RIGHT, fmt=fmt)
+
+    def _blank(row):
+        ws.row_dimensions[row].height = ROW_H
+
+    # ── Row 1: Title ──────────────────────────────────────────────────────────
+    ws.merge_cells("A1:M1")
+    c = ws.cell(row=1, column=1, value="Contribution To Overhead")
+    c.font      = _CAL_TITLE
+    c.alignment = _LEFT
+    ws.row_dimensions[1].height = ROW_H
+
+    # Row 2: Project name from Breakdown sheet
+    _cell(2, 1, "=Breakdown!B2", font=_CAL_NORMAL)
+
+    # ── Row 3: Column group headers ───────────────────────────────────────────
+    for col, label in [
+        (3, "Production"), (5, "Distribution"),
+        (10, "Production Stand Alone"), (11, "From Library Distribution"),
+        (12, "Total"), (13, "Comments"),
+    ]:
+        c = _cell(3, col, label, font=_CAL_BOLD, align=_CENTER, fill=_HDR_FILL,
+                  border=Border(bottom=_THIN))
+    # Merge Production C3:D3 and Distribution E3:F3
+    ws.merge_cells("C3:D3")
+    ws.merge_cells("E3:F3")
+
+    # ── Row 4: Sub-column headers ─────────────────────────────────────────────
+    for col, label in [
+        (3, "At Green Light"), (4, "Projected"),
+        (5, "Projected"), (6, "Total"), (7, "Comments"),
+    ]:
+        c = _cell(4, col, label, font=_CAL_BOLD, align=_CENTER, fill=_HDR_FILL,
+                  border=Border(bottom=_THIN))
+
+    # ── Rows 5–7: Revenue section ─────────────────────────────────────────────
+    _label(5, "Presales")
+    _num(5, 3, "=Sales!E8")
+    _num(5, 4, "=C5")
+    _num(5, 7, "=SUM(D5:F5)")
+    _num(5, 10, "=D5")
+
+    _label(6, "Library")
+    _num(6, 3, "=Sales!D12")
+    _num(6, 5, "=C6")
+    _num(6, 7, "=SUM(D6:F6)")
+    _num(6, 11, "=E6")
+
+    _label(7, "Total", bold=True)
+    for col, formula in [
+        (3, "=SUM(C5:C6)"), (4, "=SUM(D5:D6)"), (5, "=SUM(E5:E6)"),
+        (6, "=SUM(F5:F6)"), (7, "=SUM(D7:F7)"),
+        (10, "=SUM(J5:J6)"), (11, "=SUM(K5:K6)"), (12, "=SUM(J7:K7)"),
+    ]:
+        _num(7, col, formula, bold=True)
+
+    _blank(8)
+
+    # ── Rows 9–13: Cost section ───────────────────────────────────────────────
+    _label(9, "Production Costs")
+    _num(9, 3, "=Breakdown!C7")
+    _num(9, 7, "=SUM(D9:F9)")
+
+    _label(10, "Tax Credits")
+    _num(10, 3, "=-Breakdown!C18")
+    _num(10, 7, "=SUM(D10:F10)")
+
+    _label(11, "Expected Overage / (Underage)")
+    _num(11, 3, 0)
+    _num(11, 7, "=SUM(D11:F11)")
+
+    _label(12, "Internals")
+    _num(12, 3, "=-Breakdown!C17")
+    _num(12, 7, "=SUM(D12:F12)")
+
+    _label(13, "Total Incremental Costs", bold=True)
+    for col, formula in [
+        (3, "=SUM(C9:C12)"), (4, "=-C13"), (7, "=SUM(D13:F13)"),
+        (10, "=D13"), (12, "=SUM(J13:K13)"),
+    ]:
+        _num(13, col, formula, bold=True)
+
+    _blank(14)
+
+    # ── Rows 15–17: Distribution section ─────────────────────────────────────
+    _label(15, "Distribution Fee")
+    _cell(15, 2, "='[Monsters - Budget Workbook - V14 - 4x60 - 111125.xlsx]Sales Info'!D18",
+          align=_RIGHT, fmt=FMT_NUM)
+    _num(15, 5, "=-F15")
+    _num(15, 6, "=B15*C6")
+
+    _label(16, "Distribution Expenses")
+    _cell(16, 2, "='[Monsters - Budget Workbook - V14 - 4x60 - 111125.xlsx]Sales Info'!D19",
+          align=_RIGHT, fmt=FMT_NUM)
+    _num(16, 3, "=B$16*C6")
+    _num(16, 5, "=-C16")
+    _num(16, 7, "=SUM(D16:F16)")
+    _num(16, 11, "=E16")
+    _num(16, 12, "=SUM(J16:K16)")
+
+    _label(17, "Residual & Back End Estimate")
+    _cell(17, 2, "='[Monsters - Budget Workbook - V14 - 4x60 - 111125.xlsx]Sales Info'!D20",
+          align=_RIGHT, fmt=FMT_NUM)
+    _num(17, 3, 0)
+    _num(17, 5, "=-C17")
+    _num(17, 7, "=SUM(D17:F17)")
+
+    _blank(18)
+
+    # ── Row 19: Contribution to Overheads ────────────────────────────────────
+    _label(19, "Contribution to Overheads", bold=True)
+    for col, formula in [
+        (3, "=C7-C13-C15-C16-C17"), (4, "=SUM(D7:D18)"), (5, "=SUM(E7:E18)"),
+        (6, "=SUM(F7:F18)"), (7, "=SUM(G7:G18)"),
+        (10, "=SUM(J7:J18)"), (11, "=SUM(K7:K18)"), (12, "=SUM(L7:L18)"),
+    ]:
+        _num(19, col, formula, bold=True)
+
+    # Row 20: Percentages of contribution
+    for col, formula in [
+        (10, "=J19/J7"), (11, "=K19/K7"), (12, "=L19/L7"),
+    ]:
+        _num(20, col, formula, pct=True)
+
+    # Row 21: Hours
+    _label(21, "Hours")
+    _num(21, 3, "=Breakdown!C3")
+
+    # Row 22: Contribution per hour
+    _label(22, "Contribution per hour")
+    for col, formula in [
+        (3, "=C19/$C$21"), (4, "=D19/$C$21"), (5, "=E19/$C$21"),
+        (6, "=F19/$C$21"), (7, "=G19/$C$21"),
+    ]:
+        _num(22, col, formula)
+
+    # Row 23: Contribution as % of revenues
+    for col, formula in [
+        (3, "=C19/C7"), (4, "=D19/D7"), (5, "=E19/E7"),
+        (6, "=F19/C6"), (7, "=G19/G7"),
+    ]:
+        _num(23, col, formula, pct=True)
+
+    _blank(24)
+
+    # Row 25: Internal Rate of Return
+    _label(25, "Internal Rate of Return Generated")
+    _num(25, 3, 0)
+
+    _blank(26)
+
+    # ── Rows 27–33: Financial reporting rates ────────────────────────────────
+    _label(27, "Rates for financial reporting purposes", bold=True)
+
+    _label(28, "Marginal rate of participation")
+    _num(28, 3, "=C17/C7", pct=True)
+
+    _label(29, "Amortisation rate")
+    _num(29, 3, "=(C9+C10+C11+C12+(F29*C9))/C7", pct=True)
+    _cell(29, 4, "assume's capitalization rate of 12%", font=_CAL_SMALL)
+    _cell(29, 6, 0.12, align=_RIGHT, fmt="0%",
+          fill=_YELLOW_FILL)
+
+    _label(30, "distribution expense")
+    _num(30, 3, "=C16/C7", pct=True)
+
+    _label(31, "total cost of sales")
+    _num(31, 3, "=SUM(C28:C30)", pct=True)
+
+    _blank(32)
+
+    _label(33, "Gross Margin", bold=True)
+    _num(33, 3, "=1-C31", bold=True, pct=True)
+
+    _blank(34)
+
+    # ── Rows 35–50: Production P&L section ───────────────────────────────────
+    ws.merge_cells("A35:C35")
+    c = ws.cell(row=35, column=1, value="Production P&L")
+    c.font      = _CAL_BOLD
+    c.alignment = _LEFT
+    ws.row_dimensions[35].height = ROW_H
+
+    _label(36, "Revenues", bold=True)
+
+    _label(37, "Presales")
+    _num(37, 2, "=C5")
+    _num(37, 3, "=B37/B42")
+
+    _label(38, "Distribution Advance")
+    _num(38, 3, "=B38/B42")
+
+    _label(39, "Total Revenues", bold=True)
+    _num(39, 2, "=SUM(B37:B38)", bold=True)
+    _num(39, 3, "=C37+C38", bold=True)
+
+    _blank(40)
+
+    _label(41, "Cost of sales", bold=True)
+
+    _label(42, "Production cost")
+    _num(42, 2, "=C9")
+    _num(42, 3, 1)
+
+    _label(43, "tax credits")
+    _num(43, 2, "=C10")
+    _num(43, 3, "=-B43/B42")
+
+    _label(44, "internal production fees")
+    _num(44, 2, "=C12")
+    _num(44, 3, "=-B44/B42")
+
+    _label(45, "Total costs", bold=True)
+    _num(45, 2, "=SUM(B42:B44)", bold=True)
+    _num(45, 3, "=C42-C43-C44", bold=True)
+
+    _blank(46)
+
+    _label(47, "Gross Margin", bold=True)
+    _num(47, 2, "=B39-B45", bold=True)
+    _num(47, 3, "=C39-C45", bold=True)
+
+    _num(48, 2, "=B47/B39", pct=True)
+    _num(48, 3, "=C47/C39", pct=True)
+
+    _blank(49)
+
+    _label(50, "Adjusted gross margin", bold=True)
+    _num(50, 2, "=B47/B37", bold=True, pct=True)
+
+
 def write_tax_credit_excel(
     budget: ParsedBudget,
     title: str,
@@ -4099,6 +4384,10 @@ def write_tax_credit_excel(
     ws_sales = wb.create_sheet("Sales")
     _write_sales_sheet(ws_sales)
     ws_sales.sheet_properties.tabColor = "A8FFC1"
+
+    ws_cto = wb.create_sheet("CTO")
+    _write_cto_sheet(ws_cto)
+    ws_cto.sheet_properties.tabColor = "A8FFC1"
 
     buffer = BytesIO()
     wb.save(buffer)
