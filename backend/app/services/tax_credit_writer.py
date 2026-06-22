@@ -4103,20 +4103,20 @@ def _write_cto_sheet(ws) -> None:
 
     # ── Row 3: Column group headers ───────────────────────────────────────────
     for col, label in [
-        (3, "Production"), (5, "Distribution"),
+        (4, "Production"), (6, "Distribution"),
         (10, "Production Stand Alone"), (11, "From Library Distribution"),
         (12, "Total"), (13, "Comments"),
     ]:
         c = _cell(3, col, label, font=_CAL_BOLD, align=_CENTER, fill=_HDR_FILL,
                   border=Border(bottom=_THIN))
-    # Merge Production C3:D3 and Distribution E3:F3
-    ws.merge_cells("C3:D3")
-    ws.merge_cells("E3:F3")
+    # Merge Production D3:E3 and Distribution F3:G3
+    ws.merge_cells("D3:E3")
+    ws.merge_cells("F3:G3")
 
     # ── Row 4: Sub-column headers ─────────────────────────────────────────────
     for col, label in [
-        (3, "At Green Light"), (4, "Projected"),
-        (5, "Projected"), (6, "Total"), (7, "Comments"),
+        (4, "At Green Light"), (5, "Projected"),
+        (6, "Projected"), (7, "Total"), (8, "Comments"),
     ]:
         c = _cell(4, col, label, font=_CAL_BOLD, align=_CENTER, fill=_HDR_FILL,
                   border=Border(bottom=_THIN))
@@ -4270,14 +4270,14 @@ def _write_cto_sheet(ws) -> None:
 
     _label(37, "Presales")
     _num(37, 2, "=C5")
-    _num(37, 3, "=B37/B42")
+    _num(37, 3, "=B37/B42", pct=True)
 
     _label(38, "Distribution Advance")
-    _num(38, 3, "=B38/B42")
+    _num(38, 3, "=B38/B42", pct=True)
 
     _label(39, "Total Revenues", bold=True)
     _num(39, 2, "=SUM(B37:B38)", bold=True)
-    _num(39, 3, "=C37+C38", bold=True)
+    _num(39, 3, "=C37+C38", bold=True, pct=True)
 
     _blank(40)
 
@@ -4285,25 +4285,25 @@ def _write_cto_sheet(ws) -> None:
 
     _label(42, "Production cost")
     _num(42, 2, "=C9")
-    _num(42, 3, 1)
+    _num(42, 3, 1, pct=True)
 
     _label(43, "tax credits")
     _num(43, 2, "=C10")
-    _num(43, 3, "=-B43/B42")
+    _num(43, 3, "=-B43/B42", pct=True)
 
     _label(44, "internal production fees")
     _num(44, 2, "=C12")
-    _num(44, 3, "=-B44/B42")
+    _num(44, 3, "=-B44/B42", pct=True)
 
     _label(45, "Total costs", bold=True)
     _num(45, 2, "=SUM(B42:B44)", bold=True)
-    _num(45, 3, "=C42-C43-C44", bold=True)
+    _num(45, 3, "=C42-C43-C44", bold=True, pct=True)
 
     _blank(46)
 
     _label(47, "Gross Margin", bold=True)
     _num(47, 2, "=B39-B45", bold=True)
-    _num(47, 3, "=C39-C45", bold=True)
+    _num(47, 3, "=C39-C45", bold=True, pct=True)
 
     _num(48, 2, "=B47/B39", pct=True)
     _num(48, 3, "=C47/C39", pct=True)
