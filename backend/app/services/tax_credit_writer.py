@@ -4065,10 +4065,6 @@ def _write_cto_sheet(ws) -> None:
     ws.column_dimensions["G"].width = 16
     ws.column_dimensions["H"].width = 16
     ws.column_dimensions["I"].width = 16   # Total column for fiscal table
-    ws.column_dimensions["J"].width = 18
-    ws.column_dimensions["K"].width = 20
-    ws.column_dimensions["L"].width = 16
-    ws.column_dimensions["M"].width = 22
 
     def _cell(row, col, value=None, font=None, align=None, fmt=None,
               fill=None, border=None):
@@ -4122,8 +4118,6 @@ def _write_cto_sheet(ws) -> None:
     # ── Row 3: Column group headers ───────────────────────────────────────────
     for col, label in [
         (5, "Production"), (7, "Distribution"),
-        (10, "Production Stand Alone"), (11, "From Library Distribution"),
-        (12, "Total"), (13, "Comments"),
     ]:
         c = _cell(3, col, label, font=_CAL_BOLD, align=_CENTER, fill=_HDR_FILL,
                   border=Border(bottom=_THIN))
@@ -4144,19 +4138,16 @@ def _write_cto_sheet(ws) -> None:
     _num(5, 3, "=Sales!E8")
     _num(5, 5, "=C5")
     _num(5, 8, "=SUM(E5:G5)")
-    _num(5, 10, "=E5")
 
     _label(6, "Library")
     _num(6, 3, "=Sales!D12")
     _num(6, 6, "=C6")
     _num(6, 8, "=SUM(E6:G6)")
-    _num(6, 11, "=F6")
 
     _label(7, "Total", bold=True)
     for col, formula in [
         (3, "=SUM(C5:C6)"), (5, "=SUM(E5:E6)"), (6, "=SUM(F5:F6)"),
         (7, "=SUM(G5:G6)"), (8, "=SUM(E7:G7)"),
-        (10, "=SUM(J5:J6)"), (11, "=SUM(K5:K6)"), (12, "=SUM(J7:K7)"),
     ]:
         _num(7, col, formula, bold=True)
 
@@ -4182,7 +4173,6 @@ def _write_cto_sheet(ws) -> None:
     _label(13, "Total Incremental Costs", bold=True)
     for col, formula in [
         (3, "=SUM(C9:C12)"), (5, "=-C13"), (8, "=SUM(E13:G13)"),
-        (10, "=E13"), (12, "=SUM(J13:K13)"),
     ]:
         _num(13, col, formula, bold=True)
 
@@ -4199,8 +4189,6 @@ def _write_cto_sheet(ws) -> None:
     _num(16, 3, "=B$16*C6")
     _num(16, 6, "=-C16")
     _num(16, 8, "=SUM(E16:G16)")
-    _num(16, 11, "=F16")
-    _num(16, 12, "=SUM(J16:K16)")
 
     _label(17, "Residual & Back End Estimate")
     _cell(17, 2, "=Sales!C20", align=_RIGHT, fmt=FMT_PCT)
@@ -4215,15 +4203,8 @@ def _write_cto_sheet(ws) -> None:
     for col, formula in [
         (3, "=C7-C13-C15-C16-C17"), (5, "=SUM(E7:E18)"), (6, "=SUM(F7:F18)"),
         (7, "=SUM(G7:G18)"), (8, "=SUM(H7:H18)"),
-        (10, "=SUM(J7:J18)"), (11, "=SUM(K7:K18)"), (12, "=SUM(L7:L18)"),
     ]:
         _num(19, col, formula, bold=True)
-
-    # Row 20: Percentages of contribution
-    for col, formula in [
-        (10, "=J19/J7"), (11, "=K19/K7"), (12, "=L19/L7"),
-    ]:
-        _num(20, col, formula, pct=True)
 
     # Row 21: Hours
     _label(21, "Hours")
@@ -4401,9 +4382,8 @@ def _write_cto_sheet(ws) -> None:
 
     # A1:I1 – light grey title row
     _fill_range(1, 1, 1, 9, _TITLE_FILL)
-    # Row 6 bottom border: A6:I6 and J6:M6
+    # Row 6 bottom border: A6:I6
     _border_bottom_range(6, 1, 9)
-    _border_bottom_range(6, 10, 13)
     # A12:I12 – bottom border
     _border_bottom_range(12, 1, 9)
     # A19:I19 – top and bottom border
