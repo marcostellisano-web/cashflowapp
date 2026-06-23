@@ -4277,58 +4277,62 @@ def _write_cto_sheet(ws) -> None:
     _blank(34)
 
     # ── Rows 35–50: Production P&L section ───────────────────────────────────
-    ws.merge_cells("A35:C35")
-    c = ws.cell(row=35, column=1, value="Production P&L")
+    ws.merge_cells("A34:C34")
+    c = ws.cell(row=34, column=1, value="Production P&L")
     c.font      = _CAL_BOLD
     c.alignment = _LEFT
-    ws.row_dimensions[35].height = ROW_H
+    ws.row_dimensions[34].height = ROW_H
 
-    _label(36, "Revenues", bold=True)
+    _label(35, "Revenues", bold=True)
 
-    _label(37, "Presales")
-    _num(37, 2, "=C5")
-    _num(37, 3, "=B37/B42", pct=True)
+    _label(36, "Presales")
+    _num(36, 2, "=C5")
+    _num(36, 3, "=B36/B41", pct=True)
 
-    _label(38, "Distribution Advance")
-    _num(38, 3, "=B38/B42", pct=True)
+    _label(37, "Distribution Advance")
+    _num(37, 3, "=B37/B41", pct=True)
 
-    _label(39, "Total Revenues", bold=True)
-    _num(39, 2, "=SUM(B37:B38)", bold=True)
-    _num(39, 3, "=C37+C38", bold=True, pct=True)
+    _label(38, "Total Revenues", bold=True)
+    _num(38, 2, "=SUM(B36:B37)", bold=True)
+    _num(38, 3, "=C36+C37", bold=True, pct=True)
 
-    _blank(40)
+    _blank(39)
 
-    _label(41, "Cost of sales", bold=True)
+    _label(40, "Cost of sales", bold=True)
 
-    _label(42, "Production cost")
-    _num(42, 2, "=C9")
-    _num(42, 3, 1, pct=True)
+    _label(41, "Production cost")
+    _num(41, 2, "=C9")
+    _num(41, 3, 1, pct=True)
 
-    _label(43, "tax credits")
-    _num(43, 2, "=C10")
-    _num(43, 3, "=-B43/B42", pct=True)
+    _label(42, "tax credits")
+    _num(42, 2, "=C10")
+    _num(42, 3, "=-B42/B41", pct=True)
 
-    _label(44, "internal production fees")
-    _num(44, 2, "=C12")
-    _num(44, 3, "=-B44/B42", pct=True)
+    _label(43, "internal production fees")
+    _num(43, 2, "=C12")
+    _num(43, 3, "=-B43/B$41", pct=True)
+
+    _label(44, "capitalized overheads costs")
+    _num(44, 2, "=G28*B41")
+    _num(44, 3, "=-B44/B$41", pct=True)
 
     _label(45, "Total costs", bold=True)
-    _num(45, 2, "=SUM(B42:B44)", bold=True)
-    _num(45, 3, "=C42-C43-C44", bold=True, pct=True)
+    _num(45, 2, "=SUM(B41:B44)", bold=True)
+    _num(45, 3, "=B45/B38", bold=True, pct=True)
 
     _blank(46)
 
     _label(47, "Gross Margin", bold=True)
-    _num(47, 2, "=B39-B45", bold=True)
-    _num(47, 3, "=C39-C45", bold=True, pct=True)
+    _num(47, 2, "=B38-B45", bold=True)
+    _num(47, 3, "=C38-C45", bold=True, pct=True)
 
-    _num(48, 2, "=B47/B39", pct=True)
-    _num(48, 3, "=C47/C39", pct=True)
+    _num(48, 2, "=B47/B38", pct=True)
+    _num(48, 3, "=C47/C38", pct=True)
 
     _blank(49)
 
     _label(50, "Adjusted gross margin", bold=True)
-    _num(50, 2, "=B47/B37", bold=True, pct=True)
+    _num(50, 2, "=B47/B36", bold=True, pct=True)
 
     # ── Post-data styling ─────────────────────────────────────────────────────
     def _border_top_range(row, col_start, col_end):
@@ -4382,10 +4386,10 @@ def _write_cto_sheet(ws) -> None:
     # D3:G3 and D4:M4 – no fill (remove header fill from data columns)
     _clear_fill_range(3, 3, 4, 7)
     _clear_fill_range(4, 4, 4, 13)
-    # A35:C35 – bottom border (Production P&L header row)
-    _border_bottom_range(35, 1, 3)
-    # A35:C50 – teal (Production P&L section)
-    _fill_range(35, 50, 1, 3, _TEAL_FILL)
+    # A34:C34 – bottom border (Production P&L header row)
+    _border_bottom_range(34, 1, 3)
+    # A34:C50 – teal (Production P&L section)
+    _fill_range(34, 50, 1, 3, _TEAL_FILL)
     # B38 – bottom border
     _border_bottom_range(38, 2, 2)
     # B44 – bottom border
