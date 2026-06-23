@@ -4053,6 +4053,7 @@ def _write_cto_sheet(ws) -> None:
     _TITLE_FILL  = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
     _GREEN_FILL  = PatternFill(start_color="A8FFC1", end_color="A8FFC1", fill_type="solid")
     _TEAL_FILL   = PatternFill(start_color="C1FFFD", end_color="C1FFFD", fill_type="solid")
+    _TEAL2_FILL  = PatternFill(start_color="C1FFFE", end_color="C1FFFE", fill_type="solid")
 
     # Column widths
     ws.column_dimensions["A"].width = 36
@@ -4283,6 +4284,43 @@ def _write_cto_sheet(ws) -> None:
     c.alignment = _LEFT
     ws.row_dimensions[34].height = ROW_H
 
+    # ── Fiscal delivery table (E34:I39) ───────────────────────────────────────
+    for col, label in [(5, "Fiscal"), (6, "2026"), (7, "2027"), (8, "2028"), (9, "Total")]:
+        _cell(34, col, label, font=_CAL_BOLD, align=_CENTER)
+
+    _cell(35, 5, "Deliveries", font=_CAL_BOLD)
+    _cell(35, 6, 0,            align=_RIGHT, fmt="#,##0")
+    _cell(35, 7, 21,           align=_RIGHT, fmt="#,##0")
+    _cell(35, 8, 9,            align=_RIGHT, fmt="#,##0")
+    _num(35, 9,  "=SUM(F35:H35)")
+
+    _cell(36, 5, "=A38")
+    for col, formula in [
+        (6, "=$B38*(F35/$I35)"), (7, "=$B38*G35/$I35"),
+        (8, "=$B38*H35/$I35"),   (9, "=SUM(F36:H36)"),
+    ]:
+        _num(36, col, formula)
+
+    _cell(37, 5, "=A45")
+    for col, formula in [
+        (6, "=-F36*$C45"), (7, "=-G36*$C45"),
+        (8, "=-H36*$C45"), (9, "=SUM(F37:H37)"),
+    ]:
+        _num(37, col, formula)
+
+    _cell(38, 5, "=A47", font=_CAL_BOLD)
+    for col, formula in [
+        (6, "=F36+F37"), (7, "=G36+G37"),
+        (8, "=H36+H37"), (9, "=SUM(F38:H38)"),
+    ]:
+        _num(38, col, formula, bold=True)
+
+    for col, formula in [
+        (6, "=F38/F36"), (7, "=G38/G36"),
+        (8, "=H38/H36"), (9, "=I38/I36"),
+    ]:
+        _num(39, col, formula, pct=True)
+
     _label(35, "Revenues", bold=True)
 
     _label(36, "Presales")
@@ -4390,6 +4428,8 @@ def _write_cto_sheet(ws) -> None:
     _border_bottom_range(34, 1, 3)
     # A34:C50 – teal (Production P&L section)
     _fill_range(34, 50, 1, 3, _TEAL_FILL)
+    # E34:I39 – fiscal delivery table teal fill
+    _fill_range(34, 39, 5, 9, _TEAL2_FILL)
     # B38 – bottom border
     _border_bottom_range(38, 2, 2)
     # B44 – bottom border
