@@ -4059,12 +4059,12 @@ def _write_cto_sheet(ws) -> None:
     ws.column_dimensions["A"].width = 36
     ws.column_dimensions["B"].width = 18
     ws.column_dimensions["C"].width = 16
-    ws.column_dimensions["D"].width = 16
+    ws.column_dimensions["D"].width = 3    # blank spacer between P&L and fiscal table
     ws.column_dimensions["E"].width = 16
     ws.column_dimensions["F"].width = 16
     ws.column_dimensions["G"].width = 16
-    ws.column_dimensions["H"].width = 22
-    ws.column_dimensions["I"].width = 4
+    ws.column_dimensions["H"].width = 16
+    ws.column_dimensions["I"].width = 16   # Total column for fiscal table
     ws.column_dimensions["J"].width = 18
     ws.column_dimensions["K"].width = 20
     ws.column_dimensions["L"].width = 16
