@@ -4426,6 +4426,11 @@ def _write_cto_sheet(ws) -> None:
 def _write_irr_sheet(ws):
     from openpyxl.utils import get_column_letter as gcl
 
+    def _fill_range(row_start, row_end, col_start, col_end, fill):
+        for r in range(row_start, row_end + 1):
+            for c in range(col_start, col_end + 1):
+                ws.cell(row=r, column=c).fill = fill
+
     # Quarter columns C..AP = cols 3..42
     Q_START, Q_END = 3, 42          # 40 quarters (10 years × 4)
     # Annual summary AR..BA = cols 44..53
