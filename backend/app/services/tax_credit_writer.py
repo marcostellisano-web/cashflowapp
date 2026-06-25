@@ -4508,7 +4508,6 @@ def _write_irr_sheet(ws):
         _c(4, start_col, f"Year {y+1}", font=_BOLD, align=_CENTER)
         ws.merge_cells(f"{gcl(start_col)}4:{gcl(start_col+3)}4")
     # Annual section labels
-    _c(4, A_START - 2, "")  # blank before AR
     for y in range(10):
         _c(4, A_START + y, f"Year {y+1}", font=_BOLD, align=_CENTER)
     _c(4, BB_COL, "")
