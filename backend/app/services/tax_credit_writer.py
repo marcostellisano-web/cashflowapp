@@ -4800,8 +4800,8 @@ def _write_irr_sheet(ws):
     _c(42, 1, "Recoupment of advance")
     _c(42, Q_START, f"=-B61", fmt=_NUM)
     for col in range(Q_START + 1, Q_END + 1):
-        ltr = gcl(col)
-        _c(42, col, f"={ltr}42", fmt=_NUM)
+        prev = gcl(col - 1)
+        _c(42, col, f"={prev}42", fmt=_NUM)
     # Annual: C42, AR42, AS42, ...
     _c(42, A_START, f"={gcl(Q_START)}42", fmt=_NUM)
     for i, a_col in enumerate(range(A_START + 1, A_END + 1)):
