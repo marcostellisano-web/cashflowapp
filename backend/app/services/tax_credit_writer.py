@@ -4423,6 +4423,703 @@ def _write_cto_sheet(ws) -> None:
     )
 
 
+def _write_irr_sheet(ws):
+    from openpyxl.utils import get_column_letter as gcl
+
+    def _fill_range(row_start, row_end, col_start, col_end, fill):
+        for r in range(row_start, row_end + 1):
+            for c in range(col_start, col_end + 1):
+                ws.cell(row=r, column=c).fill = fill
+
+    # Quarter columns C..AP = cols 3..42
+    Q_START, Q_END = 3, 42          # 40 quarters (10 years × 4)
+    # Annual summary AR..BA = cols 44..53
+    A_START, A_END = 44, 53         # 10 annual summary cols
+    # Check columns
+    BB_COL, BC_COL, BD_COL, BE_COL = 54, 55, 56, 57
+
+    def _c(row, col, val=None, **kwargs):
+        cell = ws.cell(row=row, column=col)
+        if val is not None:
+            if isinstance(val, str) and val.startswith("="):
+                cell.value = val
+            else:
+                cell.value = val
+        if "font" in kwargs:
+            cell.font = kwargs["font"]
+        if "align" in kwargs:
+            cell.alignment = kwargs["align"]
+        if "fmt" in kwargs:
+            cell.number_format = kwargs["fmt"]
+        if "fill" in kwargs:
+            cell.fill = kwargs["fill"]
+        if "border" in kwargs:
+            cell.border = kwargs["border"]
+        return cell
+
+    _BOLD = Font(bold=True)
+    _BOLD_ITALIC = Font(bold=True, italic=True)
+    _GREY_FILL = PatternFill("solid", fgColor="F2F2F2")
+    _TEAL_FILL = PatternFill("solid", fgColor="C1FFFD")
+    _YELLOW_FILL = PatternFill("solid", fgColor="FFFF00")
+    _HDR_FILL = PatternFill("solid", fgColor="D9E1F2")   # light blue for col headers
+    _SUBHDR_FILL = PatternFill("solid", fgColor="BDD7EE") # slightly darker blue
+    _GREEN_FILL = PatternFill("solid", fgColor="A8FFC1")
+    _CENTER = Alignment(horizontal="center")
+    _RIGHT = Alignment(horizontal="right")
+    _LEFT = Alignment(horizontal="left")
+    _NUM = "#,##0_);(#,##0)"          # accounting-style with parens for negatives
+    _PCT = "0.00%"
+    _PCT0 = "0%"
+    _DATE_FMT = "MMM-YY"
+    _T = Side(style="thin")
+    _D = Side(style="double")
+
+    def _border_bottom(row, c1, c2):
+        for c in range(c1, c2 + 1):
+            cell = ws.cell(row=row, column=c)
+            cell.border = Border(top=cell.border.top, left=cell.border.left,
+                                 right=cell.border.right, bottom=_T)
+
+    def _border_top(row, c1, c2):
+        for c in range(c1, c2 + 1):
+            cell = ws.cell(row=row, column=c)
+            cell.border = Border(top=_T, left=cell.border.left,
+                                 right=cell.border.right, bottom=cell.border.bottom)
+
+    def _border_top_double_bottom(row, c1, c2):
+        for c in range(c1, c2 + 1):
+            cell = ws.cell(row=row, column=c)
+            cell.border = Border(top=_T, left=cell.border.left,
+                                 right=cell.border.right, bottom=_D)
+
+    # ── Column widths ──────────────────────────────────────────────────────────
+    ws.column_dimensions["A"].width = 36
+    ws.column_dimensions["B"].width = 16
+    # Q cols C..AP
+    for col in range(Q_START, Q_END + 1):
+        ws.column_dimensions[gcl(col)].width = 12
+    # blank spacer AQ (col 43)
+    ws.column_dimensions[gcl(43)].width = 3
+    # Annual AR..BA
+    for col in range(A_START, A_END + 1):
+        ws.column_dimensions[gcl(col)].width = 14
+    # Check cols
+    for col in [BB_COL, BC_COL, BD_COL, BE_COL]:
+        ws.column_dimensions[gcl(col)].width = 14
+
+    # ── Row 1: Title ───────────────────────────────────────────────────────────
+    _c(1, 1, "IRR Calculation", font=Font(bold=True, size=13))
+    _fill_range(1, 1, 1, 57, _GREY_FILL)
+
+    # ── Row 2: Basis of preparation ────────────────────────────────────────────
+    _c(2, 1, "Basis of preparation")
+    _c(2, 2, "exclude internals")
+    _c(2, 3, "**fill in Q1")
+
+    # ── Row 3: Date headers ────────────────────────────────────────────────────
+    _c(3, 3, 46357, fmt=_DATE_FMT)
+    offsets = (
+        [90] +            # D3 = C3+90
+        [93] * 18 +       # E3..V3 = prev+93
+        [88] * 8 +        # W3..AD3 = prev+88
+        [90, 90, 91] +    # AE3, AF3, AG3
+        [93] * 9          # AH3..AP3
+    )
+    q_cols = list(range(Q_START + 1, Q_END + 1))  # D..AP = cols 4..42
+    prev_col = gcl(Q_START)
+    for i, (col, off) in enumerate(zip(q_cols, offsets)):
+        ltr = gcl(col)
+        _c(3, col, f"={prev_col}3+{off}", fmt=_DATE_FMT)
+        prev_col = ltr
+
+    # ── Row 4: Year labels (quarterly cols + annual cols) ──────────────────────
+    # Quarterly: Year 1 spans C4:F4, Year 2 G4:J4, ...
+    for y in range(10):
+        start_col = Q_START + y * 4
+        _c(4, start_col, f"Year {y+1}", font=_BOLD, align=_CENTER)
+        ws.merge_cells(f"{gcl(start_col)}4:{gcl(start_col+3)}4")
+    # Annual section labels
+    for y in range(10):
+        _c(4, A_START + y, f"Year {y+1}", font=_BOLD, align=_CENTER)
+    _c(4, BB_COL, "")
+    _c(4, BC_COL, "Check", font=_BOLD, align=_CENTER)
+    # Total label in B4
+    _c(4, 2, "Total", font=_BOLD, align=_CENTER)
+
+    # ── Row 5: Quarter labels ──────────────────────────────────────────────────
+    for y in range(10):
+        for q, label in enumerate(["Q1", "Q2", "Q3", "Q4"]):
+            _c(5, Q_START + y * 4 + q, label, align=_CENTER)
+
+    # ── Row 6: "Collections from" section header ───────────────────────────────
+    _c(6, 1, "Collections from", font=_BOLD)
+
+    # ── Rows 7-9: Broadcaster rows ─────────────────────────────────────────────
+    for row, b_row in [(7, 4), (8, 5), (9, 6)]:
+        _c(row, 1, f"=Sales!B{b_row}")
+        _c(row, 2, f"=Sales!E{b_row}", fmt=_NUM)
+        for col in range(Q_START, Q_END + 1):
+            ltr = gcl(col)
+            _c(row, col, f"=$B{row}*{ltr}$73", fmt=_NUM)
+        # Annual
+        for i, a_col in enumerate(range(A_START, A_END + 1)):
+            q1 = gcl(Q_START + i * 4)
+            q4 = gcl(Q_START + i * 4 + 3)
+            _c(row, a_col, f"=SUM({q1}{row}:{q4}{row})", fmt=_NUM)
+        _c(row, BC_COL, f"=B{row}-SUM({gcl(A_START)}{row}:{gcl(A_END)}{row})", fmt=_NUM)
+        _c(row, BD_COL, f"=SUM({gcl(A_START)}{row}:{gcl(A_END)}{row})", fmt=_NUM)
+
+    # ── Row 12: Tax Credit Estimate ────────────────────────────────────────────
+    _c(12, 1, "Tax Credit Estimate", font=_BOLD)
+    _c(12, 2, "=Breakdown!C18", fmt=_NUM)
+    for col in range(Q_START, Q_END + 1):
+        ltr = gcl(col)
+        _c(12, col, f"=$B12*{ltr}$77", fmt=_NUM)
+    for i, a_col in enumerate(range(A_START, A_END + 1)):
+        q1 = gcl(Q_START + i * 4)
+        q4 = gcl(Q_START + i * 4 + 3)
+        _c(12, a_col, f"=SUM({q1}12:{q4}12)", fmt=_NUM)
+    _c(12, BC_COL, f"=B12-SUM({gcl(A_START)}12:{gcl(A_END)}12)", fmt=_NUM)
+    _c(12, BD_COL, f"=SUM({gcl(A_START)}12:{gcl(A_END)}12)", fmt=_NUM)
+
+    # ── Row 16: International sales ────────────────────────────────────────────
+    _c(16, 1, "International sales", font=_BOLD)
+    _c(16, 2, "=Sales!D12", fmt=_NUM)
+    for col in range(Q_START, Q_END + 1):
+        ltr = gcl(col)
+        _c(16, col,
+           f"=IF($B$51=$A$83,$B16*{ltr}83,IF($B$51=$A$82,$B16*{ltr}82,IF($B$51=$A$81,$B16*{ltr}81,\"\")))",
+           fmt=_NUM)
+    for i, a_col in enumerate(range(A_START, A_END + 1)):
+        q1 = gcl(Q_START + i * 4)
+        q4 = gcl(Q_START + i * 4 + 3)
+        _c(16, a_col, f"=SUM({q1}16:{q4}16)", fmt=_NUM)
+    _c(16, BC_COL, f"=B16-SUM({gcl(A_START)}16:{gcl(A_END)}16)", fmt=_NUM)
+    _c(16, BD_COL, f"=SUM({gcl(A_START)}16:{gcl(A_END)}16)", fmt=_NUM)
+    _c(16, BE_COL, "=+BD16/B16", fmt=_PCT)
+
+    # ── Row 18: Sub-total inflows ──────────────────────────────────────────────
+    _c(18, 1, "Sub-total inflows", font=_BOLD)
+    _c(18, 2, "=SUM(B7:B16)", fmt=_NUM)
+    for col in range(Q_START, Q_END + 1):
+        ltr = gcl(col)
+        _c(18, col, f"=SUM({ltr}7:{ltr}16)", fmt=_NUM)
+    for i, a_col in enumerate(range(A_START, A_END + 1)):
+        start = gcl(A_START - 1)  # AQ col (blank) — use range from data rows
+        q1 = gcl(Q_START + i * 4)  # not used here; use AQ..BA summing rows 6-17
+        # The user formula: =SUM(AR6:AR17) etc — sum annual col rows 6-17
+        a_ltr = gcl(a_col)
+        _c(18, a_col, f"=SUM({a_ltr}6:{a_ltr}17)", fmt=_NUM)
+    _c(18, BC_COL, f"=B18-SUM({gcl(A_START)}18:{gcl(A_END)}18)", fmt=_NUM)
+    _c(18, BD_COL, f"=SUM({gcl(A_START)}18:{gcl(A_END)}18)", fmt=_NUM)
+
+    # ── Row 20: Outflows header ────────────────────────────────────────────────
+    _c(20, 1, "Outflows", font=_BOLD)
+
+    # ── Row 21: Production costs / Advance ────────────────────────────────────
+    _c(21, 1, "Production costs / Advance", font=_BOLD)
+    _c(21, 2, "=-CTO!C9", fmt=_NUM)
+    for col in range(Q_START, Q_END + 1):
+        ltr = gcl(col)
+        _c(21, col, f"=$B21*{ltr}$69", fmt=_NUM)
+    for i, a_col in enumerate(range(A_START, A_END + 1)):
+        q1 = gcl(Q_START + i * 4)
+        q4 = gcl(Q_START + i * 4 + 3)
+        _c(21, a_col, f"=SUM({q1}21:{q4}21)", fmt=_NUM)
+    _c(21, BC_COL, f"=B21-SUM({gcl(A_START)}21:{gcl(A_END)}21)", fmt=_NUM)
+    _c(21, BD_COL, f"=SUM({gcl(A_START)}21:{gcl(A_END)}21)", fmt=_NUM)
+
+    # ── Row 22: Distribution expenses ─────────────────────────────────────────
+    _c(22, 1, "Distribution expenses", font=_BOLD)
+    _c(22, 2, "=-CTO!C16", fmt=_NUM)
+    for col in range(Q_START, Q_END + 1):
+        ltr = gcl(col)
+        _c(22, col, f"=$B$22*{ltr}16/$B$16", fmt=_NUM)
+    for i, a_col in enumerate(range(A_START, A_END + 1)):
+        q1 = gcl(Q_START + i * 4)
+        q4 = gcl(Q_START + i * 4 + 3)
+        _c(22, a_col, f"=SUM({q1}22:{q4}22)", fmt=_NUM)
+    _c(22, BC_COL, f"=B22-SUM({gcl(A_START)}22:{gcl(A_END)}22)", fmt=_NUM)
+    _c(22, BD_COL, f"=SUM({gcl(A_START)}22:{gcl(A_END)}22)", fmt=_NUM)
+
+    # ── Row 23: Back-end share ─────────────────────────────────────────────────
+    _c(23, 1, "Back-end share", font=_BOLD)
+    _c(23, 2, "=-CTO!C17", fmt=_NUM)
+    for col in range(Q_START, Q_END + 1):
+        ltr = gcl(col)
+        _c(23, col, f"={ltr}46", fmt=_NUM)
+    for i, a_col in enumerate(range(A_START, A_END + 1)):
+        q1 = gcl(Q_START + i * 4)
+        q4 = gcl(Q_START + i * 4 + 3)
+        _c(23, a_col, f"=SUM({q1}23:{q4}23)", fmt=_NUM)
+    _c(23, BC_COL, f"=B23-SUM({gcl(A_START)}23:{gcl(A_END)}23)", fmt=_NUM)
+    _c(23, BD_COL, f"=SUM({gcl(A_START)}23:{gcl(A_END)}23)", fmt=_NUM)
+
+    # ── Row 25: Sub-total outflows ─────────────────────────────────────────────
+    _c(25, 1, "Sub-total out-flows", font=_BOLD)
+    _c(25, 2, "=SUM(B21:B23)", fmt=_NUM)
+    for col in range(Q_START, Q_END + 1):
+        ltr = gcl(col)
+        _c(25, col, f"=SUM({ltr}21:{ltr}23)", fmt=_NUM)
+    for i, a_col in enumerate(range(A_START, A_END + 1)):
+        al = gcl(a_col)
+        _c(25, a_col, f"=SUM({al}21:{al}23)", fmt=_NUM)
+    _c(25, BC_COL, f"=B25-SUM({gcl(A_START)}25:{gcl(A_END)}25)", fmt=_NUM)
+    _c(25, BD_COL, f"=SUM({gcl(A_START)}25:{gcl(A_END)}25)", fmt=_NUM)
+
+    # ── Row 27: Net cash movement ──────────────────────────────────────────────
+    _c(27, 1, "Net cash movement", font=_BOLD)
+    _c(27, 2, "=B18+B25", fmt=_NUM)
+    for col in range(Q_START, Q_END + 1):
+        ltr = gcl(col)
+        _c(27, col, f"={ltr}18+{ltr}25", fmt=_NUM)
+    for i, a_col in enumerate(range(A_START, A_END + 1)):
+        al = gcl(a_col)
+        _c(27, a_col, f"={al}18+{al}25", fmt=_NUM)
+    _c(27, BC_COL, f"=B27-SUM({gcl(A_START)}27:{gcl(A_END)}27)", fmt=_NUM)
+    _c(27, BD_COL, f"=SUM({gcl(A_START)}27:{gcl(A_END)}27)", fmt=_NUM)
+
+    # ── Row 29: Internals ─────────────────────────────────────────────────────
+    _c(29, 1, "Internals")
+    _c(29, 2, "=Breakdown!C17", fmt=_NUM)
+
+    # ── Row 30: Commission ────────────────────────────────────────────────────
+    _c(30, 1, "Commission")
+    _c(30, 2, "=CTO!G15", fmt=_NUM)
+    # Quarterly values — all zeros except specific quarters
+    q_vals_30 = {
+        11: 3913.37930621445,
+        15: 3135.13759818328,
+        19: 852.559327905654,
+        23: 820.682097630452,
+        27: 1578.58970655969,
+        31: 304.2152709151,
+        35: 1124.81070648314,
+        39: 2061.03039631042,
+    }
+    for col in range(Q_START, Q_END + 1):
+        _c(30, col, q_vals_30.get(col, 0), fmt=_NUM)
+    # Annual summary
+    a_vals_30 = {
+        44: 0, 45: 0,
+        46: 3913.37930621445,
+        47: 3135.13759818328,
+        48: 852.559327905654,
+        49: 820.682097630452,
+        50: 1578.58970655969,
+        51: 304.2152709151,
+        52: 1124.81070648314,
+        53: 2061.03039631042,
+    }
+    for a_col in range(A_START, A_END + 1):
+        _c(30, a_col, a_vals_30.get(a_col, 0), fmt=_NUM)
+
+    # ── Row 31: Back end ──────────────────────────────────────────────────────
+    _c(31, 1, "Back end")
+    _c(31, 2, "=-CTO!C17", fmt=_NUM)
+
+    # ── Row 32: Sum ───────────────────────────────────────────────────────────
+    _c(32, 2, "=SUM(B29:B31)", fmt=_NUM)
+
+    # ── Row 33: IRR calc ──────────────────────────────────────────────────────
+    _c(33, 1, "IRR calc", font=_BOLD)
+    _c(33, 2, f"=IRR({gcl(A_START)}27:{gcl(A_END)}27)", fmt="0.00%")
+
+    # ── Row 34 ────────────────────────────────────────────────────────────────
+    _c(34, 2, "=B30/B18", fmt=_PCT)
+
+    # ── Row 37: Back-end calcs header ─────────────────────────────────────────
+    _c(37, 1, "Back-end calcs", font=_BOLD)
+
+    # ── Row 38: Cash collections ───────────────────────────────────────────────
+    _c(38, 1, "Cash collections")
+    # C38 = C18, D38 = C38+D18, ...
+    _c(38, Q_START, f"={gcl(Q_START)}18", fmt=_NUM)
+    for col in range(Q_START + 1, Q_END + 1):
+        prev = gcl(col - 1)
+        cur = gcl(col)
+        _c(38, col, f"={prev}38+{cur}18", fmt=_NUM)
+    # Annual: AR38 = AQ38+AR14, but AQ is blank spacer — user formula: =AQ38+AR14
+    # AQ col = 43; user has =AQ38+AR14 for AR38, etc.
+    # Since AQ is blank (0), AR38=AR14, AS38=AR38+AS14, etc.
+    _c(38, A_START, f"={gcl(43)}38+{gcl(A_START)}14", fmt=_NUM)
+    for i, a_col in enumerate(range(A_START + 1, A_END + 1)):
+        prev_a = gcl(a_col - 1)
+        cur_a = gcl(a_col)
+        _c(38, a_col, f"={prev_a}38+{cur_a}14", fmt=_NUM)
+
+    # ── Row 39: Production costs / advances ────────────────────────────────────
+    _c(39, 1, "Production costs / advances")
+    # C39=C21
+    _c(39, Q_START, f"={gcl(Q_START)}21", fmt=_NUM)
+    # D39=(D21*(SUM($AR$21:$AZ$21)/$B$21))+C39 (cols 4..10 use AZ range cap)
+    for col in range(Q_START + 1, Q_END + 1):
+        cur = gcl(col)
+        prev = gcl(col - 1)
+        if col <= 10:
+            _c(39, col, f"=({cur}21*(SUM($AR$21:$AZ$21)/$B$21))+{prev}39", fmt=_NUM)
+        else:
+            _c(39, col, f"=({cur}21*(SUM($AR$21:$BA$21)/$B$21))+{prev}39", fmt=_NUM)
+    # Annual: AR39=AR17, AS39=AR39+AS17, ...
+    _c(39, A_START, f"={gcl(A_START)}17", fmt=_NUM)
+    for i, a_col in enumerate(range(A_START + 1, A_END + 1)):
+        prev_a = gcl(a_col - 1)
+        cur_a = gcl(a_col)
+        _c(39, a_col, f"={prev_a}39+{cur_a}17", fmt=_NUM)
+
+    # ── Row 40: Allow for recoupment ───────────────────────────────────────────
+    _c(40, 1, "Allow for recoupment of internals to calculate back-end")
+    _c(40, 2, "=-B29", fmt=_NUM)
+    for col in range(Q_START, Q_END + 1):
+        ltr = gcl(col)
+        _c(40, col, f"=$B40*{ltr}69", fmt=_NUM)
+    # Annual: AR40=SUM(C40:F40), AS40=SUM(G40:J40)+AR40, etc.
+    _c(40, A_START, f"=SUM({gcl(Q_START)}40:{gcl(Q_START+3)}40)", fmt=_NUM)
+    for i, a_col in enumerate(range(A_START + 1, A_END + 1)):
+        prev_a = gcl(a_col - 1)
+        q1 = gcl(Q_START + (i + 1) * 4 - 3)  # start of next year's quarterly block
+        q4 = gcl(Q_START + (i + 1) * 4)
+        _c(40, a_col, f"=SUM({q1}40:{q4}40)+{prev_a}40", fmt=_NUM)
+
+    # ── Row 41: Distribution expenses (running) ────────────────────────────────
+    _c(41, 1, "Distribution expenses")
+    _c(41, Q_START, f"={gcl(Q_START)}22", fmt=_NUM)
+    for col in range(Q_START + 1, Q_END + 1):
+        prev = gcl(col - 1)
+        cur = gcl(col)
+        _c(41, col, f"={prev}41+{cur}22", fmt=_NUM)
+    # Annual: AQ41+AR18, AR41+AS18, ...
+    _c(41, A_START, f"={gcl(43)}41+{gcl(A_START)}18", fmt=_NUM)
+    for i, a_col in enumerate(range(A_START + 1, A_END + 1)):
+        prev_a = gcl(a_col - 1)
+        cur_a = gcl(a_col)
+        _c(41, a_col, f"={prev_a}41+{cur_a}18", fmt=_NUM)
+
+    # ── Row 42: Recoupment of advance ─────────────────────────────────────────
+    _c(42, 1, "Recoupment of advance")
+    _c(42, Q_START, f"=-B61", fmt=_NUM)
+    for col in range(Q_START + 1, Q_END + 1):
+        prev = gcl(col - 1)
+        _c(42, col, f"={prev}42", fmt=_NUM)
+    # Annual: C42, AR42, AS42, ...
+    _c(42, A_START, f"={gcl(Q_START)}42", fmt=_NUM)
+    for i, a_col in enumerate(range(A_START + 1, A_END + 1)):
+        prev_a = gcl(a_col - 1)
+        _c(42, a_col, f"={prev_a}42", fmt=_NUM)
+
+    # ── Row 43: Net cumulative cash ex back-end ────────────────────────────────
+    _c(43, 1, "Net cumulative cash ex back-end")
+    for col in range(Q_START, Q_END + 1):
+        ltr = gcl(col)
+        _c(43, col, f"=SUM({ltr}38:{ltr}42)", fmt=_NUM)
+    for a_col in range(A_START, A_END + 1):
+        al = gcl(a_col)
+        _c(43, a_col, f"=SUM({al}38:{al}42)", fmt=_NUM)
+
+    # ── Row 45: Back-end ──────────────────────────────────────────────────────
+    _c(45, 1, "Back-end")
+    for col in range(Q_START, Q_END + 1):
+        ltr = gcl(col)
+        _c(45, col, f"=IF({ltr}43>0,-Sales!$C$20*{ltr}43,0)", fmt=_NUM)
+    for a_col in range(A_START, A_END + 1):
+        al = gcl(a_col)
+        _c(45, a_col, f"=IF({al}43>0,-Sales!$C$20*{al}43,0)", fmt=_NUM)
+
+    # ── Row 46: Movement on back-end ──────────────────────────────────────────
+    _c(46, 1, "Movement on back-end")
+    # C46 blank (no formula in original), D46=D45-C45, ...
+    for col in range(Q_START + 1, Q_END + 1):
+        cur = gcl(col)
+        prev = gcl(col - 1)
+        _c(46, col, f"={cur}45-{prev}45", fmt=_NUM)
+    # Annual: AS46=AS45-AR45, etc.
+    for i, a_col in enumerate(range(A_START + 1, A_END + 1)):
+        cur_a = gcl(a_col)
+        prev_a = gcl(a_col - 1)
+        _c(46, a_col, f"={cur_a}45-{prev_a}45", fmt=_NUM)
+
+    # ── Row 49: Workings header ────────────────────────────────────────────────
+    _c(49, 1, "Workings for IRR / Cashflow", font=_BOLD)
+
+    # ── Row 50: Sales forecast per hour ───────────────────────────────────────
+    _c(50, 1, "Sales forecast per hour")
+    _c(50, 2, "=Sales!D13", fmt=_NUM)
+
+    # ── Row 51: International sales category ──────────────────────────────────
+    _c(51, 1, "International sales category")
+    _c(51, 2, '=IF(AND(B50>=C55,B50<=D55),B55,IF(AND(B50>=C56,B50<=D56),B56,IF(AND(B50>=C57,B50<=D57),B57,"")))')
+
+    # ── Rows 54-57: Genre table ────────────────────────────────────────────────
+    for col, label in [(1, "Genre"), (2, "Category"), (3, "Range from"), (4, "Range to")]:
+        _c(54, col, label, font=_BOLD)
+    genre_rows = [
+        ("Fact Ent", "High value", 110000, 4000000),
+        ("Fact Ent", "Medium value", 67500, 110000),
+        ("Fact Ent", "Low value", 10000, 67500),
+    ]
+    for i, (genre, cat, lo, hi) in enumerate(genre_rows):
+        row = 55 + i
+        _c(row, 1, genre)
+        _c(row, 2, cat)
+        _c(row, 3, lo, fmt=_NUM)
+        _c(row, 4, hi, fmt=_NUM)
+
+    # ── Row 59: Back-end on ultimates header ──────────────────────────────────
+    _c(59, 1, "Back-end on ultimates", font=_BOLD)
+
+    # ── Rows 60-65 ────────────────────────────────────────────────────────────
+    _c(60, 1, "International sales")
+    _c(60, 2, "=Sales!D12", fmt=_NUM)
+    _c(61, 1, "Advance")
+    _c(61, 2, "=FS!D21", fmt=_NUM)
+    _c(62, 1, "Commish")
+    _c(62, 2, "=CTO!G15", fmt=_NUM)
+    _c(63, 1, "Dist expenses")
+    _c(63, 2, "=CTO!C16", fmt=_NUM)
+    _c(64, 1, "Net profit")
+    _c(64, 2, "=IF((B60-B61-B62-B63)>1,B60-B61-B62-B63,0)", fmt=_NUM)
+    _c(65, 1, "Share of net profit")
+    _c(65, 2, "=B64*Sales!C20", fmt=_NUM)
+
+    # ── Row 67: OUTFLOW - HARD COSTS header ───────────────────────────────────
+    _c(67, 1, "OUTFLOW - HARD COSTS", font=_BOLD)
+    # Year header references (every 4th quarterly col start)
+    for y in range(10):
+        start_q = Q_START + y * 4
+        _c(67, start_q, f"={gcl(start_q)}4")
+    # Annual section headers
+    for y in range(10):
+        _c(67, A_START + y, f"Year {y+1}", font=_BOLD, align=_CENTER)
+
+    # ── Row 68: Quarter references ─────────────────────────────────────────────
+    for col in range(Q_START, Q_END + 1):
+        ltr = gcl(col)
+        _c(68, col, f"={ltr}5")
+
+    # ── Row 69: Outflow schedule values ───────────────────────────────────────
+    outflow_vals = [
+        0.0705957707638597,
+        0.369415571024316,
+        0.369124228289782,
+        0.153239672680844,
+        0.0322707824524556,
+        0.00539494900702482,
+        -0.0000409742182823332,
+    ]
+    for i, v in enumerate(outflow_vals):
+        _c(69, Q_START + i, v, fmt=_PCT)
+    # Annual sums
+    for i, a_col in enumerate(range(A_START, A_END + 1)):
+        q1 = gcl(Q_START + i * 4)
+        q4 = gcl(Q_START + i * 4 + 3)
+        _c(69, a_col, f"=SUM({q1}69:{q4}69)", fmt=_PCT)
+
+    # ── Row 71: INFLOW - PRESALE header ───────────────────────────────────────
+    _c(71, 1, "INFLOW - PRESALE", font=_BOLD)
+    for y in range(4):
+        _c(71, Q_START + y * 4, f"Year {y+1}", align=_CENTER)
+
+    # ── Row 72: Quarter headers ────────────────────────────────────────────────
+    for col in range(Q_START, Q_START + 16):
+        ltr = gcl(col)
+        _c(72, col, f"={ltr}5")
+
+    # ── Row 73: Presale schedule ───────────────────────────────────────────────
+    presale_vals = {
+        3: 0, 4: 0.2666, 5: 0.1769, 6: 0.1576,
+        7: 0.2394, 8: 0.0484, 9: 0.0611, 10: 0,
+        11: 0.05, 12: 0,
+    }
+    for col in range(Q_START, Q_END + 1):
+        v = presale_vals.get(col, 0)
+        _c(73, col, v if v != 0 else 0, fmt=_PCT0)
+    # Annual sums (only first 4 years shown in user data, but add all)
+    for i, a_col in enumerate(range(A_START, A_END + 1)):
+        q1 = gcl(Q_START + i * 4)
+        q4 = gcl(Q_START + i * 4 + 3)
+        _c(73, a_col, f"=SUM({q1}73:{q4}73)", fmt=_PCT0)
+
+    # ── Row 75: INFLOW - TAX CREDITS header ───────────────────────────────────
+    _c(75, 1, "INFLOW - TAX CREDITS", font=_BOLD)
+    for y in range(4):
+        _c(75, Q_START + y * 4, f"Year {y+1}", align=_CENTER)
+
+    # ── Row 76: Quarter headers ────────────────────────────────────────────────
+    for col in range(Q_START, Q_START + 16):
+        ltr = gcl(col)
+        _c(76, col, f"={ltr}5")
+
+    # ── Row 77: Tax credit schedule ────────────────────────────────────────────
+    tc_vals = {7: 0.641583495172534, 11: 0.358416504827466}
+    for col in range(Q_START, Q_END + 1):
+        v = tc_vals.get(col, 0)
+        _c(77, col, v if v != 0 else 0, fmt=_PCT)
+    for i, a_col in enumerate(range(A_START, A_END + 1)):
+        q1 = gcl(Q_START + i * 4)
+        q4 = gcl(Q_START + i * 4 + 3)
+        _c(77, a_col, f"=SUM({q1}77:{q4}77)", fmt=_PCT)
+
+    # ── Row 79: INFLOW - INT'L SALES header ───────────────────────────────────
+    _c(79, 1, "INFLOW - INT'L SALES", font=_BOLD)
+    for y in range(4):
+        _c(79, Q_START + y * 4, f"Year {y+1}", align=_CENTER)
+
+    # ── Row 80: Quarter headers ────────────────────────────────────────────────
+    for col in range(Q_START, Q_START + 16):
+        ltr = gcl(col)
+        _c(80, col, f"={ltr}5")
+
+    # ── Rows 81-83: Int'l sales schedules ─────────────────────────────────────
+    intl_data = {
+        81: {
+            "label": "High value",
+            "q": {11: 0.408598204250028, 15: 0.14315770201277, 19: 0.100023357342737,
+                  23: 0.0717846050033827, 27: 0.10559609365345, 31: 0.0662132130324036,
+                  35: 0.0236877142264881, 39: 0.028836087294499},
+            "a": {44: 0.408598204250028, 45: 0.14315770201277, 46: 0.100023357342737,
+                  47: 0.0717846050033827, 48: 0.10559609365345, 49: 0.0662132130324036,
+                  50: 0.0236877142264881, 51: 0.028836087294499, 52: 0, 53: 0},
+        },
+        82: {
+            "label": "Medium value",
+            "q": {11: 0.265054928604243, 15: 0.167242762035813, 19: 0.0852937183926511,
+                  23: 0.050337429480966, 27: 0.109834524624246, 31: 0.126156938733889,
+                  35: 0.0743179057268728, 39: 0.0517182281808347},
+            "a": {44: 0.265054928604243, 45: 0.167242762035813, 46: 0.0852937183926511,
+                  47: 0.050337429480966, 48: 0.109834524624246, 49: 0.126156938733889,
+                  50: 0.0743179057268728, 51: 0.0517182281808347, 52: 0, 53: 0},
+        },
+        83: {
+            "label": "Low value",
+            "q": {11: 0.26089195374763, 15: 0.209009173212219, 19: 0.0568372885270436,
+                  23: 0.0547121398420301, 27: 0.105239313770646, 31: 0.0202810180610066,
+                  35: 0.0749873804322091, 39: 0.137402026420694},
+            "a": {44: 0.26089195374763, 45: 0.209009173212219, 46: 0.0568372885270436,
+                  47: 0.0547121398420301, 48: 0.105239313770646, 49: 0.0202810180610066,
+                  50: 0.0749873804322091, 51: 0.137402026420694, 52: 0, 53: 0},
+        },
+    }
+    for row, data in intl_data.items():
+        _c(row, 1, data["label"])
+        for col in range(Q_START, Q_END + 1):
+            v = data["q"].get(col, 0)
+            _c(row, col, v, fmt=_PCT)
+        for a_col in range(A_START, A_END + 1):
+            v = data["a"].get(a_col, 0)
+            _c(row, a_col, v, fmt=_PCT)
+
+    # ── Post-data styling ──────────────────────────────────────────────────────
+
+    # Row 1: title grey (already filled), make font bold+white stand out
+    for c in range(1, BE_COL + 1):
+        ws.cell(row=1, column=c).fill = _GREY_FILL
+    ws.cell(row=1, column=1).font = Font(bold=True, size=12)
+
+    # C2: yellow "fill in Q1" reminder
+    ws.cell(row=2, column=3).fill = _YELLOW_FILL
+
+    # Rows 3-5: light blue column-header band across quarterly + annual cols
+    _fill_range(3, 3, Q_START, Q_END, _HDR_FILL)
+    _fill_range(3, 3, A_START, A_END, _HDR_FILL)
+    _fill_range(4, 5, Q_START, Q_END, _HDR_FILL)
+    _fill_range(4, 5, A_START, A_END, _HDR_FILL)
+    # Bottom border on row 5 (separates headers from data)
+    _border_bottom(5, 1, BE_COL)
+
+    # Row 6 "Collections from" — bottom border
+    _border_bottom(6, 1, BD_COL)
+
+    # Row 9 — bottom border (last broadcaster)
+    _border_bottom(9, 1, BD_COL)
+
+    # Row 12 Tax Credit — top + bottom border
+    _border_top(12, 1, BD_COL)
+    _border_bottom(12, 1, BD_COL)
+
+    # Row 16 International sales — bottom border
+    _border_bottom(16, 1, BE_COL)
+
+    # Row 18 Sub-total inflows — grey fill + top+bottom border
+    _fill_range(18, 18, 1, BD_COL, _GREY_FILL)
+    _border_top(18, 1, BD_COL)
+    _border_bottom(18, 1, BD_COL)
+
+    # Row 20 Outflows header — bottom border
+    _border_bottom(20, 1, BD_COL)
+
+    # Row 25 Sub-total outflows — grey fill + top+bottom border
+    _fill_range(25, 25, 1, BD_COL, _GREY_FILL)
+    _border_top(25, 1, BD_COL)
+    _border_bottom(25, 1, BD_COL)
+
+    # Row 27 Net cash movement — grey fill + top + double bottom border
+    _fill_range(27, 27, 1, BD_COL, _GREY_FILL)
+    _border_top_double_bottom(27, 1, BD_COL)
+
+    # Rows 29-32 internals block — light indent, bottom border on row 32
+    _border_bottom(32, 1, 2)
+
+    # Row 33 IRR calc — yellow highlight
+    ws.cell(row=33, column=1).font = _BOLD
+    ws.cell(row=33, column=2).fill = _YELLOW_FILL
+    ws.cell(row=33, column=2).font = Font(bold=True, size=11)
+    _border_top_double_bottom(33, 1, 2)
+
+    # Row 37 Back-end calcs section header — grey fill + bottom border
+    _fill_range(37, 37, 1, BD_COL, _GREY_FILL)
+    ws.cell(row=37, column=1).font = _BOLD
+    _border_bottom(37, 1, BD_COL)
+
+    # Row 43 Net cumulative cash — bottom border
+    _border_bottom(43, 1, BD_COL)
+
+    # Row 45 Back-end — bottom border
+    _border_bottom(45, 1, BD_COL)
+
+    # Row 46 Movement on back-end — bottom border
+    _border_bottom(46, 1, BD_COL)
+
+    # Row 49 Workings section header — grey fill + bottom border
+    _fill_range(49, 49, 1, BD_COL, _GREY_FILL)
+    ws.cell(row=49, column=1).font = _BOLD
+    _border_bottom(49, 1, BD_COL)
+
+    # Genre table rows 54-57 — borders + header fill
+    _fill_range(54, 54, 1, 4, _HDR_FILL)
+    for r in range(54, 58):
+        for c in range(1, 5):
+            ws.cell(row=r, column=c).border = Border(
+                top=_T, bottom=_T, left=_T, right=_T)
+
+    # Row 59 Back-end on ultimates — grey fill + bottom border
+    _fill_range(59, 59, 1, 4, _GREY_FILL)
+    ws.cell(row=59, column=1).font = _BOLD
+    _border_bottom(59, 1, 4)
+    _border_bottom(65, 1, 2)
+
+    # OUTFLOW/INFLOW section headers (rows 67, 71, 75, 79) — blue header fill
+    for hdr_row in [67, 71, 75, 79]:
+        _fill_range(hdr_row, hdr_row, 1, BD_COL, _SUBHDR_FILL)
+        ws.cell(row=hdr_row, column=1).font = _BOLD
+        _border_bottom(hdr_row, 1, BD_COL)
+
+    # Q-label rows under each schedule (68, 72, 76, 80) — light header fill
+    for q_row in [68, 72, 76, 80]:
+        _fill_range(q_row, q_row, Q_START, Q_END, _HDR_FILL)
+        _border_bottom(q_row, 1, BD_COL)
+
+    # Int'l sales rows 81-83 — teal fill on non-zero % cells
+    for intl_row in [81, 82, 83]:
+        _border_bottom(intl_row, 1, BD_COL)
+
+    # ── Freeze panes ──────────────────────────────────────────────────────────
+    ws.freeze_panes = "C6"
+
+    # ── Tab color ─────────────────────────────────────────────────────────────
+    ws.sheet_properties.tabColor = "A8FFC1"
+
+
 def write_tax_credit_excel(
     budget: ParsedBudget,
     title: str,
@@ -4493,6 +5190,9 @@ def write_tax_credit_excel(
     ws_cto = wb.create_sheet("CTO")
     _write_cto_sheet(ws_cto)
     ws_cto.sheet_properties.tabColor = "A8FFC1"
+
+    ws_irr = wb.create_sheet("IRR")
+    _write_irr_sheet(ws_irr)
 
     buffer = BytesIO()
     wb.save(buffer)
