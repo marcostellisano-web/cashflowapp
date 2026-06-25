@@ -4458,13 +4458,40 @@ def _write_irr_sheet(ws):
         return cell
 
     _BOLD = Font(bold=True)
+    _BOLD_ITALIC = Font(bold=True, italic=True)
     _GREY_FILL = PatternFill("solid", fgColor="F2F2F2")
     _TEAL_FILL = PatternFill("solid", fgColor="C1FFFD")
+    _YELLOW_FILL = PatternFill("solid", fgColor="FFFF00")
+    _HDR_FILL = PatternFill("solid", fgColor="D9E1F2")   # light blue for col headers
+    _SUBHDR_FILL = PatternFill("solid", fgColor="BDD7EE") # slightly darker blue
+    _GREEN_FILL = PatternFill("solid", fgColor="A8FFC1")
     _CENTER = Alignment(horizontal="center")
     _RIGHT = Alignment(horizontal="right")
-    _NUM = "#,##0"
-    _PCT = "0.0%"
-    _DATE_FMT = "DD-MMM-YY"
+    _LEFT = Alignment(horizontal="left")
+    _NUM = "#,##0_);(#,##0)"          # accounting-style with parens for negatives
+    _PCT = "0.00%"
+    _PCT0 = "0%"
+    _DATE_FMT = "MMM-YY"
+    _T = Side(style="thin")
+    _D = Side(style="double")
+
+    def _border_bottom(row, c1, c2):
+        for c in range(c1, c2 + 1):
+            cell = ws.cell(row=row, column=c)
+            cell.border = Border(top=cell.border.top, left=cell.border.left,
+                                 right=cell.border.right, bottom=_T)
+
+    def _border_top(row, c1, c2):
+        for c in range(c1, c2 + 1):
+            cell = ws.cell(row=row, column=c)
+            cell.border = Border(top=_T, left=cell.border.left,
+                                 right=cell.border.right, bottom=cell.border.bottom)
+
+    def _border_top_double_bottom(row, c1, c2):
+        for c in range(c1, c2 + 1):
+            cell = ws.cell(row=row, column=c)
+            cell.border = Border(top=_T, left=cell.border.left,
+                                 right=cell.border.right, bottom=_D)
 
     # ── Column widths ──────────────────────────────────────────────────────────
     ws.column_dimensions["A"].width = 36
@@ -4881,12 +4908,12 @@ def _write_irr_sheet(ws):
         -0.0000409742182823332,
     ]
     for i, v in enumerate(outflow_vals):
-        _c(69, Q_START + i, v, fmt="0.0000")
+        _c(69, Q_START + i, v, fmt=_PCT)
     # Annual sums
     for i, a_col in enumerate(range(A_START, A_END + 1)):
         q1 = gcl(Q_START + i * 4)
         q4 = gcl(Q_START + i * 4 + 3)
-        _c(69, a_col, f"=SUM({q1}69:{q4}69)", fmt="0.0000")
+        _c(69, a_col, f"=SUM({q1}69:{q4}69)", fmt=_PCT)
 
     # ── Row 71: INFLOW - PRESALE header ───────────────────────────────────────
     _c(71, 1, "INFLOW - PRESALE", font=_BOLD)
@@ -4906,12 +4933,12 @@ def _write_irr_sheet(ws):
     }
     for col in range(Q_START, Q_END + 1):
         v = presale_vals.get(col, 0)
-        _c(73, col, v if v != 0 else 0, fmt="0.0000")
+        _c(73, col, v if v != 0 else 0, fmt=_PCT0)
     # Annual sums (only first 4 years shown in user data, but add all)
     for i, a_col in enumerate(range(A_START, A_END + 1)):
         q1 = gcl(Q_START + i * 4)
         q4 = gcl(Q_START + i * 4 + 3)
-        _c(73, a_col, f"=SUM({q1}73:{q4}73)", fmt="0.0000")
+        _c(73, a_col, f"=SUM({q1}73:{q4}73)", fmt=_PCT0)
 
     # ── Row 75: INFLOW - TAX CREDITS header ───────────────────────────────────
     _c(75, 1, "INFLOW - TAX CREDITS", font=_BOLD)
@@ -4927,11 +4954,11 @@ def _write_irr_sheet(ws):
     tc_vals = {7: 0.641583495172534, 11: 0.358416504827466}
     for col in range(Q_START, Q_END + 1):
         v = tc_vals.get(col, 0)
-        _c(77, col, v if v != 0 else 0, fmt="0.0000")
+        _c(77, col, v if v != 0 else 0, fmt=_PCT)
     for i, a_col in enumerate(range(A_START, A_END + 1)):
         q1 = gcl(Q_START + i * 4)
         q4 = gcl(Q_START + i * 4 + 3)
-        _c(77, a_col, f"=SUM({q1}77:{q4}77)", fmt="0.0000")
+        _c(77, a_col, f"=SUM({q1}77:{q4}77)", fmt=_PCT)
 
     # ── Row 79: INFLOW - INT'L SALES header ───────────────────────────────────
     _c(79, 1, "INFLOW - INT'L SALES", font=_BOLD)
@@ -4977,10 +5004,114 @@ def _write_irr_sheet(ws):
         _c(row, 1, data["label"])
         for col in range(Q_START, Q_END + 1):
             v = data["q"].get(col, 0)
-            _c(row, col, v, fmt="0.0000")
+            _c(row, col, v, fmt=_PCT)
         for a_col in range(A_START, A_END + 1):
             v = data["a"].get(a_col, 0)
-            _c(row, a_col, v, fmt="0.0000")
+            _c(row, a_col, v, fmt=_PCT)
+
+    # ── Post-data styling ──────────────────────────────────────────────────────
+
+    # Row 1: title grey (already filled), make font bold+white stand out
+    for c in range(1, BE_COL + 1):
+        ws.cell(row=1, column=c).fill = _GREY_FILL
+    ws.cell(row=1, column=1).font = Font(bold=True, size=12)
+
+    # C2: yellow "fill in Q1" reminder
+    ws.cell(row=2, column=3).fill = _YELLOW_FILL
+
+    # Rows 3-5: light blue column-header band across quarterly + annual cols
+    _fill_range(3, 3, Q_START, Q_END, _HDR_FILL)
+    _fill_range(3, 3, A_START, A_END, _HDR_FILL)
+    _fill_range(4, 5, Q_START, Q_END, _HDR_FILL)
+    _fill_range(4, 5, A_START, A_END, _HDR_FILL)
+    # Bottom border on row 5 (separates headers from data)
+    _border_bottom(5, 1, BE_COL)
+
+    # Row 6 "Collections from" — bottom border
+    _border_bottom(6, 1, BD_COL)
+
+    # Row 9 — bottom border (last broadcaster)
+    _border_bottom(9, 1, BD_COL)
+
+    # Row 12 Tax Credit — top + bottom border
+    _border_top(12, 1, BD_COL)
+    _border_bottom(12, 1, BD_COL)
+
+    # Row 16 International sales — bottom border
+    _border_bottom(16, 1, BE_COL)
+
+    # Row 18 Sub-total inflows — grey fill + top+bottom border
+    _fill_range(18, 18, 1, BD_COL, _GREY_FILL)
+    _border_top(18, 1, BD_COL)
+    _border_bottom(18, 1, BD_COL)
+
+    # Row 20 Outflows header — bottom border
+    _border_bottom(20, 1, BD_COL)
+
+    # Row 25 Sub-total outflows — grey fill + top+bottom border
+    _fill_range(25, 25, 1, BD_COL, _GREY_FILL)
+    _border_top(25, 1, BD_COL)
+    _border_bottom(25, 1, BD_COL)
+
+    # Row 27 Net cash movement — grey fill + top + double bottom border
+    _fill_range(27, 27, 1, BD_COL, _GREY_FILL)
+    _border_top_double_bottom(27, 1, BD_COL)
+
+    # Rows 29-32 internals block — light indent, bottom border on row 32
+    _border_bottom(32, 1, 2)
+
+    # Row 33 IRR calc — yellow highlight
+    ws.cell(row=33, column=1).font = _BOLD
+    ws.cell(row=33, column=2).fill = _YELLOW_FILL
+    ws.cell(row=33, column=2).font = Font(bold=True, size=11)
+    _border_top_double_bottom(33, 1, 2)
+
+    # Row 37 Back-end calcs section header — grey fill + bottom border
+    _fill_range(37, 37, 1, BD_COL, _GREY_FILL)
+    ws.cell(row=37, column=1).font = _BOLD
+    _border_bottom(37, 1, BD_COL)
+
+    # Row 43 Net cumulative cash — bottom border
+    _border_bottom(43, 1, BD_COL)
+
+    # Row 45 Back-end — bottom border
+    _border_bottom(45, 1, BD_COL)
+
+    # Row 46 Movement on back-end — bottom border
+    _border_bottom(46, 1, BD_COL)
+
+    # Row 49 Workings section header — grey fill + bottom border
+    _fill_range(49, 49, 1, BD_COL, _GREY_FILL)
+    ws.cell(row=49, column=1).font = _BOLD
+    _border_bottom(49, 1, BD_COL)
+
+    # Genre table rows 54-57 — borders + header fill
+    _fill_range(54, 54, 1, 4, _HDR_FILL)
+    for r in range(54, 58):
+        for c in range(1, 5):
+            ws.cell(row=r, column=c).border = Border(
+                top=_T, bottom=_T, left=_T, right=_T)
+
+    # Row 59 Back-end on ultimates — grey fill + bottom border
+    _fill_range(59, 59, 1, 4, _GREY_FILL)
+    ws.cell(row=59, column=1).font = _BOLD
+    _border_bottom(59, 1, 4)
+    _border_bottom(65, 1, 2)
+
+    # OUTFLOW/INFLOW section headers (rows 67, 71, 75, 79) — blue header fill
+    for hdr_row in [67, 71, 75, 79]:
+        _fill_range(hdr_row, hdr_row, 1, BD_COL, _SUBHDR_FILL)
+        ws.cell(row=hdr_row, column=1).font = _BOLD
+        _border_bottom(hdr_row, 1, BD_COL)
+
+    # Q-label rows under each schedule (68, 72, 76, 80) — light header fill
+    for q_row in [68, 72, 76, 80]:
+        _fill_range(q_row, q_row, Q_START, Q_END, _HDR_FILL)
+        _border_bottom(q_row, 1, BD_COL)
+
+    # Int'l sales rows 81-83 — teal fill on non-zero % cells
+    for intl_row in [81, 82, 83]:
+        _border_bottom(intl_row, 1, BD_COL)
 
     # ── Freeze panes ──────────────────────────────────────────────────────────
     ws.freeze_panes = "C6"
