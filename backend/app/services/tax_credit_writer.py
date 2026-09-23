@@ -3605,9 +3605,9 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
           f"=IFERROR(D{R_DIST}/'Breakdown'!$C$7,0)",
           font=_CAL_BOLD, align=_RIGHT, fmt=FMT_PCT)
 
-    # ── Row 22: Cineflix Rights (sub-label, italic) ───────────────────────────
+    # ── Row 22: Cineflix Media Inc. (sub-label, italic) ───────────────────────────
     R_CINEF = 22
-    _cell(R_CINEF, 2, "Cineflix Rights", font=_CAL_ITALIC)
+    _cell(R_CINEF, 2, "Cineflix Media Inc.", font=_CAL_ITALIC)
     _cell(R_CINEF, 3)
     _cell(R_CINEF, 4)
     _cell(R_CINEF, 5)
