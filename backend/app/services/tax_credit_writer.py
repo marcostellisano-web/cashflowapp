@@ -1722,14 +1722,22 @@ def _write_breakout_budget(
                 # Bible columns are OUT, Prov Labour, Fed Labour, Prov Svc,
                 # Svc Property, and Fed Svc.
                 source_by_basis = (3, 4, 5, 6, 7, 8)
-                raw_basis = [
-                    (
-                        f'=IFERROR(VLOOKUP(TEXT($A{row_idx},"0000"),'
-                        f"'Breakout Bible'!$A$5:$H${bible_last_row},"
-                        f'{source_col},FALSE),"")'
-                    )
-                    for source_col in source_by_basis
-                ]
+                lookup_prefix = (
+                    f'VLOOKUP(TEXT($A{row_idx},"0000"),'
+                    f"'Breakout Bible'!$A$5:$H${bible_last_row}"
+                )
+                raw_basis = []
+                for source_col in source_by_basis:
+                    lookup = f"{lookup_prefix},{source_col},FALSE)"
+                    if source_col == 3:
+                        # VLOOKUP returns numeric zero for a genuinely blank
+                        # source cell.  OUT is an indicator, so normalize every
+                        # non-OUT result back to a visually blank cell.
+                        raw_basis.append(
+                            f'=IFERROR(IF({lookup}="OUT","OUT",""),"")'
+                        )
+                    else:
+                        raw_basis.append(f'=IFERROR({lookup},"")')
 
             for bcol, bval in zip(basis_cols, raw_basis):
                 c = ws.cell(row=row_idx, column=bcol, value=bval)

@@ -156,11 +156,17 @@ def test_tax_credit_workbook_bible_drives_breakout_basis_columns():
         23: "H",  # Fed Svc Labour %
     }
     for breakout_col, bible_col in expected_refs.items():
-        assert breakout.cell(detail_row, breakout_col).value == (
-            f'=IFERROR(VLOOKUP(TEXT($A{detail_row},"0000"),'
+        lookup = (
+            f'VLOOKUP(TEXT($A{detail_row},"0000"),'
             f"'Breakout Bible'!$A$5:$H${bible.max_row},"
-            f'{ord(bible_col) - ord("A") + 1},FALSE),"")'
+            f'{ord(bible_col) - ord("A") + 1},FALSE)'
         )
+        expected = (
+            f'=IFERROR(IF({lookup}="OUT","OUT",""),"")'
+            if bible_col == "C"
+            else f'=IFERROR({lookup},"")'
+        )
+        assert breakout.cell(detail_row, breakout_col).value == expected
 
     # Labour/service calculations tolerate blank or accidentally textual Bible
     # values rather than propagating #VALUE! through the filing workbook.
