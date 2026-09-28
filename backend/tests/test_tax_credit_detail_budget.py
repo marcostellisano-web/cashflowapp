@@ -174,3 +174,15 @@ def test_tax_credit_workbook_bible_drives_breakout_basis_columns():
         f'=IF(R{detail_row}="FOR",0,'
         f'IFERROR(IF(U{detail_row}>0,O{detail_row}*U{detail_row},0),0))'
     )
+    assert breakout.cell(detail_row, 29).value == (
+        f'=IF(OR(R{detail_row}="FOR",Y{detail_row}="OUT"),0,'
+        f'IFERROR(IF(AB{detail_row}>0,O{detail_row}*AB{detail_row},0),0))'
+    )
+    assert breakout.cell(detail_row, 32).value == (
+        f'=IF(OR(R{detail_row}="FOR",Y{detail_row}="OUT"),0,'
+        f'IFERROR(IF(AD{detail_row}>0,O{detail_row}*AD{detail_row},0),0))'
+    )
+    assert breakout.cell(detail_row, 33).value == (
+        f'=IF(OR(R{detail_row}="FOR",Y{detail_row}="OUT"),0,'
+        f'IFERROR(IF(AE{detail_row}>0,Q{detail_row}*AE{detail_row},0),0))'
+    )

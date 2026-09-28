@@ -1776,11 +1776,13 @@ def _write_breakout_budget(
             calc_formulas = [
                 # Non-Provincial Spend: triggered by either "OUT" (bible) or "FOR" (foreign currency)
                 f'=IF(OR({np_l}{row_idx}="OUT",{for_l}{row_idx}="FOR"),Q{row_idx},0)',
-                # Foreign rows ("FOR") are ineligible for labour and services property credits
-                f'=IF({for_l}{row_idx}="FOR",0,IFERROR(IF({pl_l}{row_idx}>0,O{row_idx}*{pl_l}{row_idx},0),0))',
+                # Foreign rows ("FOR") are ineligible for all credits. Rows
+                # classified OUT are additionally ineligible for provincial
+                # labour, provincial service labour, and service property.
+                f'=IF(OR({for_l}{row_idx}="FOR",{np_l}{row_idx}="OUT"),0,IFERROR(IF({pl_l}{row_idx}>0,O{row_idx}*{pl_l}{row_idx},0),0))',
                 f'=IF({for_l}{row_idx}="FOR",0,IFERROR(IF({fl_l}{row_idx}>0,O{row_idx}*{fl_l}{row_idx},0),0))',
-                f'=IF({for_l}{row_idx}="FOR",0,IFERROR(IF({psl_l}{row_idx}>0,O{row_idx}*{psl_l}{row_idx},0),0))',
-                f'=IF({for_l}{row_idx}="FOR",0,IFERROR(IF({sp_l}{row_idx}>0,Q{row_idx}*{sp_l}{row_idx},0),0))',
+                f'=IF(OR({for_l}{row_idx}="FOR",{np_l}{row_idx}="OUT"),0,IFERROR(IF({psl_l}{row_idx}>0,O{row_idx}*{psl_l}{row_idx},0),0))',
+                f'=IF(OR({for_l}{row_idx}="FOR",{np_l}{row_idx}="OUT"),0,IFERROR(IF({sp_l}{row_idx}>0,Q{row_idx}*{sp_l}{row_idx},0),0))',
                 f'=IF({for_l}{row_idx}="FOR",0,IFERROR(IF({fsl_l}{row_idx}>0,O{row_idx}*{fsl_l}{row_idx},0),0))',
                 # Foreign Spend: Grand Total when the Foreign column reads "FOR"
                 f'=IF({for_l}{row_idx}="FOR",Q{row_idx},0)',
