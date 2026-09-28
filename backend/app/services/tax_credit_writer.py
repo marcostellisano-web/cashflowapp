@@ -1313,6 +1313,7 @@ def _write_breakout_budget(
     ]
     # Pre-compute column letters once (used in per-row formula strings)
     basis_letters = [get_column_letter(c) for c in basis_cols]
+    bible_last_row = max((bible_row_by_code or {}).values(), default=4)
 
     # ── Headers & widths ─────────────────────────────────────────────────────
     headers = [
@@ -1723,8 +1724,9 @@ def _write_breakout_budget(
                 source_by_basis = (3, 4, 5, 6, 7, 8)
                 raw_basis = [
                     (
-                        f'=IF(\'Breakout Bible\'!{get_column_letter(source_col)}{bible_row}="","",'
-                        f"'Breakout Bible'!{get_column_letter(source_col)}{bible_row})"
+                        f'=IFERROR(VLOOKUP(TEXT($A{row_idx},"0000"),'
+                        f"'Breakout Bible'!$A$5:$H${bible_last_row},"
+                        f'{source_col},FALSE),"")'
                     )
                     for source_col in source_by_basis
                 ]
@@ -1767,11 +1769,11 @@ def _write_breakout_budget(
                 # Non-Provincial Spend: triggered by either "OUT" (bible) or "FOR" (foreign currency)
                 f'=IF(OR({np_l}{row_idx}="OUT",{for_l}{row_idx}="FOR"),Q{row_idx},0)',
                 # Foreign rows ("FOR") are ineligible for labour and services property credits
-                f'=IF({for_l}{row_idx}="FOR",0,IF({pl_l}{row_idx}>0,O{row_idx}*{pl_l}{row_idx},0))',
-                f'=IF({for_l}{row_idx}="FOR",0,IF({fl_l}{row_idx}>0,O{row_idx}*{fl_l}{row_idx},0))',
-                f'=IF({for_l}{row_idx}="FOR",0,IF({psl_l}{row_idx}>0,O{row_idx}*{psl_l}{row_idx},0))',
-                f'=IF({for_l}{row_idx}="FOR",0,IF({sp_l}{row_idx}>0,Q{row_idx}*{sp_l}{row_idx},0))',
-                f'=IF({for_l}{row_idx}="FOR",0,IF({fsl_l}{row_idx}>0,O{row_idx}*{fsl_l}{row_idx},0))',
+                f'=IF({for_l}{row_idx}="FOR",0,IFERROR(IF({pl_l}{row_idx}>0,O{row_idx}*{pl_l}{row_idx},0),0))',
+                f'=IF({for_l}{row_idx}="FOR",0,IFERROR(IF({fl_l}{row_idx}>0,O{row_idx}*{fl_l}{row_idx},0),0))',
+                f'=IF({for_l}{row_idx}="FOR",0,IFERROR(IF({psl_l}{row_idx}>0,O{row_idx}*{psl_l}{row_idx},0),0))',
+                f'=IF({for_l}{row_idx}="FOR",0,IFERROR(IF({sp_l}{row_idx}>0,Q{row_idx}*{sp_l}{row_idx},0),0))',
+                f'=IF({for_l}{row_idx}="FOR",0,IFERROR(IF({fsl_l}{row_idx}>0,O{row_idx}*{fsl_l}{row_idx},0),0))',
                 # Foreign Spend: Grand Total when the Foreign column reads "FOR"
                 f'=IF({for_l}{row_idx}="FOR",Q{row_idx},0)',
             ]

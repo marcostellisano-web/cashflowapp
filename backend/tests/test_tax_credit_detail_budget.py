@@ -157,6 +157,14 @@ def test_tax_credit_workbook_bible_drives_breakout_basis_columns():
     }
     for breakout_col, bible_col in expected_refs.items():
         assert breakout.cell(detail_row, breakout_col).value == (
-            f'=IF(\'Breakout Bible\'!{bible_col}{bible_row}="","",'
-            f"'Breakout Bible'!{bible_col}{bible_row})"
+            f'=IFERROR(VLOOKUP(TEXT($A{detail_row},"0000"),'
+            f"'Breakout Bible'!$A$5:$H${bible.max_row},"
+            f'{ord(bible_col) - ord("A") + 1},FALSE),"")'
         )
+
+    # Labour/service calculations tolerate blank or accidentally textual Bible
+    # values rather than propagating #VALUE! through the filing workbook.
+    assert breakout.cell(detail_row, 22).value == (
+        f'=IF(R{detail_row}="FOR",0,'
+        f'IFERROR(IF(U{detail_row}>0,O{detail_row}*U{detail_row},0),0))'
+    )
