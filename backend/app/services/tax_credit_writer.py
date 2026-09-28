@@ -1186,6 +1186,7 @@ def _write_breakout_budget(
     budget: ParsedBudget,
     overrides: dict | None = None,
     effective_bible: dict | None = None,
+    bible_last_row: int | None = None,
 ) -> None:
     """Generate the Breakout Budget tab.
 
@@ -1711,12 +1712,26 @@ def _write_breakout_budget(
                 fsl  if fsl > 0 else None,
             ]
 
+            if bible_last_row is not None:
+                # Match by account code so sorting the Bible keeps rules attached
+                # to their account. Missing codes surface as #N/A for review.
+                key = f'SUBSTITUTE(SUBSTITUTE($A{row_idx},".","")," ","")'
+                raw_basis = [
+                    f'=IF(INDEX(\'Bible\'!$C$5:$C${bible_last_row},'
+                    f'MATCH({key},\'Bible\'!$A$5:$A${bible_last_row},0))="OUT","OUT","")',
+                    *[
+                        f'=INDEX(\'Bible\'!${col}$5:${col}${bible_last_row},'
+                        f'MATCH({key},\'Bible\'!$A$5:$A${bible_last_row},0))'
+                        for col in ("D", "E", "F", "G", "H")
+                    ],
+                ]
+
             for bcol, bval in zip(basis_cols, raw_basis):
                 c = ws.cell(row=row_idx, column=bcol, value=bval)
                 c.font = _NORMAL
                 c.border = _NO_BORDER
                 c.alignment = _CENTER
-                if isinstance(bval, float):
+                if bcol != basis_cols[0]:
                     c.number_format = _PERCENTAGE_FORMAT
 
             # Foreign column: Excel formula by default; hard-coded when overridden
@@ -2544,13 +2559,21 @@ def write_bible_excel(entries: list[dict]) -> BytesIO:
         prov_svc_labour_pct, svc_property_pct, fed_svc_labour_pct,
         is_customized (bool – True if differs from hardcoded default)
     """
+    wb = Workbook()
+    _write_bible_sheet(wb.active, entries)
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def _write_bible_sheet(ws, entries: list[dict]) -> None:
+    """Shared layout for standalone and filing-workbook Bible exports."""
     _CUSTOM_FILL = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
     _HDR_FILL    = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
     _HDR_FONT    = Font(bold=True, color="FFFFFF", size=10)
     _PCT_FMT     = "0%"
 
-    wb = Workbook()
-    ws = wb.active
     ws.title = "Breakout Bible"
 
     # ── column widths ────────────────────────────────────────────
@@ -2612,10 +2635,8 @@ def write_bible_excel(entries: list[dict]) -> BytesIO:
             val = entry.get(key, 0.0) or 0.0
             _dc(col, val if val else None, fmt=_PCT_FMT, align=_RIGHT)
 
-    buffer = BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
-    return buffer
+    ws.freeze_panes = "C5"
+    ws.auto_filter.ref = f"A4:H{max(4, ws.max_row)}"
 
 
 def _write_breakdown_sheet(ws, title: str, num_episodes: int | None = None) -> None:
@@ -5120,6 +5141,38 @@ def _write_irr_sheet(ws):
     ws.sheet_properties.tabColor = "A8FFC1"
 
 
+
+def _filing_bible_entries(budget, effective_bible, overrides, bible_descriptions=None):
+    """Resolve defaults, global rules and project overrides once for export."""
+    fields = ("is_non_prov", "prov_labour_pct", "fed_labour_pct",
+              "prov_svc_labour_pct", "svc_property_pct", "fed_svc_labour_pct")
+    descriptions = dict(BIBLE_DESCRIPTIONS)
+    descriptions.update({_normalize_account_code(i.code): i.description
+                         for i in budget.line_items})
+    descriptions.update(bible_descriptions or {})
+    codes = set(effective_bible) | set(overrides)
+    codes.update(_normalize_account_code(r.account) for r in budget.detail_rows)
+    entries = []
+    for code in sorted(codes):
+        values = effective_bible.get(code, (False, 0, 0, 0, 0, 0))
+        entry = dict(zip(fields, values))
+        ov = overrides.get(code)
+        if ov is not None:
+            get = ov.get if isinstance(ov, dict) else lambda f: getattr(ov, f, None)
+            for field in fields:
+                value = get(field)
+                if value is not None:
+                    entry[field] = value
+            description = get("description") or descriptions.get(code, "")
+        else:
+            description = descriptions.get(code, "")
+        entry.update(account_code=code, description=description,
+                     is_customized=tuple(entry[f] for f in fields)
+                     != BREAKOUT_BIBLE.get(code, (False, 0, 0, 0, 0, 0)))
+        entries.append(entry)
+    return entries
+
+
 def write_tax_credit_excel(
     budget: ParsedBudget,
     title: str,
@@ -5127,6 +5180,7 @@ def write_tax_credit_excel(
     global_bible: dict | None = None,
     num_episodes: int | None = None,
     duration_minutes: int | None = None,
+    bible_descriptions: dict[str, str] | None = None,
 ) -> BytesIO:
     """Build a tax credit filing workbook and return as BytesIO.
 
@@ -5156,7 +5210,17 @@ def write_tax_credit_excel(
     _write_detail_budget(ws_detail, budget)
 
     ws_breakout = wb.create_sheet("Breakout Budget")
-    _write_breakout_budget(ws_breakout, budget, overrides or {}, effective_bible)
+    entries = _filing_bible_entries(budget, effective_bible, overrides or {}, bible_descriptions)
+    ws_bible = wb.create_sheet("Bible")
+    _write_bible_sheet(ws_bible, entries)
+    ws_bible.title = "Bible"
+    ws_bible["A2"] = "Edit OUT and percentages here to update Breakout Budget. Use OUT or blank; enter rates as percentages."
+    ws_bible.merge_cells("A2:H2")
+    ws_bible["A2"].alignment = Alignment(wrap_text=True, vertical="center")
+    ws_bible.row_dimensions[2].height = 30
+    ws_bible.sheet_properties.tabColor = "D9EAD3"
+    _write_breakout_budget(ws_breakout, budget, overrides or {}, effective_bible,
+                           bible_last_row=max(5, ws_bible.max_row))
     ws_breakout.sheet_properties.tabColor = "B4FFF8"
 
     ws_breakdown = wb.create_sheet("Breakdown")
