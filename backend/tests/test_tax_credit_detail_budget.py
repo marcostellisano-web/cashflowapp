@@ -96,3 +96,67 @@ def test_tax_credit_workbook_contains_detail_budget_tab_with_group_totals():
     assert ws["B1"].border.left is None or ws["B1"].border.left.style is None
     assert ws["B1"].border.right is None or ws["B1"].border.right.style is None
     assert ws["K1"].border.right.style == "thin"
+
+
+def test_tax_credit_workbook_bible_drives_breakout_basis_columns():
+    budget = ParsedBudget(
+        line_items=[
+            BudgetLineItem(
+                code="0201",
+                description="Writer(s)",
+                total=1000,
+                category=BudgetCategory.ABOVE_THE_LINE,
+            ),
+        ],
+        total_budget=1000,
+        source_filename="test.xlsx",
+        detail_rows=[
+            BudgetDetailRow(
+                account="0201",
+                description="Writer fee",
+                currency="CAD",
+                subtotal=1000,
+            ),
+        ],
+    )
+    overrides = {
+        "0201": {
+            "is_foreign": None,
+            "is_non_prov": True,
+            "prov_labour_pct": 0.8,
+            "fed_labour_pct": 0.85,
+            "prov_svc_labour_pct": 0.7,
+            "svc_property_pct": 0.1,
+            "fed_svc_labour_pct": 0.75,
+        }
+    }
+
+    output = write_tax_credit_excel(budget, "Test", overrides=overrides)
+    wb = openpyxl.load_workbook(output, data_only=False)
+
+    assert "Breakout Bible" in wb.sheetnames
+    bible = wb["Breakout Bible"]
+    bible_row = next(row for row in range(5, bible.max_row + 1) if bible.cell(row, 1).value == "0201")
+    assert [bible.cell(bible_row, col).value for col in range(3, 9)] == [
+        "OUT", 0.8, 0.85, 0.7, 0.1, 0.75,
+    ]
+
+    breakout = wb["Breakout Budget"]
+    detail_row = next(
+        row
+        for row in range(1, breakout.max_row + 1)
+        if breakout.cell(row, 1).value == "0201" and breakout.cell(row, 3).value == "Writer fee"
+    )
+    expected_refs = {
+        25: "C",  # OUT / Non-Prov
+        28: "D",  # Prov Labour %
+        21: "E",  # Fed Labour %
+        30: "F",  # Prov Svc Labour %
+        31: "G",  # Svc Property %
+        23: "H",  # Fed Svc Labour %
+    }
+    for breakout_col, bible_col in expected_refs.items():
+        assert breakout.cell(detail_row, breakout_col).value == (
+            f'=IF(\'Breakout Bible\'!{bible_col}{bible_row}="","",'
+            f"'Breakout Bible'!{bible_col}{bible_row})"
+        )
