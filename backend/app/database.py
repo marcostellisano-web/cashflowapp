@@ -7,17 +7,37 @@ Set DATABASE_URL environment variable to switch:
 """
 
 import os
+from threading import Lock
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import NullPool
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bible.db")
+def _default_database_url() -> str:
+    """Return a writable SQLite location for the current runtime.
 
-# Some providers (Heroku, Render, Neon) emit postgres:// which SQLAlchemy requires
-# as postgresql://
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    Vercel's deployed source directory is read-only.  Without a configured
+    production database, using ``./bible.db`` there prevents the FastAPI app
+    from starting, which makes even database-free routes such as budget upload
+    return a generic server error.  ``/tmp`` is Vercel's writable fallback.
+    """
+    if os.getenv("VERCEL"):
+        return "sqlite:////tmp/cashflowapp-bible.db"
+    return "sqlite:///./bible.db"
+
+
+def _normalize_database_url(url: str) -> str:
+    """Select the installed psycopg2 driver for provider PostgreSQL URLs."""
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg2://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    return url
+
+
+DATABASE_URL = _normalize_database_url(
+    os.getenv("DATABASE_URL") or _default_database_url()
+)
 
 _is_sqlite = DATABASE_URL.startswith("sqlite")
 
@@ -35,6 +55,8 @@ else:
     engine = create_engine(DATABASE_URL, poolclass=NullPool)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+_initialization_lock = Lock()
+_initialized = False
 
 
 class Base(DeclarativeBase):
@@ -43,6 +65,7 @@ class Base(DeclarativeBase):
 
 def get_db():
     """FastAPI dependency that yields a database session."""
+    ensure_db_initialized()
     db = SessionLocal()
     try:
         yield db
@@ -56,6 +79,22 @@ def init_db() -> None:
     from app.models import db_models  # noqa: F401
     Base.metadata.create_all(bind=engine)
     _migrate()
+
+
+def ensure_db_initialized() -> None:
+    """Initialize storage on first use by an endpoint that needs it.
+
+    Keeping this out of application startup allows database-free routes such
+    as budget upload and health checks to remain available when a production
+    database is temporarily unreachable or misconfigured.
+    """
+    global _initialized
+    if _initialized:
+        return
+    with _initialization_lock:
+        if not _initialized:
+            init_db()
+            _initialized = True
 
 
 def _migrate() -> None:

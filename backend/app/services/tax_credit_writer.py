@@ -1186,6 +1186,7 @@ def _write_breakout_budget(
     budget: ParsedBudget,
     overrides: dict | None = None,
     effective_bible: dict | None = None,
+    bible_row_by_code: dict[str, int] | None = None,
 ) -> None:
     """Generate the Breakout Budget tab.
 
@@ -1312,6 +1313,7 @@ def _write_breakout_budget(
     ]
     # Pre-compute column letters once (used in per-row formula strings)
     basis_letters = [get_column_letter(c) for c in basis_cols]
+    bible_last_row = max((bible_row_by_code or {}).values(), default=4)
 
     # ── Headers & widths ─────────────────────────────────────────────────────
     headers = [
@@ -1711,12 +1713,38 @@ def _write_breakout_budget(
                 fsl  if fsl > 0 else None,
             ]
 
+            # Filing workbooks include an editable Breakout Bible sheet.  Link
+            # every basis cell to that sheet so changing an OUT flag or a
+            # percentage recalculates the Breakout Budget (and all downstream
+            # tax-credit sheets) directly in Excel.
+            bible_row = (bible_row_by_code or {}).get(normalized)
+            if bible_row is not None:
+                # Bible columns are OUT, Prov Labour, Fed Labour, Prov Svc,
+                # Svc Property, and Fed Svc.
+                source_by_basis = (3, 4, 5, 6, 7, 8)
+                lookup_prefix = (
+                    f'VLOOKUP(TEXT($A{row_idx},"0000"),'
+                    f"'Breakout Bible'!$A$5:$H${bible_last_row}"
+                )
+                raw_basis = []
+                for source_col in source_by_basis:
+                    lookup = f"{lookup_prefix},{source_col},FALSE)"
+                    if source_col == 3:
+                        # VLOOKUP returns numeric zero for a genuinely blank
+                        # source cell.  OUT is an indicator, so normalize every
+                        # non-OUT result back to a visually blank cell.
+                        raw_basis.append(
+                            f'=IFERROR(IF({lookup}="OUT","OUT",""),"")'
+                        )
+                    else:
+                        raw_basis.append(f'=IFERROR({lookup},"")')
+
             for bcol, bval in zip(basis_cols, raw_basis):
                 c = ws.cell(row=row_idx, column=bcol, value=bval)
                 c.font = _NORMAL
                 c.border = _NO_BORDER
                 c.alignment = _CENTER
-                if isinstance(bval, float):
+                if isinstance(bval, float) or (bible_row is not None and bcol != non_prov_basis_col):
                     c.number_format = _PERCENTAGE_FORMAT
 
             # Foreign column: Excel formula by default; hard-coded when overridden
@@ -1748,12 +1776,14 @@ def _write_breakout_budget(
             calc_formulas = [
                 # Non-Provincial Spend: triggered by either "OUT" (bible) or "FOR" (foreign currency)
                 f'=IF(OR({np_l}{row_idx}="OUT",{for_l}{row_idx}="FOR"),Q{row_idx},0)',
-                # Foreign rows ("FOR") are ineligible for labour and services property credits
-                f'=IF({for_l}{row_idx}="FOR",0,IF({pl_l}{row_idx}>0,O{row_idx}*{pl_l}{row_idx},0))',
-                f'=IF({for_l}{row_idx}="FOR",0,IF({fl_l}{row_idx}>0,O{row_idx}*{fl_l}{row_idx},0))',
-                f'=IF({for_l}{row_idx}="FOR",0,IF({psl_l}{row_idx}>0,O{row_idx}*{psl_l}{row_idx},0))',
-                f'=IF({for_l}{row_idx}="FOR",0,IF({sp_l}{row_idx}>0,Q{row_idx}*{sp_l}{row_idx},0))',
-                f'=IF({for_l}{row_idx}="FOR",0,IF({fsl_l}{row_idx}>0,O{row_idx}*{fsl_l}{row_idx},0))',
+                # Foreign rows ("FOR") are ineligible for all credits. Rows
+                # classified OUT are additionally ineligible for provincial
+                # labour, provincial service labour, and service property.
+                f'=IF(OR({for_l}{row_idx}="FOR",{np_l}{row_idx}="OUT"),0,IFERROR(IF({pl_l}{row_idx}>0,O{row_idx}*{pl_l}{row_idx},0),0))',
+                f'=IF({for_l}{row_idx}="FOR",0,IFERROR(IF({fl_l}{row_idx}>0,O{row_idx}*{fl_l}{row_idx},0),0))',
+                f'=IF(OR({for_l}{row_idx}="FOR",{np_l}{row_idx}="OUT"),0,IFERROR(IF({psl_l}{row_idx}>0,O{row_idx}*{psl_l}{row_idx},0),0))',
+                f'=IF(OR({for_l}{row_idx}="FOR",{np_l}{row_idx}="OUT"),0,IFERROR(IF({sp_l}{row_idx}>0,Q{row_idx}*{sp_l}{row_idx},0),0))',
+                f'=IF({for_l}{row_idx}="FOR",0,IFERROR(IF({fsl_l}{row_idx}>0,O{row_idx}*{fsl_l}{row_idx},0),0))',
                 # Foreign Spend: Grand Total when the Foreign column reads "FOR"
                 f'=IF({for_l}{row_idx}="FOR",Q{row_idx},0)',
             ]
@@ -2536,21 +2566,13 @@ def _write_opstc_sheet(ws, title: str) -> None:
            align=_RIGHT, fmt=_PCT_FORMAT)
 
 
-def write_bible_excel(entries: list[dict]) -> BytesIO:
-    """Export the full breakout bible as a formatted Excel workbook.
-
-    ``entries`` is a list of dicts with keys:
-        account_code, description, is_non_prov, prov_labour_pct, fed_labour_pct,
-        prov_svc_labour_pct, svc_property_pct, fed_svc_labour_pct,
-        is_customized (bool – True if differs from hardcoded default)
-    """
+def _write_breakout_bible(ws, entries: list[dict]) -> dict[str, int]:
+    """Write an editable breakout bible and return account-code row numbers."""
     _CUSTOM_FILL = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
     _HDR_FILL    = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
     _HDR_FONT    = Font(bold=True, color="FFFFFF", size=10)
     _PCT_FMT     = "0%"
 
-    wb = Workbook()
-    ws = wb.active
     ws.title = "Breakout Bible"
 
     # ── column widths ────────────────────────────────────────────
@@ -2582,8 +2604,10 @@ def write_bible_excel(entries: list[dict]) -> BytesIO:
         c.border    = _THIN_BORDER
 
     # ── data rows ────────────────────────────────────────────────
+    row_by_code: dict[str, int] = {}
     for r_offset, entry in enumerate(entries):
         row = r_offset + 5
+        row_by_code[_normalize_account_code(entry["account_code"])] = row
         ws.row_dimensions[row].height = 15
         fill = _CUSTOM_FILL if entry.get("is_customized") else None
 
@@ -2611,6 +2635,23 @@ def write_bible_excel(entries: list[dict]) -> BytesIO:
         ]:
             val = entry.get(key, 0.0) or 0.0
             _dc(col, val if val else None, fmt=_PCT_FMT, align=_RIGHT)
+
+    ws.freeze_panes = "A5"
+    ws.auto_filter.ref = f"A4:H{max(4, len(entries) + 4)}"
+    ws.sheet_properties.tabColor = "FFF2CC"
+    return row_by_code
+
+
+def write_bible_excel(entries: list[dict]) -> BytesIO:
+    """Export the full breakout bible as a formatted Excel workbook.
+
+    ``entries`` is a list of dicts with keys:
+        account_code, description, is_non_prov, prov_labour_pct, fed_labour_pct,
+        prov_svc_labour_pct, svc_property_pct, fed_svc_labour_pct,
+        is_customized (bool – True if differs from hardcoded default)
+    """
+    wb = Workbook()
+    _write_breakout_bible(wb.active, entries)
 
     buffer = BytesIO()
     wb.save(buffer)
@@ -5139,8 +5180,60 @@ def write_tax_credit_excel(
     effective_bible = dict(BREAKOUT_BIBLE)
     if global_bible:
         effective_bible.update(global_bible)
+    normalized_overrides = {
+        _normalize_account_code(code): override
+        for code, override in (overrides or {}).items()
+    }
+
+    # Materialize the final, project-specific values in the workbook's Bible
+    # tab.  This makes the exported file self-contained and gives users one
+    # obvious place to adjust the classification after download.
+    descriptions = dict(BIBLE_DESCRIPTIONS)
+    descriptions.update({
+        _normalize_account_code(item.code): item.description
+        for item in budget.line_items
+        if item.description
+    })
+    all_codes = set(effective_bible)
+    all_codes.update(_normalize_account_code(row.account) for row in budget.detail_rows)
+    all_codes.update(normalized_overrides)
+
+    bible_entries: list[dict] = []
+    for code in sorted(all_codes, key=lambda value: (not value.isdigit(), int(value) if value.isdigit() else value)):
+        non_prov, pl, fl, psl, sp, fsl = effective_bible.get(
+            code, (False, 0.0, 0.0, 0.0, 0.0, 0.0)
+        )
+        ov = normalized_overrides.get(code)
+        if ov is not None:
+            get_value = (lambda field: getattr(ov, field, None)) if not isinstance(ov, dict) else ov.get
+
+            def apply_override(field, default):
+                value = get_value(field)
+                return default if value is None else value
+
+            non_prov = apply_override("is_non_prov", non_prov)
+            pl = apply_override("prov_labour_pct", pl)
+            fl = apply_override("fed_labour_pct", fl)
+            psl = apply_override("prov_svc_labour_pct", psl)
+            sp = apply_override("svc_property_pct", sp)
+            fsl = apply_override("fed_svc_labour_pct", fsl)
+
+        bible_entries.append({
+            "account_code": code,
+            "description": descriptions.get(code, ""),
+            "is_non_prov": non_prov,
+            "prov_labour_pct": pl,
+            "fed_labour_pct": fl,
+            "prov_svc_labour_pct": psl,
+            "svc_property_pct": sp,
+            "fed_svc_labour_pct": fsl,
+            "is_customized": code in (global_bible or {}) or ov is not None,
+        })
 
     wb = Workbook()
+    wb.calculation.fullCalcOnLoad = True
+    wb.calculation.forceFullCalc = True
+    wb.calculation.calcMode = "auto"
 
     # Remove the default empty sheet
     default_sheet = wb.active
@@ -5155,8 +5248,17 @@ def write_tax_credit_excel(
     ws_detail = wb.create_sheet("Detail Budget")
     _write_detail_budget(ws_detail, budget)
 
+    ws_bible = wb.create_sheet("Breakout Bible")
+    bible_row_by_code = _write_breakout_bible(ws_bible, bible_entries)
+
     ws_breakout = wb.create_sheet("Breakout Budget")
-    _write_breakout_budget(ws_breakout, budget, overrides or {}, effective_bible)
+    _write_breakout_budget(
+        ws_breakout,
+        budget,
+        normalized_overrides,
+        effective_bible,
+        bible_row_by_code,
+    )
     ws_breakout.sheet_properties.tabColor = "B4FFF8"
 
     ws_breakdown = wb.create_sheet("Breakdown")
