@@ -880,6 +880,14 @@ async def generate_tax_credit_excel(
         overrides_map = {ov.account_code: ov for ov in request.overrides}
 
     global_bible = _load_global_bible(db)
+    bible_descriptions = {
+        code: row.description for code, row in _get_active_preset_dict(db).items()
+        if row.description
+    }
+    bible_descriptions.update({
+        row.account_code: row.description for row in db.query(BreakoutBibleEntry).all()
+        if row.description
+    })
 
     buffer = write_tax_credit_excel(
         request.budget,
@@ -888,6 +896,7 @@ async def generate_tax_credit_excel(
         global_bible or None,
         num_episodes=request.num_episodes,
         duration_minutes=request.duration_minutes,
+        bible_descriptions=bible_descriptions,
     )
     filename = f"{request.title.replace(' ', '_')}_tax_credit_budget.xlsx"
 
