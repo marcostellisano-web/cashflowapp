@@ -13,7 +13,7 @@ router = APIRouter()
 
 @router.post("/upload", response_model=ParsedBudget)
 async def upload_budget(file: UploadFile = File(...)):
-    if not file.filename or not file.filename.endswith((".xlsx", ".xls")):
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
         raise HTTPException(status_code=400, detail="File must be an Excel file (.xlsx or .xls)")
 
     try:

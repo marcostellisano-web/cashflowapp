@@ -9,10 +9,23 @@ const BASE = '/api';
 export async function uploadBudget(file: File): Promise<ParsedBudget> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(`${BASE}/upload`, { method: 'POST', body: form });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/upload`, { method: 'POST', body: form });
+  } catch {
+    throw new Error('Could not reach the upload service. Please check your connection and try again.');
+  }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || 'Upload failed');
+    const responseBody = await res.text();
+    let detail = responseBody;
+    try {
+      const parsed = JSON.parse(responseBody) as { detail?: unknown };
+      if (typeof parsed.detail === 'string') detail = parsed.detail;
+    } catch {
+      // Non-JSON platform errors are shown as text below.
+    }
+    const status = `Upload failed (${res.status})`;
+    throw new Error(detail.trim() ? `${status}: ${detail.trim()}` : status);
   }
   return res.json();
 }

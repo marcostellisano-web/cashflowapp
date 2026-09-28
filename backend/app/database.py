@@ -12,7 +12,20 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import NullPool
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bible.db")
+def _default_database_url() -> str:
+    """Return a writable SQLite location for the current runtime.
+
+    Vercel's deployed source directory is read-only.  Without a configured
+    production database, using ``./bible.db`` there prevents the FastAPI app
+    from starting, which makes even database-free routes such as budget upload
+    return a generic server error.  ``/tmp`` is Vercel's writable fallback.
+    """
+    if os.getenv("VERCEL"):
+        return "sqlite:////tmp/cashflowapp-bible.db"
+    return "sqlite:///./bible.db"
+
+
+DATABASE_URL = os.getenv("DATABASE_URL") or _default_database_url()
 
 # Some providers (Heroku, Render, Neon) emit postgres:// which SQLAlchemy requires
 # as postgresql://
