@@ -281,7 +281,13 @@ export default function TaxCreditOutput({ budget, onBack }: TaxCreditOutputProps
           <li className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />
             <span>
-              <strong>Breakout Budget</strong> — Tax credit analysis with your adjusted FOR / OUT / labour % values
+              <strong>Breakout Budget</strong> — Tax credit analysis linked to the editable Bible tab
+            </span>
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />
+            <span>
+              <strong>Bible</strong> — Account rules, OUT flags, and percentages; edits recalculate Breakout Budget
             </span>
           </li>
           <li className="flex items-center gap-2">
