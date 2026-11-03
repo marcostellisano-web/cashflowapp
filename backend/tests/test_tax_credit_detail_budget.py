@@ -186,3 +186,41 @@ def test_tax_credit_workbook_bible_drives_breakout_basis_columns():
         f'=IF(OR(R{detail_row}="FOR",Y{detail_row}="OUT"),0,'
         f'IFERROR(IF(AE{detail_row}>0,Q{detail_row}*AE{detail_row},0),0))'
     )
+
+
+def test_tax_credit_workbook_int_tab_lists_internals_rows_by_formula():
+    budget = ParsedBudget(
+        line_items=[
+            BudgetLineItem(code="0201", description="Writer(s)", total=1000,
+                           category=BudgetCategory.ABOVE_THE_LINE),
+            BudgetLineItem(code="1101", description="Producer", total=500,
+                           category=BudgetCategory.ABOVE_THE_LINE),
+        ],
+        total_budget=1500,
+        source_filename="test.xlsx",
+        detail_rows=[
+            BudgetDetailRow(account="0201", description="Writer fee",
+                            currency="CAD", subtotal=1000, groups="Internal OH"),
+            BudgetDetailRow(account="1101", description="Producer fee",
+                            currency="CAD", subtotal=500),
+        ],
+    )
+
+    output = write_tax_credit_excel(budget, "Test")
+    wb = openpyxl.load_workbook(output, data_only=False)
+
+    assert "int" in wb.sheetnames
+    assert wb.sheetnames.index("int") == wb.sheetnames.index("Breakout Budget") + 1
+    ws = wb["int"]
+    assert [ws.cell(1, c).value for c in range(1, 8)] == [
+        "Account", "Account Description", "Description", "Currency",
+        "Subtotal", "Fringes", "Grand Total",
+    ]
+    # Every data cell is a formula pulling from the Breakout Budget.
+    helper = ws["H3"].value
+    assert helper.startswith("=IFERROR(_xlfn.AGGREGATE(15,6,ROW(")
+    assert "'Breakout Budget'!$AH$4:" in helper
+    assert ws["A3"].value == "=IF($H3=\"\",\"\",INDEX('Breakout Budget'!$A:$A,$H3))"
+    assert ws["G3"].value == "=IF($H3=\"\",\"\",INDEX('Breakout Budget'!$Q:$Q,$H3))"
+    assert ws["G2"].value.startswith("=SUM(G3:G")
+    assert ws.column_dimensions["H"].hidden
