@@ -221,6 +221,8 @@ def test_tax_credit_workbook_int_tab_lists_internals_rows_by_formula():
     assert helper.startswith("=IFERROR(_xlfn.AGGREGATE(15,6,ROW(")
     assert "'Breakout Budget'!$AH$4:" in helper
     assert ws["A3"].value == "=IF($H3=\"\",\"\",INDEX('Breakout Budget'!$A:$A,$H3))"
+    assert ws["B3"].value == "=IF($H3=\"\",\"\",PROPER(INDEX('Breakout Budget'!$B:$B,$H3)&\"\"))"
+    assert ws["C3"].value == "=IF($H3=\"\",\"\",INDEX('Breakout Budget'!$C:$C,$H3)&\"\")"
     assert ws["G3"].value == "=IF($H3=\"\",\"\",INDEX('Breakout Budget'!$Q:$Q,$H3))"
     assert ws["G2"].value.startswith("=SUM(G3:G")
     assert ws.column_dimensions["H"].hidden

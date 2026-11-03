@@ -2157,9 +2157,17 @@ def _write_internals_sheet(ws, breakout_last_row: int, max_matches: int) -> None
             value=f'=IFERROR(_xlfn.AGGREGATE(15,6,ROW({rng("A")})/{condition},{k}),"")',
         )
         for col, (_label, src_col, _w, align, fmt) in enumerate(columns, start=1):
+            lookup = f"INDEX({src}!${src_col}:${src_col},${helper_letter}{r})"
+            if src_col == "B":
+                # Account descriptions arrive in ALL CAPS; show them as
+                # Proper Case.  &"" keeps a blank source cell blank.
+                lookup = f'PROPER({lookup}&"")'
+            elif src_col == "C":
+                # &"" stops a blank source cell from displaying as 0.
+                lookup = f'{lookup}&""'
             c = ws.cell(
                 row=r, column=col,
-                value=f'=IF(${helper_letter}{r}="","",INDEX({src}!${src_col}:${src_col},${helper_letter}{r}))',
+                value=f'=IF(${helper_letter}{r}="","",{lookup})',
             )
             c.font = _NORMAL
             c.alignment = align
