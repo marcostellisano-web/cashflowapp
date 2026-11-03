@@ -1187,8 +1187,8 @@ def _write_breakout_budget(
     overrides: dict | None = None,
     effective_bible: dict | None = None,
     bible_row_by_code: dict[str, int] | None = None,
-) -> None:
-    """Generate the Breakout Budget tab.
+) -> int:
+    """Generate the Breakout Budget tab and return its grand-total row number.
 
     Fixed columns (A–I):
       A: Account
@@ -2069,6 +2069,112 @@ def _write_breakout_budget(
                                top=bc.border.top, bottom=_MED)
 
     ws.freeze_panes = "A4"
+    return grand_total_row
+
+
+# Number of spare formula rows written below the expected matches on the
+# "int" tab, so rows added to the Breakout Budget in Excel are still picked up.
+_INT_SPARE_ROWS = 50
+
+
+def _write_internals_sheet(ws, breakout_last_row: int, max_matches: int) -> None:
+    """Generate the "int" tab: every Breakout Budget row with Internals > 0.
+
+    The tab is purely formula-driven.  A hidden helper column finds the
+    Breakout Budget row number of the n-th qualifying line (Internals column
+    AH > 0, excluding any TOTAL rows), and every visible column pulls its
+    value from that row with INDEX.  Editing the Breakout Budget in Excel
+    therefore updates this tab automatically.
+    """
+    ws.title = "int"
+    src = "'Breakout Budget'"
+    first_src_row = 4  # rows 1–3 are the header and pinned summary rows
+    last_src_row = breakout_last_row + _INT_SPARE_ROWS
+    rng = lambda col: f"{src}!${col}${first_src_row}:${col}${last_src_row}"
+
+    # (header, Breakout Budget column, width, alignment, number format)
+    columns = [
+        ("Account",             "A", 12, _LEFT,   None),
+        ("Account Description", "B", 34, _LEFT,   None),
+        ("Description",         "C", 40, _LEFT,   None),
+        ("Currency",            "F", 10, _CENTER, None),
+        ("Subtotal",            "O", 16, _RIGHT,  _ACCOUNTING_FORMAT),
+        ("Fringes",             "P", 16, _RIGHT,  _ACCOUNTING_FORMAT),
+        ("Grand Total",         "Q", 16, _RIGHT,  _ACCOUNTING_FORMAT),
+    ]
+    helper_col = len(columns) + 1
+    helper_letter = get_column_letter(helper_col)
+
+    first_data_row = 3
+    num_rows = max_matches + _INT_SPARE_ROWS
+    last_data_row = first_data_row + num_rows - 1
+
+    # ── Header row ──────────────────────────────────────────────────────────
+    for col, (label, _src, width, align, _fmt) in enumerate(columns, start=1):
+        c = ws.cell(row=1, column=col, value=label)
+        c.font = _BOLD
+        c.fill = _LIGHT_GRAY_FILL
+        c.border = _THIN_BORDER
+        c.alignment = _LEFT if align is _LEFT else _CENTER
+        ws.column_dimensions[get_column_letter(col)].width = width
+    hc = ws.cell(row=1, column=helper_col, value="Breakout Row")
+    hc.font = _BOLD
+    ws.column_dimensions[helper_letter].width = 12
+    ws.column_dimensions[helper_letter].hidden = True
+
+    # ── Total row (row 2) ───────────────────────────────────────────────────
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=4)
+    t = ws.cell(row=2, column=1, value="TOTAL INTERNALS")
+    t.font = _BOLD
+    t.alignment = _LEFT
+    for col in range(1, len(columns) + 1):
+        ws.cell(row=2, column=col).fill = _LIGHT_GRAY_FILL
+        ws.cell(row=2, column=col).border = _THIN_BORDER
+    for col, (_label, _src, _w, _align, fmt) in enumerate(columns, start=1):
+        if fmt is None:
+            continue
+        letter = get_column_letter(col)
+        c = ws.cell(
+            row=2, column=col,
+            value=f"=SUM({letter}{first_data_row}:{letter}{last_data_row})",
+        )
+        c.font = _BOLD
+        c.alignment = _RIGHT
+        c.number_format = fmt
+
+    # ── Formula rows ────────────────────────────────────────────────────────
+    # AGGREGATE(15, 6, …) = SMALL ignoring errors: dividing ROW() by the
+    # condition turns non-matching rows into #DIV/0!, which are skipped.
+    condition = (
+        f"(ISNUMBER({rng('AH')})*({rng('AH')}>0)"
+        f"*ISERROR(SEARCH(\"TOTAL\",{rng('A')})))"
+    )
+    for i in range(num_rows):
+        r = first_data_row + i
+        k = i + 1
+        ws.cell(
+            row=r, column=helper_col,
+            value=f'=IFERROR(_xlfn.AGGREGATE(15,6,ROW({rng("A")})/{condition},{k}),"")',
+        )
+        for col, (_label, src_col, _w, align, fmt) in enumerate(columns, start=1):
+            lookup = f"INDEX({src}!${src_col}:${src_col},${helper_letter}{r})"
+            if src_col == "B":
+                # Account descriptions arrive in ALL CAPS; show them as
+                # Proper Case.  &"" keeps a blank source cell blank.
+                lookup = f'PROPER({lookup}&"")'
+            elif src_col == "C":
+                # &"" stops a blank source cell from displaying as 0.
+                lookup = f'{lookup}&""'
+            c = ws.cell(
+                row=r, column=col,
+                value=f'=IF(${helper_letter}{r}="","",{lookup})',
+            )
+            c.font = _NORMAL
+            c.alignment = align
+            if fmt:
+                c.number_format = fmt
+
+    ws.freeze_panes = "A3"
 
 
 # ---------------------------------------------------------------------------
@@ -5252,7 +5358,7 @@ def write_tax_credit_excel(
     bible_row_by_code = _write_breakout_bible(ws_bible, bible_entries)
 
     ws_breakout = wb.create_sheet("Breakout Budget")
-    _write_breakout_budget(
+    breakout_last_row = _write_breakout_budget(
         ws_breakout,
         budget,
         normalized_overrides,
@@ -5260,6 +5366,10 @@ def write_tax_credit_excel(
         bible_row_by_code,
     )
     ws_breakout.sheet_properties.tabColor = "B4FFF8"
+
+    ws_int = wb.create_sheet("int")
+    _write_internals_sheet(ws_int, breakout_last_row, len(budget.detail_rows))
+    ws_int.sheet_properties.tabColor = "B4FFF8"
 
     ws_breakdown = wb.create_sheet("Breakdown")
     _write_breakdown_sheet(ws_breakdown, title, num_episodes=num_episodes)
