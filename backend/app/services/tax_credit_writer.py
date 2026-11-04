@@ -3692,19 +3692,19 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     _cell(R_BC1, 2, '=IF(Sales!B4="","",Sales!B4)')
     _cell(R_BC1, 4, f'=IF(Sales!B4="","",IFERROR(Sales!E4,0))', align=_RIGHT, fmt=FMT_NUM)
     _cell(R_BC1, 3, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$3,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC1, 5, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$7,0))', align=_RIGHT, fmt=FMT_PCT)
+    _cell(R_BC1, 5, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/$D$5,0))', align=_RIGHT, fmt=FMT_PCT)
 
     R_BC2 = 13
     _cell(R_BC2, 2, '=IF(Sales!B5="","",Sales!B5)')
     _cell(R_BC2, 4, f'=IF(Sales!B5="","",IFERROR(Sales!E5,0))', align=_RIGHT, fmt=FMT_NUM)
     _cell(R_BC2, 3, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$3,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC2, 5, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$7,0))', align=_RIGHT, fmt=FMT_PCT)
+    _cell(R_BC2, 5, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/$D$5,0))', align=_RIGHT, fmt=FMT_PCT)
 
     R_BC3 = 14
     _cell(R_BC3, 2, '=IF(Sales!B6="","",Sales!B6)')
     _cell(R_BC3, 4, f'=IF(Sales!B6="","",IFERROR(Sales!E6,0))', align=_RIGHT, fmt=FMT_NUM)
     _cell(R_BC3, 3, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$3,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC3, 5, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$7,0))', align=_RIGHT, fmt=FMT_PCT)
+    _cell(R_BC3, 5, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/$D$5,0))', align=_RIGHT, fmt=FMT_PCT)
 
     # ── Rows 15-16: blank ─────────────────────────────────────────────────────
     ws.row_dimensions[15].height = ROW_H
@@ -3718,7 +3718,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
           align=_RIGHT, fmt=FMT_NUM)
     _cell(R_ONT, 4, "='Ontario - OFTTC'!$C$29", align=_RIGHT, fmt=FMT_NUM)
     _cell(R_ONT, 5,
-          f"=IFERROR(D{R_ONT}/'Breakdown'!$C$7,0)", align=_RIGHT, fmt=FMT_PCT)
+          f"=IFERROR(D{R_ONT}/$D$5,0)", align=_RIGHT, fmt=FMT_PCT)
 
     # ── Row 18: Federal Production Tax Credit (OFTTC tab C53 = federal only) ──
     R_FED = 18
@@ -3728,7 +3728,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
           align=_RIGHT, fmt=FMT_NUM)
     _cell(R_FED, 4, "='Ontario - OFTTC'!$C$53", align=_RIGHT, fmt=FMT_NUM)
     _cell(R_FED, 5,
-          f"=IFERROR(D{R_FED}/'Breakdown'!$C$7,0)", align=_RIGHT, fmt=FMT_PCT)
+          f"=IFERROR(D{R_FED}/$D$5,0)", align=_RIGHT, fmt=FMT_PCT)
 
     # ── Rows 19-20: blank ─────────────────────────────────────────────────────
     ws.row_dimensions[19].height = ROW_H
@@ -3749,7 +3749,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
           font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_DIST, 4, dist_d, font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_DIST, 5,
-          f"=IFERROR(D{R_DIST}/'Breakdown'!$C$7,0)",
+          f"=IFERROR(D{R_DIST}/$D$5,0)",
           font=_CAL_BOLD, align=_RIGHT, fmt=FMT_PCT)
 
     # ── Row 22: Cineflix Media Inc. (sub-label, italic) ───────────────────────────
@@ -3768,7 +3768,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     _cell(R_TOTAL, 2, "Total",           font=_CAL_BOLD)
     _cell(R_TOTAL, 3, "=SUM(C11:C24)",   font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_TOTAL, 4, "=SUM(D11:D24)",   font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_TOTAL, 5, 1.0,               font=_CAL_BOLD, align=_RIGHT, fmt=FMT_PCT)
+    _cell(R_TOTAL, 5, "=SUM(E11:E24)", font=_CAL_BOLD, align=_RIGHT, fmt=FMT_PCT)
 
     # ── Row 26: blank bottom padding (inside box) ─────────────────────────────
     ws.row_dimensions[26].height = ROW_H
