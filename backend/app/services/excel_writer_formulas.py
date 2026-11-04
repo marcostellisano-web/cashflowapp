@@ -370,6 +370,53 @@ def _shift_cashflow_col_refs(wb, min_col_idx: int) -> None:
                     cell.value = formula
 
 
+_CELL_REF_RE = re.compile(r"(\$?)([A-Za-z]{1,3})(\$?)(\d+)")
+_COL_RANGE_RE = re.compile(r"^(\$?)([A-Za-z]{1,3}):(\$?)([A-Za-z]{1,3})$")
+
+
+def _shift_intra_sheet_col_refs(ws, min_col_idx: int) -> None:
+    """After insert_cols(min_col_idx), shift same-sheet references in ws.
+
+    openpyxl's insert_cols moves cell values but does NOT rewrite formulas, so
+    e.g. the WEEKLY TOTAL cell that moved from D to E still reads =SUM(D6:D15).
+    Every reference (without a sheet prefix) to a column >= min_col_idx is
+    bumped by +1; references to columns before it (A–C) are left alone.
+    """
+    from openpyxl.formula.tokenizer import Token, Tokenizer
+
+    def shift_col(letters: str) -> str:
+        idx = column_index_from_string(letters.upper())
+        return get_column_letter(idx + 1) if idx >= min_col_idx else letters
+
+    def shift_ref(ref: str) -> str:
+        m = _COL_RANGE_RE.match(ref)
+        if m:
+            return f"{m[1]}{shift_col(m[2])}:{m[3]}{shift_col(m[4])}"
+        return _CELL_REF_RE.sub(
+            lambda m: f"{m[1]}{shift_col(m[2])}{m[3]}{m[4]}", ref
+        )
+
+    for row in ws.iter_rows():
+        for cell in row:
+            v = cell.value
+            if not isinstance(v, str) or not v.startswith("="):
+                continue
+            tok = Tokenizer(v)
+            changed = False
+            for t in tok.items:
+                if (
+                    t.type == Token.OPERAND
+                    and t.subtype == Token.RANGE
+                    and "!" not in t.value
+                ):
+                    new_val = shift_ref(t.value)
+                    if new_val != t.value:
+                        t.value = new_val
+                        changed = True
+            if changed:
+                cell.value = "=" + "".join(t.value for t in tok.items)
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def write_formula_cashflow_excel(
@@ -428,6 +475,9 @@ def write_formula_cashflow_excel(
 
     # ── 4. Insert Pattern column at D in Cashflow, shifting weeks to E+ ───────
     ws.insert_cols(_PATTERN_COL)
+    # openpyxl does not rewrite formulas on insert — fix same-sheet refs
+    # (WEEKLY TOTAL, CUMULATIVE TOTAL, inflows, cash position, interest, …)
+    _shift_intra_sheet_col_refs(ws, _PATTERN_COL)
     # Fix cross-sheet Cashflow! refs in all other sheets (incl. Timing row 3/4 headers)
     _shift_cashflow_col_refs(wb, _PATTERN_COL)
 

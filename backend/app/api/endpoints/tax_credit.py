@@ -1,5 +1,7 @@
+import io
 from datetime import datetime
 
+import openpyxl
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -376,7 +378,7 @@ async def download_template_excel(template_name: str, db: Session = Depends(get_
         non_prov_default, pl_default, fl_default, psl_default, sp_default, fsl_default = defaults
         data.append({
             "account_code": row.account_code,
-            "description": (row.description or "").strip() or BIBLE_DESCRIPTIONS.get(row.account_code, ""),
+            "description": BIBLE_DESCRIPTIONS.get(row.account_code, ""),
             "is_non_prov": row.is_non_prov if row.is_non_prov is not None else non_prov_default,
             "prov_labour_pct": row.prov_labour_pct if row.prov_labour_pct is not None else pl_default,
             "fed_labour_pct": row.fed_labour_pct if row.fed_labour_pct is not None else fl_default,
