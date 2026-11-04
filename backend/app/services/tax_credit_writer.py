@@ -3766,8 +3766,8 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     # ── Row 25: Total ──────────────────────────────────────────────────────────
     R_TOTAL = 25
     _cell(R_TOTAL, 2, "Total",           font=_CAL_BOLD)
-    _cell(R_TOTAL, 3, "='Breakdown'!C8", font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_TOTAL, 4, "='Breakdown'!C8", font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_TOTAL, 3, "=SUM(C11:C24)",   font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_TOTAL, 4, "=SUM(D11:D24)",   font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_TOTAL, 5, 1.0,               font=_CAL_BOLD, align=_RIGHT, fmt=FMT_PCT)
 
     # ── Row 26: blank bottom padding (inside box) ─────────────────────────────
