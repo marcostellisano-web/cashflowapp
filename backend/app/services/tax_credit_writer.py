@@ -3691,19 +3691,19 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     R_BC1 = 12
     _cell(R_BC1, 2, '=IF(Sales!B4="","",Sales!B4)')
     _cell(R_BC1, 4, f'=IF(Sales!B4="","",IFERROR(Sales!E4,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC1, 3, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/\'Breakdown\'!$C$3,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC1, 3, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/$D$7,0))', align=_RIGHT, fmt=FMT_NUM)
     _cell(R_BC1, 5, f'=IF(D{R_BC1}="","",IFERROR(D{R_BC1}/$D$5,0))', align=_RIGHT, fmt=FMT_PCT)
 
     R_BC2 = 13
     _cell(R_BC2, 2, '=IF(Sales!B5="","",Sales!B5)')
     _cell(R_BC2, 4, f'=IF(Sales!B5="","",IFERROR(Sales!E5,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC2, 3, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/\'Breakdown\'!$C$3,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC2, 3, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/$D$7,0))', align=_RIGHT, fmt=FMT_NUM)
     _cell(R_BC2, 5, f'=IF(D{R_BC2}="","",IFERROR(D{R_BC2}/$D$5,0))', align=_RIGHT, fmt=FMT_PCT)
 
     R_BC3 = 14
     _cell(R_BC3, 2, '=IF(Sales!B6="","",Sales!B6)')
     _cell(R_BC3, 4, f'=IF(Sales!B6="","",IFERROR(Sales!E6,0))', align=_RIGHT, fmt=FMT_NUM)
-    _cell(R_BC3, 3, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/\'Breakdown\'!$C$3,0))', align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_BC3, 3, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/$D$7,0))', align=_RIGHT, fmt=FMT_NUM)
     _cell(R_BC3, 5, f'=IF(D{R_BC3}="","",IFERROR(D{R_BC3}/$D$5,0))', align=_RIGHT, fmt=FMT_PCT)
 
     # ── Rows 15-16: blank ─────────────────────────────────────────────────────
@@ -3714,7 +3714,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     R_ONT = 17
     _cell(R_ONT, 2, "Ontario Production Tax Credit")
     _cell(R_ONT, 3,
-          "=IFERROR('Ontario - OFTTC'!$C$29/'Breakdown'!$C$3,0)",
+          "=IFERROR('Ontario - OFTTC'!$C$29/$D$7,0)",
           align=_RIGHT, fmt=FMT_NUM)
     _cell(R_ONT, 4, "='Ontario - OFTTC'!$C$29", align=_RIGHT, fmt=FMT_NUM)
     _cell(R_ONT, 5,
@@ -3724,7 +3724,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     R_FED = 18
     _cell(R_FED, 2, "Federal Production Tax Credit")
     _cell(R_FED, 3,
-          "=IFERROR('Ontario - OFTTC'!$C$53/'Breakdown'!$C$3,0)",
+          "=IFERROR('Ontario - OFTTC'!$C$53/$D$7,0)",
           align=_RIGHT, fmt=FMT_NUM)
     _cell(R_FED, 4, "='Ontario - OFTTC'!$C$53", align=_RIGHT, fmt=FMT_NUM)
     _cell(R_FED, 5,
@@ -3745,7 +3745,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     )
     _cell(R_DIST, 2, "DISTRIBUTION GUARANTEE", font=_CAL_BOLD)
     _cell(R_DIST, 3,
-          f"=IFERROR(D{R_DIST}/'Breakdown'!$C$3,0)",
+          f"=IFERROR(D{R_DIST}/$D$7,0)",
           font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_DIST, 4, dist_d, font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_DIST, 5,
