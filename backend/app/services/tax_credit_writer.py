@@ -3714,7 +3714,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     R_ONT = 17
     _cell(R_ONT, 2, "Ontario Production Tax Credit")
     _cell(R_ONT, 3,
-          "=IFERROR('Ontario - OFTTC'!$C$29/$D$7,0)",
+          f"=IFERROR(D{R_ONT}/$D$7,0)",
           align=_RIGHT, fmt=FMT_NUM)
     _cell(R_ONT, 4, "='Ontario - OFTTC'!$C$29", align=_RIGHT, fmt=FMT_NUM)
     _cell(R_ONT, 5,
@@ -3724,7 +3724,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     R_FED = 18
     _cell(R_FED, 2, "Federal Production Tax Credit")
     _cell(R_FED, 3,
-          "=IFERROR('Ontario - OFTTC'!$C$53/$D$7,0)",
+          f"=IFERROR(D{R_FED}/$D$7,0)",
           align=_RIGHT, fmt=FMT_NUM)
     _cell(R_FED, 4, "='Ontario - OFTTC'!$C$53", align=_RIGHT, fmt=FMT_NUM)
     _cell(R_FED, 5,
