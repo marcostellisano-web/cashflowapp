@@ -53,7 +53,7 @@ def test_tax_credit_workbook_contains_detail_budget_tab_with_group_totals():
     assert "Detail Budget" in wb.sheetnames
     ws = wb["Detail Budget"]
 
-    values = [row for row in ws.iter_rows(min_row=1, max_col=11, values_only=True)]
+    values = [row for row in ws.iter_rows(min_row=1, max_col=13, values_only=True)]
     flat_values = [v for row in values for v in row if isinstance(v, str)]
 
     assert any("02.00" in v for v in flat_values)
@@ -62,12 +62,12 @@ def test_tax_credit_workbook_contains_detail_budget_tab_with_group_totals():
 
     row_0200_total = next(i for i, row in enumerate(values, start=1) if row[0] == "02.00 TOTAL")
     row_0300_total = next(i for i, row in enumerate(values, start=1) if row[0] == "03.00 TOTAL")
-    assert values[row_0200_total - 1][10] == f"=SUM(K{row_0200_total - 1}:K{row_0200_total - 1})"
-    assert values[row_0300_total - 1][10] == f"=SUM(K{row_0300_total - 1}:K{row_0300_total - 1})"
+    assert values[row_0200_total - 1][12] == f"=SUM(M{row_0200_total - 1}:M{row_0200_total - 1})"
+    assert values[row_0300_total - 1][12] == f"=SUM(M{row_0300_total - 1}:M{row_0300_total - 1})"
 
     total_a_row = next(i for i, row in enumerate(values, start=1) if row[0] == "TOTAL \"A\" – ABOVE THE LINE")
-    total_a_formula = values[total_a_row - 1][10]
-    assert total_a_formula == f"=SUM(K{row_0200_total},K{row_0300_total})"
+    total_a_formula = values[total_a_row - 1][12]
+    assert total_a_formula == f"=SUM(M{row_0200_total},M{row_0300_total})"
 
     # Columns A/B/C should be left-justified for detail rows
     assert ws["A3"].alignment.horizontal == "left"
@@ -87,7 +87,7 @@ def test_tax_credit_workbook_contains_detail_budget_tab_with_group_totals():
     assert ws["B3"].border.left is None or ws["B3"].border.left.style is None
     assert ws["B3"].border.right is None or ws["B3"].border.right.style is None
     assert ws["A2"].border.left.style == "thin"
-    assert ws["K3"].border.right.style == "thin"
+    assert ws["M3"].border.right.style == "thin"
 
     # Header row uses light gray fill with only an outer box border
     assert ws["A1"].fill.fgColor.rgb == "00F2F2F2"
@@ -95,7 +95,7 @@ def test_tax_credit_workbook_contains_detail_budget_tab_with_group_totals():
     assert ws["A1"].border.left.style == "thin"
     assert ws["B1"].border.left is None or ws["B1"].border.left.style is None
     assert ws["B1"].border.right is None or ws["B1"].border.right.style is None
-    assert ws["K1"].border.right.style == "thin"
+    assert ws["M1"].border.right.style == "thin"
 
 
 def test_tax_credit_workbook_bible_drives_breakout_basis_columns():
