@@ -3737,7 +3737,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
     # ── Row 21: DISTRIBUTION GUARANTEE = budget − licenses − tax credits ──────
     R_DIST = 21
     dist_d = (
-        f"='Breakdown'!$C$7"
+        f"=$D$5"
         f"-IF(ISNUMBER(D{R_BC1}),D{R_BC1},0)"
         f"-IF(ISNUMBER(D{R_BC2}),D{R_BC2},0)"
         f"-IF(ISNUMBER(D{R_BC3}),D{R_BC3},0)"
