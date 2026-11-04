@@ -3656,7 +3656,7 @@ def _write_fs_sheet(ws, title: str, num_episodes: int | None = None, duration_mi
 
     _cell(R_PER_EP, 2, "Total budget per episode", font=_CAL_BOLD)
     _cell(R_PER_EP, 3)
-    _cell(R_PER_EP, 4, "='Breakdown'!C8",          font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
+    _cell(R_PER_EP, 4, "=IFERROR(D5/D7,0)",        font=_CAL_BOLD, align=_RIGHT, fmt=FMT_NUM)
     _cell(R_PER_EP, 5)
 
     _cell(R_N_EPS, 2, "Number of episodes",       font=_CAL_BOLD)
